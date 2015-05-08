@@ -2,9 +2,9 @@ import os
 import time
 import fnmatch
 
-import IPython.display
 import astropy
-from pandas import DataFrame
+
+import IPython.display
 import IPython.display
 from IPython.display import HTML, display
 
@@ -16,9 +16,13 @@ from padre.render import render_title, render_table
 
 __version__ = '0.1'
 
-NOTEBOOK_DIR = os.environ.get('RVNB_NOTEBOOK_DIR', '/notebooks')
-RESULTDIR = os.environ.get('RVNB_DATA_DIR', '/notebooks/data')
-ORIGINAL_RESULTDIR = os.environ.get('RVNB_ORIGINAL_DIR', '/notebooks/data')
+# when running inside a docker containers, these are used to tell padre
+# where the results directory is mounted, and what its original path on 
+# the host is. Note that rendered paths will display the _host_ path rather 
+# than the internal container path (to avoid confusing the user),
+# hence the need to know ORIGINAL_RESULTDIR
+RESULTDIR = os.environ.get('PADRE_DATA_DIR', None)
+ORIGINAL_RESULTDIR = os.environ.get('PADRE_ORIGINAL_DIR', None)
 
 WIDTH = None  # globally fix a plot width (inches)
 MINCOL = 2  # default min # of columns to display in thumbnail view
@@ -62,20 +66,7 @@ class FileList(list):
             return 0
 
         list.sort(self, cmp=compare, reverse='r' in opt)
-        self._init_df()
         return self
-
-    def _init_df(self):
-        if self._extcol:
-            df_files = [(f.basename, f.ext, f.size, f.mtime_str) for f in self]
-            self._df = DataFrame(df_files,
-                                 columns=('name', 'ext', 'size',
-                                          'modified')) if df_files else None
-        else:
-            df_files = [(f.name, f.size, f.mtime_str) for f in self]
-            self._df = DataFrame(
-                df_files,
-                columns=('name', 'size', 'modified')) if df_files else None
 
     def _repr_html_(self, ncol=1):
         html = render_title(self._title)
@@ -121,7 +112,7 @@ class DataDir(object):
     This class represents a directory in the data folder
     """
 
-    def __init__(self, name, files=[], root=""):
+    def __init__(self, name, files=[], root=".", original_root=None):
         self.fullpath = name
         if root and name.startswith(root):
             name = name[len(root):]
@@ -134,7 +125,7 @@ class DataDir(object):
 
         # our title, in HTML
         path = self.path if self.path is not "." else ""
-        self._title = os.path.join(ORIGINAL_RESULTDIR, path)
+        self._title = os.path.join(original_root or root, path)
 
         # make list of DataFiles and sort by time
         self.files = FileList([data_file(os.path.join(self.fullpath, f),
@@ -167,16 +158,16 @@ class DataDir(object):
 
 
 class DirList(list):
-    def __init__(self, rootfolder=None, pattern="*", scan=True, title=None):
-        self._root = rootfolder = rootfolder or RESULTDIR
-        self._title = title or ORIGINAL_RESULTDIR
-        if scan:
-            for dir_, _, files in os.walk(rootfolder):
-                basename = os.path.basename(dir_)
-                if fnmatch.fnmatch(basename,
-                                   pattern) and not basename.startswith("."):
-                    self.append(DataDir(dir_, files, root=rootfolder))
-            self._sort()
+    def __init__(self, rootfolder=None, pattern="*", title=None, original_rootfolder=None):
+        self._root = rootfolder = rootfolder or os.environ.get('PADRE_DATA_DIR') or os.path.realpath('.')
+        self._original_root = original_rootfolder or os.environ.get('PADRE_HOST_DATA_DIR') or rootfolder 
+        self._title = title or original_rootfolder
+        for dir_, _, files in os.walk(rootfolder):
+	        basename = os.path.basename(dir_)
+	        if fnmatch.fnmatch(basename,
+	                           pattern) and not basename.startswith("."):
+	            self.append(DataDir(dir_, files, root=rootfolder, original_root=original_rootfolder))
+        self._sort()
 
     def _sort(self):
         self.sort(cmp=lambda x, y: cmp(x.name, y.name))

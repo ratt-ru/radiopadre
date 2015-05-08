@@ -94,8 +94,10 @@ class FITSFile(padre.file.FileBase):
             x0, y0 = int(dims[xyaxes[0]] / 2), int(dims[xyaxes[1]] / 2)
             xz, yz = int(dims[xyaxes[0]] / (zoom * 2)), int(dims[xyaxes[1]] /
                                                             (zoom * 2))
-            baseslice[xyaxes[0]] = slice(x0 - xz, x0 + xz)
-            baseslice[xyaxes[1]] = slice(y0 - yz, y0 + yz)
+            # baseslice[xyaxes[0]] = slice(x0 - xz, x0 + xz)
+            # baseslice[xyaxes[1]] = slice(y0 - yz, y0 + yz)
+            xlim = x0 - xz, x0 + xz
+            ylim = y0 - yz, y0 + yz
             status += " zoom x%s" % zoom
 
         # the set of axes that we need to index into -- remove the XY axes first
@@ -126,6 +128,8 @@ class FITSFile(padre.file.FileBase):
             if type(unroll) is str:
                 unroll = axis_type.index(
                     unroll) if unroll in axis_type else None
+                if dims[unroll] < 2:
+                    unroll = None
             if unroll is not None:
                 if unroll in remaining_axes:
                     remaining_axes.remove(unroll)
@@ -163,6 +167,9 @@ class FITSFile(padre.file.FileBase):
             plt.ylabel(axis_type[xyaxes[1]], fontsize=fs or fs_axis)
             plt.title(title, fontsize=fs or fs_title)
             fig and fig.axes[0].tick_params(labelsize=fs or fs_axis)
+            if zoom:
+            	plt.xlim(*xlim)
+            	plt.ylim(*ylim)
         else:
             status += ", unrolling " + axis_type[unroll]
             nrow, ncol, width = padre.file.compute_thumb_geometry(dims[unroll],
@@ -183,4 +190,7 @@ class FITSFile(padre.file.FileBase):
                 if colorbar:
                     cbar = plt.colorbar()
                     cbar.ax.tick_params(labelsize=fs or fs_colorbar)
+	            if zoom:
+	            	plt.xlim(*xlim)
+	            	plt.ylim(*ylim)
         return status

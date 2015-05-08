@@ -1,7 +1,7 @@
 ipython>3.0
 matplotlib
 pyfits
-pandas
+aplpy
 tornado>=4.0
 jsonschema
 terminado
