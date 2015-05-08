@@ -9,8 +9,9 @@ Usage
 -----
 
 ```
+$ apt-get install imagemagick
 $ pip install -r requirements.txt
-$ export PYTHONPATH=$PYTHONPATH:/home/USER/padre  # or wherever you've cloned the repo
+$ export PYTHONPATH=PYTHONPATH:/home/USER/padre  # or wherever you've cloned the repo
 $ ipython notebook
 ```
 
