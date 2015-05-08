@@ -25,5 +25,5 @@ Copy example.ipynb or view-everything.ipynb into your data directory, and start 
 Using with docker
 -----------------
 
-If you can't do the pip install above for whatever reason, you can use padre with the radioastro/notebookdocker container. Use the ```run-padre-docker.sh``` script to run it with docker.
+If you can't do the pip install above for whatever reason, you can use padre with the radioastro/notebook docker container. Use the ```run-padre-docker.sh``` script to run it with docker.
 
