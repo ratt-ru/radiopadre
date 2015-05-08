@@ -154,7 +154,7 @@ class DataDir(object):
         return IPython.display.display(self)
 
     def _repr_html_(self):
-        return render_title(self._title) + self.files._repr_html_()
+        return self.files._repr_html_()
 
 
 class DirList(list):
