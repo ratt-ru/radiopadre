@@ -5,7 +5,7 @@ Python Astronomy Data & Results Examiner
 Functions and helpers for displaying FITS images etc. in an ipython notebook.
 
 
-usage
+Usage
 -----
 
 ```
@@ -14,4 +14,16 @@ $ export PYTHONPATH=$PYTHONPATH:/home/USER/padre  # or wherever you've cloned th
 $ ipython notebook
 ```
 
-Browse to http://localhost:8888, or whatever port your ipython notebooksays it binds to. Go into the notebooks folder and open the example notebook.
+Browse to http://localhost:8888, or whatever port your ipython notebooksays it binds to. Go into the 
+notebooks folder and open the example notebook.
+
+Using with your own data
+------------------------
+
+Copy example.ipynb into your data directory, and start ipython notebook there. You will probably want to customize it for your data. Refer to extended-example.ipynb, and to the other notebooks in the repo for inspiration.
+
+Using with docker
+-----------------
+
+If you can't do the pip installabove for whatever reason, you can use padre with the radioastro/notebookdocker container. Use the ```run-padre-docker.sh``` script to run it with docker.
+
