@@ -169,8 +169,7 @@ class FITSFile(raviz.file.FileBase):
                                                                   ncol, mincol,
                                                                   maxcol, width,
                                                                   maxwidth)
-            plt.figure(figsize=(width * ncol, width * nrow),
-                             dpi=raviz.DPI)
+            plt.figure(figsize=(width * ncol, width * nrow), dpi=raviz.DPI)
             for iplot in range(dims[unroll]):
                 ax = plt.subplot(nrow, ncol, iplot + 1)
                 ax.tick_params(labelsize=fs or fs_axis)

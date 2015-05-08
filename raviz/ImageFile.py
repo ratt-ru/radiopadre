@@ -9,14 +9,8 @@ import raviz.file
 
 class ImageFile(raviz.file.FileBase):
     @staticmethod
-    def _show_thumbs(images,
-                     width=None,
-                     ncol=None,
-                     maxwidth=None,
-                     mincol=None,
-                     maxcol=None,
-                     title=None,
-                     **kw):
+    def _show_thumbs(images, width=None, ncol=None, maxwidth=None, mincol=None,
+                     maxcol=None, title=None, **kw):
 
         if not images:
             return None
@@ -42,14 +36,14 @@ class ImageFile(raviz.file.FileBase):
                     fails += 1
             if not os.path.exists(thumb) or os.path.getmtime(
                     thumb) < os.path.getmtime(image):
-                if os.system("convert -thumbnail %d %s %s" % (
-                npix, image, thumb)):
+                if os.system("convert -thumbnail %d %s %s" % (npix, image,
+                                                              thumb)):
                     fails += 1
 
         html = raviz.render_title(title) + \
-               """<br>
-               <table style="border: 0px; text-align: left">\n
-               """
+                   """<br>
+                   <table style="border: 0px; text-align: left">\n
+                   """
         if fails:
             html += "(WARNING: %d thumbnails failed to generate, check console for errors)<br>\n" % fails
 

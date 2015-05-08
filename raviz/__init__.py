@@ -131,19 +131,23 @@ class DataDir(object):
         self.name = self.path = name
         self.mtime = os.path.getmtime(self.fullpath)
         files = [f for f in files if not f.startswith('.')]
+
         # our title, in HTML
-        self._title = os.path.join(ORIGINAL_RESULTDIR, self.path
-        if self.path is not "." else "")
+        path = self.path if self.path is not "." else ""
+        self._title = os.path.join(ORIGINAL_RESULTDIR, path)
+
         # make list of DataFiles and sort by time
         self.files = FileList([data_file(os.path.join(self.fullpath, f),
-                                        root=root) for f in files],
+                                         root=root) for f in files],
                               title=self._title)
+
         # make separate lists of fits files and image files
-        self.fits = FileList([f for f in self.files
-                              if type(f) is FITSFile],
+        files = [f for f in self.files if type(f) is FITSFile]
+        self.fits = FileList(files,
                              extcol=False,
                              thumbs=FITSFile._show_thumbs,
-                             title="FITS files, " + self._title);
+                             title="FITS files, " + self._title)
+
         self.images = FileList([f for f in self.files
                                 if type(f) is ImageFile],
                                extcol=False,
@@ -187,9 +191,8 @@ class DirList(list):
             dirlist.append(
                 (dir_.name, nfits, nimg, nother,
                  time.strftime(TIMEFORMAT, time.localtime(dir_.mtime))))
-        html += render_table(dirlist,
-                            labels=(
-                            "name", "# FITS", "# img", "# others", "modified"))
+        html += render_table(dirlist, labels=("name", "# FITS", "# img",
+                                              "# others", "modified"))
         return html
 
     def show(self):
@@ -201,8 +204,8 @@ class DirList(list):
 
     def __getslice__(self, *slc):
         newlist = DirList(self._root, scan=False,
-                          title="%s[%s]" % (
-                          self._title, ":".join(map(str, slc))))
+                          title="%s[%s]" % (self._title,
+                                            ":".join(map(str, slc))))
         newlist += list.__getslice__(self, *slc)
         newlist._sort()
         return newlist

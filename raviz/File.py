@@ -60,10 +60,10 @@ def compute_thumb_geometry(N, ncol, mincol, maxcol, width, maxwidth):
     """
     Works out thumbnail geometry.
 
-     Given nfiles thumbsnails to display, how many rows and columns do we need 
-     to make, and how wide do we need to make the plot?
+    Given nfiles thumbsnails to display, how many rows and columns do we need
+    to make, and how wide do we need to make the plot?
 
-     args:
+    args:
          N:  number of thumbnails to display
          ncol: use a fixed number of columns. If 0, uses mincol/maxcol.
          mincol: use a minimum of that many columns, even if N is fewer.
@@ -85,5 +85,5 @@ def compute_thumb_geometry(N, ncol, mincol, maxcol, width, maxwidth):
     # number of rows
     nrow = int(math.ceil(N / float(ncol)))
     # individual thumbnail width
-    width = width or ( (maxwidth or raviz.WIDTH or 16) / float(ncol) )
+    width = width or ((maxwidth or raviz.WIDTH or 16) / float(ncol))
     return nrow, ncol, width
