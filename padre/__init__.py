@@ -1,6 +1,6 @@
-import os
 import time
 import fnmatch
+import os
 
 import astropy
 
@@ -105,6 +105,7 @@ class FileList(list):
                         extcol=self._extcol,
                         thumbs=self._thumbs,
                         title="%s[%s]" % (self._title, ":".join(map(str, slc))))
+                        
 
 
 class DataDir(object):
@@ -135,13 +136,11 @@ class DataDir(object):
         # make separate lists of fits files and image files
         files = [f for f in self.files if type(f) is FITSFile]
         self.fits = FileList(files,
-                             extcol=False,
                              thumbs=FITSFile._show_thumbs,
                              title="FITS files, " + self._title)
 
         self.images = FileList([f for f in self.files
                                 if type(f) is ImageFile],
-                               extcol=False,
                                thumbs=ImageFile._show_thumbs,
                                title="Images, " + self._title)
 
@@ -158,14 +157,16 @@ class DataDir(object):
 
 
 class DirList(list):
-    def __init__(self, rootfolder=None, pattern="*", title=None, original_rootfolder=None):
+    def __init__(self, rootfolder=None, pattern="*", title=None, original_rootfolder=None, scan=True):
         self._root = rootfolder = rootfolder or os.environ.get('PADRE_DATA_DIR') or os.path.realpath('.')
         self._original_root = original_rootfolder or os.environ.get('PADRE_HOST_DATA_DIR') or rootfolder 
-        self._title = title or original_rootfolder
-        for dir_, _, files in os.walk(rootfolder):
-	        basename = os.path.basename(dir_)
-	        if fnmatch.fnmatch(basename,
-	                           pattern) and not basename.startswith("."):
+        self._title = title or self._original_root
+        if scan:
+            for dir_, _, files in os.walk(rootfolder):
+    	        basename = os.path.basename(dir_)
+    	        if fnmatch.fnmatch(basename,pattern) \
+   	             and not basename.startswith(".") \
+	             and basename != "padre-thumbnails":
 	            self.append(DataDir(dir_, files, root=rootfolder, original_root=original_rootfolder))
         self._sort()
 

@@ -21,9 +21,9 @@ class ImageFile(padre.file.FileBase):
 
         # make list of thumbnail,filename pairs
         filelist = [(os.path.basename(img.fullpath),
-                     "%s/thumbnails/%d.%s" % (os.path.dirname(img.fullpath),
-                                              npix,
-                                              os.path.basename(img.fullpath)),
+                     "%s/padre-thumbnails/%d.%s" % (os.path.dirname(img.fullpath),
+                                                    npix,
+                                                    os.path.basename(img.fullpath)),
                      img.fullpath)
                     for img in images]
         filelist.sort()

@@ -1,6 +1,7 @@
 #!/bin/bash 
 
-export PYTHONPATH=`pwd`
+# add the directory where run-padre.sh resides to PYTHONPATH
+export PYTHONPATH=$PYTHONPATH:${0%/*}
 
 if [ "$SSH_CLIENT" != "" ]; then
   opts="--no-browser"
