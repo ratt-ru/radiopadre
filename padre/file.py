@@ -2,7 +2,7 @@ import os
 import time
 import math
 
-import raviz
+import padre
 
 
 class FileBase(object):
@@ -19,7 +19,7 @@ class FileBase(object):
         self.basename, self.ext = os.path.splitext(self.name)
         self.size = os.path.getsize(self.fullpath)
         self.mtime = os.path.getmtime(self.fullpath)
-        self.mtime_str = time.strftime(raviz.TIMEFORMAT,
+        self.mtime_str = time.strftime(padre.TIMEFORMAT,
                                        time.localtime(self.mtime))
         # human-friendly size
         if self.size > 0:
@@ -46,8 +46,8 @@ def data_file(path, root=""):
     """
     Creates DataFile object of appropriate type, based on filename extension
     """
-    from raviz.fitsfile import FITSFile
-    from raviz.imagefile import ImageFile
+    from padre.fitsfile import FITSFile
+    from padre.imagefile import ImageFile
     ext = os.path.splitext(path)[1]
     if ext.lower() in [".fits", ".fts"]:
         return FITSFile(path, root=root)
@@ -79,11 +79,11 @@ def compute_thumb_geometry(N, ncol, mincol, maxcol, width, maxwidth):
     """
     # figure out number of columns
     if not ncol:
-        mincol = mincol or raviz.MINCOL or 0
-        maxcol = maxcol or raviz.MAXCOL or 8
+        mincol = mincol or padre.MINCOL or 0
+        maxcol = maxcol or padre.MAXCOL or 8
         ncol = max(mincol, min(maxcol, N))
     # number of rows
     nrow = int(math.ceil(N / float(ncol)))
     # individual thumbnail width
-    width = width or ((maxwidth or raviz.WIDTH or 16) / float(ncol))
+    width = width or ((maxwidth or padre.WIDTH or 16) / float(ncol))
     return nrow, ncol, width

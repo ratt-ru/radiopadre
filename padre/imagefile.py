@@ -3,21 +3,21 @@ import os
 import IPython.display
 from IPython.display import HTML, display
 
-import raviz
-import raviz.file
+import padre
+import padre.file
 
 
-class ImageFile(raviz.file.FileBase):
+class ImageFile(padre.file.FileBase):
     @staticmethod
     def _show_thumbs(images, width=None, ncol=None, maxwidth=None, mincol=None,
                      maxcol=None, title=None, **kw):
 
         if not images:
             return None
-        nrow, ncol, width = raviz.file.compute_thumb_geometry(len(images), ncol,
+        nrow, ncol, width = padre.file.compute_thumb_geometry(len(images), ncol,
                                                               mincol, maxcol,
                                                               width, maxwidth)
-        npix = int(raviz.DPI * width)
+        npix = int(padre.DPI * width)
 
         # make list of thumbnail,filename pairs
         filelist = [(os.path.basename(img.fullpath),
@@ -40,7 +40,7 @@ class ImageFile(raviz.file.FileBase):
                                                               thumb)):
                     fails += 1
 
-        html = raviz.render_title(title) + \
+        html = padre.render_title(title) + \
                    """<br>
                    <table style="border: 0px; text-align: left">\n
                    """

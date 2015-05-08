@@ -1,6 +1,6 @@
 import os
 from setuptools import setup
-from raviz import __version__
+from padre import __version__
 
 
 def read(fname):
@@ -8,14 +8,14 @@ def read(fname):
 
 
 setup(
-    name="raviz",
+    name="padre",
     version=__version__,
     author="Gijs Molenaar",
     author_email="gijs@pythonic.nl",
     description=("Helpers for visualizing resultsets in ipython notebook"),
     license="MIT",
     keywords="ipython notebook fits dataset resultset visualisation",
-    url="http://github.com/radio-astro/raviz",
+    url="http://github.com/radio-astro/padre",
     packages=['an_example_pypi_project', 'tests'],
     long_description=read('README'),
     classifiers=[

@@ -8,10 +8,10 @@ from pandas import DataFrame
 import IPython.display
 from IPython.display import HTML, display
 
-from raviz.fitsfile import FITSFile
-from raviz.imagefile import ImageFile
-from raviz.file import data_file
-from raviz.render import render_title, render_table
+from padre.fitsfile import FITSFile
+from padre.imagefile import ImageFile
+from padre.file import data_file
+from padre.render import render_title, render_table
 
 
 __version__ = '0.1'

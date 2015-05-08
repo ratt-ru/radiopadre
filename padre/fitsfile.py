@@ -2,17 +2,17 @@ import pyfits
 from IPython.display import HTML, display
 import matplotlib.pyplot as plt
 
-import raviz
-import raviz.file
+import padre
+import padre.file
 
 
-class FITSFile(raviz.file.FileBase):
+class FITSFile(padre.file.FileBase):
     FITSAxisLabels = dict(STOKES=["I", "Q", "U", "V", "YX", "XY", "YY", "XX",
                                   "LR", "RL", "LL", "RR"],
                           COMPLEX=["real", "imag", "weight"])
 
     def __init__(self, *args, **kw):
-        raviz.file.FileBase.__init__(self, *args, **kw)
+        padre.file.FileBase.__init__(self, *args, **kw)
         self._ff = self._image_data = None
 
     def open(self):
@@ -40,12 +40,12 @@ class FITSFile(raviz.file.FileBase):
         if not fits_files:
             return None
         if title:
-            display(HTML(raviz.render_title(title)))
-        nrow, ncol, width = raviz.file.compute_thumb_geometry(len(fits_files),
+            display(HTML(padre.render_title(title)))
+        nrow, ncol, width = padre.file.compute_thumb_geometry(len(fits_files),
                                                               ncol, mincol,
                                                               maxcol, width,
                                                               maxwidth)
-        plt.figure(figsize=(width * ncol, width * nrow), dpi=raviz.DPI)
+        plt.figure(figsize=(width * ncol, width * nrow), dpi=padre.DPI)
         for iplot, ff in enumerate(fits_files):
             ax = plt.subplot(nrow, ncol, iplot + 1)
             ax.tick_params(labelsize=kw.get('fs_axis', fs))
@@ -148,13 +148,13 @@ class FITSFile(raviz.file.FileBase):
         data = ff[0].data.transpose()
 
         # figure out image geometry and make subplots
-        nrow, ncol, width = raviz.file.compute_thumb_geometry(
+        nrow, ncol, width = padre.file.compute_thumb_geometry(
             1 if unroll is None else dims[unroll],
             ncol, mincol, maxcol, width, maxwidth)
         if unroll is None:
             # show single image
             fig = make_figure and plt.figure(figsize=(width, width),
-                                             dpi=raviz.DPI)
+                                             dpi=padre.DPI)
             plt.imshow(data[tuple(baseslice)], vmin=vmin, vmax=vmax, cmap=cmap)
             if colorbar:
                 cbar = plt.colorbar()
@@ -165,11 +165,11 @@ class FITSFile(raviz.file.FileBase):
             fig and fig.axes[0].tick_params(labelsize=fs or fs_axis)
         else:
             status += ", unrolling " + axis_type[unroll]
-            nrow, ncol, width = raviz.file.compute_thumb_geometry(dims[unroll],
+            nrow, ncol, width = padre.file.compute_thumb_geometry(dims[unroll],
                                                                   ncol, mincol,
                                                                   maxcol, width,
                                                                   maxwidth)
-            plt.figure(figsize=(width * ncol, width * nrow), dpi=raviz.DPI)
+            plt.figure(figsize=(width * ncol, width * nrow), dpi=padre.DPI)
             for iplot in range(dims[unroll]):
                 ax = plt.subplot(nrow, ncol, iplot + 1)
                 ax.tick_params(labelsize=fs or fs_axis)
