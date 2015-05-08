@@ -20,10 +20,10 @@ notebooks folder and open the example notebook.
 Using with your own data
 ------------------------
 
-Copy example.ipynb into your data directory, and start ipython notebook there. You will probably want to customize it for your data. Refer to extended-example.ipynb, and to the other notebooks in the repo for inspiration.
+Copy example.ipynb or view-everything.ipynb into your data directory, and start ipython notebook there. You will probably want to customize it for your data. Refer to extended-example.ipynb, and to the other notebooks in the repo for inspiration.
 
 Using with docker
 -----------------
 
-If you can't do the pip installabove for whatever reason, you can use padre with the radioastro/notebookdocker container. Use the ```run-padre-docker.sh``` script to run it with docker.
+If you can't do the pip install above for whatever reason, you can use padre with the radioastro/notebookdocker container. Use the ```run-padre-docker.sh``` script to run it with docker.
 
