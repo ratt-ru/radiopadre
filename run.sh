@@ -2,4 +2,4 @@
 
 export PYTHONPATH=`pwd`
 
-ipython notebook --notebook-dir=notebooks
+ipython notebook --notebook-dir=.
