@@ -28,6 +28,40 @@ class FITSFile(padre.file.FileBase):
         print self.path, "x".join(sizes), ",".join(axes)
 
     @staticmethod
+    def _show_summary (fits_files,title=None,showpath=False):
+        if not fits_files:
+            return None
+        if title:
+            display(HTML(padre.render_title(title)))
+        labels = "name", "ext", "size", "modified"
+        data = []
+        for ff in fits_files:
+            name = ff.path if showpath else ff.name
+            size = resolution = axes = "?"
+            try:
+                hdr = pyfits.open(ff.fullpath)[0].header
+                naxis = hdr.get("NAXIS")
+                size = "&times;".join([str(hdr.get("NAXIS%d"%i)) for i in range(1,naxis+1)])
+                axes = ",".join([hdr.get("CTYPE%d"%i,"?").split("-",1)[0] for i in range(1,naxis+1)])
+                delt = [ abs(hdr.get("CDELT%d"%i,0)) for i in 1,2 ]
+                resolution = []
+                if all(delt):
+                    if delt[0] == delt[1]:
+                        delt = [ delt[0] ]
+                    for d in delt:
+                        if d >= 1:
+                            resolution.append("%.1f&deg;"%d)
+                        elif d >= 1/60.:
+                            resolution.append("%.1f'"%(d*60))
+                        else:
+                            resolution.append("%.1g\""%(d*3600))
+                resolution = "&times;&deg;".join(resolution)
+            except:
+                traceback.print_exception()
+            data += [ ((ff.path if showpath else ff.name), size, resolution, axes, ff.mtime_str) ]
+        display(HTML(padre.render_table(data, labels=("name", "size", "res", "axes", "modified"))))
+
+    @staticmethod
     def _show_thumbs(fits_files,
                      width=None,
                      ncol=None,
@@ -36,6 +70,7 @@ class FITSFile(padre.file.FileBase):
                      maxcol=None,
                      title=None,
                      fs='small',
+                     showpath=False,
                      **kw):
         if not fits_files:
             return None
@@ -99,6 +134,9 @@ class FITSFile(padre.file.FileBase):
             xlim = x0 - xz, x0 + xz
             ylim = y0 - yz, y0 + yz
             status += " zoom x%s" % zoom
+        else:
+            xlim = 0, dims[xyaxes[0]]-1
+            ylim = 0, dims[xyaxes[1]]-1
 
         # the set of axes that we need to index into -- remove the XY axes first
         remaining_axes = set(range(naxis)) - set(xyaxes)
@@ -149,7 +187,7 @@ class FITSFile(padre.file.FileBase):
                 baseslice[remaxis] = i = index.pop(0)
                 status += " " + (axis_labels[remaxis][i])
                 title += " " + (axis_labels[remaxis][i])
-        data = ff[0].data.transpose()
+        data = ff[0].data.T
 
         # figure out image geometry and make subplots
         nrow, ncol, width = padre.file.compute_thumb_geometry(
@@ -159,7 +197,7 @@ class FITSFile(padre.file.FileBase):
             # show single image
             fig = make_figure and plt.figure(figsize=(width, width),
                                              dpi=padre.DPI)
-            plt.imshow(data[tuple(baseslice)], vmin=vmin, vmax=vmax, cmap=cmap)
+            plt.imshow(data[tuple(baseslice)].T, vmin=vmin, vmax=vmax, cmap=cmap)
             if colorbar:
                 cbar = plt.colorbar()
                 cbar.ax.tick_params(labelsize=fs or fs_colorbar)
@@ -167,9 +205,8 @@ class FITSFile(padre.file.FileBase):
             plt.ylabel(axis_type[xyaxes[1]], fontsize=fs or fs_axis)
             plt.title(title, fontsize=fs or fs_title)
             fig and fig.axes[0].tick_params(labelsize=fs or fs_axis)
-            if zoom:
-            	plt.xlim(*xlim)
-            	plt.ylim(*ylim)
+            plt.xlim(*xlim)
+            plt.ylim(*ylim)
         else:
             status += ", unrolling " + axis_type[unroll]
             nrow, ncol, width = padre.file.compute_thumb_geometry(dims[unroll],
@@ -181,7 +218,7 @@ class FITSFile(padre.file.FileBase):
                 ax = plt.subplot(nrow, ncol, iplot + 1)
                 ax.tick_params(labelsize=fs or fs_axis)
                 baseslice[unroll] = iplot
-                plt.imshow(data[tuple(baseslice)], vmin=vmin, vmax=vmax,
+                plt.imshow(data[tuple(baseslice)].T, vmin=vmin, vmax=vmax,
                            cmap=cmap)
                 plt.title(title + " " + axis_labels[unroll][iplot],
                           fontsize=fs or fs_title)
@@ -190,7 +227,6 @@ class FITSFile(padre.file.FileBase):
                 if colorbar:
                     cbar = plt.colorbar()
                     cbar.ax.tick_params(labelsize=fs or fs_colorbar)
-	            if zoom:
-	            	plt.xlim(*xlim)
-	            	plt.ylim(*ylim)
+                plt.xlim(*xlim)
+                plt.ylim(*ylim)
         return status

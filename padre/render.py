@@ -2,7 +2,7 @@ import math
 
 
 def render_title(title):
-    return "<h4>%s</h4>" % title
+    return "<b>%s</b>" % title
 
 
 def render_table(data, labels, ncol=1, links=None):
@@ -31,7 +31,7 @@ def render_table(data, labels, ncol=1, links=None):
                     html += "border-right: 1px double; padding-right: 10px"
                 link = links and links[idatum][i]
                 if link:
-                    html += """"><A HREF=%s>%s</A></td>""" % (link, col)
+                    html += """"><A HREF=/files/%s>%s</A></td>""" % (link, col)
                 else:
                     html += """">%s</td>""" % col
         html += """</tr>\n"""

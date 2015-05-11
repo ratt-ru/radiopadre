@@ -15,8 +15,9 @@ class FileBase(object):
             if path.startswith("/"):
                 path = path[1:]
         self.path = path
-        self.name = os.path.basename(path)
-        self.basename, self.ext = os.path.splitext(self.name)
+        self.name = os.path.basename(self.path)
+        self.basepath, self.ext = os.path.splitext(self.path)
+        self.basename = os.path.basename(self.basepath)
         self.size = os.path.getsize(self.fullpath)
         self.mtime = os.path.getmtime(self.fullpath)
         self.mtime_str = time.strftime(padre.TIMEFORMAT,
