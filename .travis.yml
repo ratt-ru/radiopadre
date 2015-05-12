@@ -1,0 +1,14 @@
+language: python
+python:
+- '2.7'
+install:
+- pip install .
+- pip install -r requirements.txt
+script: nosetests
+deploy:
+  provider: pypi
+  user: gijzelaerr
+  password:
+    secure: nulGM5Tk4L8bp1hhOea+IaECAnSl7qp2R7HLsqjqq0f5NjqBvRGudptG3KssjIZTk9FUhtwIT6JptYil/Im1RbgS6MNzZw5axB0PSUnRdiOWEA5/VG5oAdrePoIpOLSBht5KQGmGEYhMQZUnwSPhZUH43VTv4l1E7RzzynwOIA/3o0O1Sa2C5nxX9OerEtBeg/kE7gninzFAZHsce2+5fyAhGZgokNRqpRfioOC8bdKJKCikNX/pjrzpQL0m6eOrC9yq25zUtRv0lD6CMMaKvpGFMuctIBK6SvmocW7q6NhMpUTJ3bNsQTuvBcfpHgHk4mj3KDV6QbRyUIuzIreImwaGbU0A4ku+bFLVBadxyB7l54ob9KkE+qOT9imx9BWMEeobNjjpQeMwtKTHMMo7RaC3Z9kK9D1g/Dt9y1A4dawPfy6jBxdZ3pzaio1hlA8lliobz/Uv6WxWmIHw9TQR7UF2gUHkiSPhfhPMynGqTJXDvnZsrZTQ3EiAO9i1dwIxbGs/NnBnY+f5WZhx6YNJ8Xhs7mh4v0kyAWKd2OutlsT4Hs2Yb5WlY3YZDd05ZzVCywyzrjPZclEGzMvDHfLmlORDbrtSjTWnbL7aAH0kWSfoCl4i/SZKMhWlCm4DmI7yZZuBzmUX/HKO2rWnLNgR4D8H4M9zz/0GjVl2D9odUYE=
+  on:
+    tags: true
