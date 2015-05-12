@@ -211,7 +211,7 @@ class DirList(list):
                 files = [ f for f in files 
                                 if any([ fnmatch.fnmatch(f,patt) for patt in include_files ]) 
                                 and not any([ fnmatch.fnmatch(f,patt) for patt in exclude_files ]) ]
-                if files:
+                if files or not exclude_empty:
     	            self.append(DataDir(dir_, files, root=rootfolder, original_root=original_rootfolder))
         # set up aggregated file lists
         self.files  = FileList(title=self._title,showpath=True)
