@@ -14,7 +14,7 @@ from radiopadre.file import data_file
 from radiopadre.render import render_title, render_table
 
 
-__version__ = '0.1'
+__version__ = '0.2'
 
 # when running inside a docker containers, these are used to tell radiopadre
 # where the results directory is mounted, and what its original path on
