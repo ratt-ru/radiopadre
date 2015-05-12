@@ -6,9 +6,31 @@ import radiopadre
 
 
 class FileBase(object):
+    """Base class referring to a datafile. Sets up some standard attributes in the constructor.
+
+    Attributes:
+        fullpath:   the full path to the file, e.g. results/dir1/file1.txt
+        path:       path to file relative to root padre directory, e.g. dir1/file1.txt
+        name:       the filename (os.path.basename(path)), e.g. file1.txt
+        ext:        extension with leading dot, e.g. .txt
+        basename:   filename sans extension, e.g. file1
+        basepath:   path+filename sans extension, e.g. dir1/file1
+        mtime:      modification time
+        mtime_str:  string version of mtime
+        size:       size in bytes
+        size_str:   human-readable size string
+    """
+
     _unit_list = zip(['', 'k', 'M', 'G', 'T', 'P'], [0, 0, 1, 2, 2, 2])
 
     def __init__(self, path, root=""):
+        """Construct a datafile and set up standard attributes.
+        
+        Args:
+            path: path to the file
+            root: root folder, will be stripped from beginning of file path if not empty
+
+        """
         self.fullpath = path
         if root and path.startswith(root):
             path = path[len(root):]

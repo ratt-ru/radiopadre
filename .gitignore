@@ -2,3 +2,4 @@ notebooks/.ipynb_checkpoints/
 *.pyc
 data/thumbnails/
 radiopadre.egg-info/
+.idea

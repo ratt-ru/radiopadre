@@ -86,12 +86,12 @@ class FileList(list):
             data = [((df.basepath if self._showpath else df.basename), df.ext,
                      df.size_str, df.mtime_str) for df in
                     self]
-            links = [(df.path, df.path, None, None) for df in self]
+            links = [(df.fullpath, df.fullpath, None, None) for df in self]
         else:
             labels = "name", "size", "modified"
             data = [((df.basepath if self._showpath else df.basename),
                      df.size_str, df.mtime_str) for df in self]
-            links = [(df.path, None, None) for df in self]
+            links = [(df.fullpath, None, None) for df in self]
         html += render_table(data, labels, links=links, ncol=ncol)
         return html
 
@@ -197,7 +197,7 @@ class DirList(list):
         Creates a DirList object corresponding to rootfolder and all its
         subdirectories.
 
-        args:
+        Args:
             include: list of filename patterns to include
             exclude: list of filename patterns to exclude. Trailing slash
                 matches directory names.
@@ -212,10 +212,8 @@ class DirList(list):
                 original_rootfolder or rootfolder by default
             _scan: (for internal use only) if False, directory is not re-scanned
         """
-        self._root = rootfolder = rootfolder or os.environ.get(
-            'PADRE_DATA_DIR') or os.path.realpath('.')
-        self._original_root = original_rootfolder or os.environ.get(
-            'PADRE_HOST_DATA_DIR') or rootfolder
+        self._root = rootfolder = rootfolder or os.environ.get('PADRE_DATA_DIR') or '.'
+        self._original_root = original_rootfolder or os.environ.get('PADRE_HOST_DATA_DIR') or rootfolder
         self._title = title or self._original_root
 
         # setup patterns
@@ -227,10 +225,8 @@ class DirList(list):
         if _scan:
             for dir_, _, files in os.walk(rootfolder):
                 basename = os.path.basename(dir_)
-                if any([fnmatch.fnmatch(basename, patt) for patt in
-                        exclude_dirs]):
+                if dir_ != '.' and any([fnmatch.fnmatch(basename, patt) for patt in exclude_dirs]):
                     continue
-
                 # get files matching include/exclude filters
                 files = [f for f in files
                          if any(

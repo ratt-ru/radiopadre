@@ -40,9 +40,9 @@ class ImageFile(radiopadre.file.FileBase):
                                                               width, maxwidth)
         npix = int(radiopadre.DPI * width)
 
-        # make list of basename, thumbnail, filename  tuples
+        # make list of basename, filename  tuples
         filelist = sorted(
-            [(os.path.basename(img.path), img.path) for img in images])
+            [(os.path.basename(img.fullpath), img.fullpath) for img in images])
 
         # keep track of thumbnail fails
         nfail = 0
