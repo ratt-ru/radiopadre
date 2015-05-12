@@ -17,8 +17,8 @@ from padre.render import render_title, render_table
 __version__ = '0.1'
 
 # when running inside a docker containers, these are used to tell padre
-# where the results directory is mounted, and what its original path on 
-# the host is. Note that rendered paths will display the _host_ path rather 
+# where the results directory is mounted, and what its original path on
+# the host is. Note that rendered paths will display the _host_ path rather
 # than the internal container path (to avoid confusing the user),
 # hence the need to know ORIGINAL_RESULTDIR
 RESULTDIR = os.environ.get('PADRE_DATA_DIR', None)
@@ -136,6 +136,7 @@ class FileList(list):
 
 
 class DataDir(object):
+
     """
     This class represents a directory in the data folder
     """
@@ -169,7 +170,7 @@ class DataDir(object):
                                title="Images, " + self._title)
         self.others = FileList([f for f in self.files
                                 if type(f) is not ImageFile and type(
-                f) is not FITSFile],
+                                    f) is not FITSFile],
                                title="Other files, " + self._title)
 
     def sort(self, opt):
@@ -188,6 +189,7 @@ class DataDir(object):
 
 
 class DirList(list):
+
     def __init__(self, rootfolder=None, include="*.jpg *.png *.fits *.txt",
                  exclude=".* .*/", exclude_empty=True, original_rootfolder=None,
                  title=None, _scan=True):
@@ -232,10 +234,10 @@ class DirList(list):
                 # get files matching include/exclude filters
                 files = [f for f in files
                          if any(
-                        [fnmatch.fnmatch(f, patt) for patt in include_files])
+                             [fnmatch.fnmatch(f, patt) for patt in include_files])
                          and not any(
-                        [fnmatch.fnmatch(f, patt) for patt in exclude_files])]
-                if files:
+                             [fnmatch.fnmatch(f, patt) for patt in exclude_files])]
+                if files or not exclude_empty:
                     self.append(DataDir(dir_, files, root=rootfolder,
                                         original_root=original_rootfolder))
         # set up aggregated file lists

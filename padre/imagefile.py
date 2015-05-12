@@ -1,4 +1,5 @@
 import os
+import traceback
 
 import IPython.display
 from IPython.display import HTML, display
@@ -7,9 +8,29 @@ import padre
 import padre.file
 
 
+def _make_thumbnail(image, width):
+    thumbdir = "%s/padre-thumbnails" % os.path.dirname(image)
+    thumb = os.path.join(thumbdir, "%d.%s" % (width, os.path.basename(image)))
+    # does thumbdir need to be created?
+    if not os.path.exists(thumbdir):
+        if not os.access(os.path.dirname(thumbdir), os.W_OK):
+            return None
+        os.mkdir(thumbdir)
+    # does thumb need to be updated?
+    if not os.path.exists(thumb) or os.path.getmtime(thumb) < os.path.getmtime(image):
+        # can't write? That's ok too
+        if not os.access(thumbdir, os.W_OK) or os.path.exists(thumb) and not os.access(thumb, os.W_OK):
+            return None
+        if os.system("convert -thumbnail %d %s %s" % (width, image, thumb)):
+            raise RuntimeError, "thumbnail convert failed, maybe imagemagick is not installed?"
+    return thumb
+
+
 class ImageFile(padre.file.FileBase):
+
     @staticmethod
     def _show_thumbs(images, width=None, ncol=None, maxwidth=None, mincol=None,
+                     external_thumbs=None,
                      maxcol=None, title=None, **kw):
 
         if not images:
@@ -19,48 +40,53 @@ class ImageFile(padre.file.FileBase):
                                                               width, maxwidth)
         npix = int(padre.DPI * width)
 
-        # make list of thumbnail,filename pairs
-        filelist = [(os.path.basename(img.path),
-                     "%s/padre-thumbnails/%d.%s" % (os.path.dirname(img.path),
-                                                    npix,
-                                                    os.path.basename(img.path)),
-                     img.path)
-                    for img in images]
-        filelist.sort()
+        # make list of basename, thumbnail, filename  tuples
+        filelist = sorted(
+            [(os.path.basename(img.path), img.path) for img in images])
 
-        # (re)generate thumbs if needed
-        fails = 0
-        for _, thumb, image in filelist:
-            if not os.path.exists(os.path.dirname(thumb)):
-                if os.system("mkdir %s" % os.path.dirname(thumb)):
-                    fails += 1
-            if not os.path.exists(thumb) or os.path.getmtime(
-                    thumb) < os.path.getmtime(image):
-                if os.system("convert -thumbnail %d %s %s" % (npix, image,
-                                                              thumb)):
-                    fails += 1
+        # keep track of thumbnail fails
+        nfail = 0
 
         html = padre.render_title(title) + \
-                   """<br>
+            """<br>
                    <table style="border: 0px; text-align: left">\n
                    """
-        if fails:
-            html += "(WARNING: %d thumbnails failed to generate, check console for errors)<br>\n" % fails
-
         for row in range(nrow):
             html += """<tr style="border: 0px; text-align: left">\n"""
             filelist_row = filelist[row * ncol:(row + 1) * ncol]
-            for _, thumb, image in filelist_row:
+            for name, image in filelist_row:
                 html += """<td style="border: 0px; text-align: center">"""
-                html += os.path.basename(image)
+                html += name
                 html += "</td>\n"
             html += """</tr><tr style="border: 0px; text-align: left">\n"""
-            for _, thumb, image in filelist_row:
+            for _, image in filelist_row:
+                if external_thumbs is False:
+                    thumb = None
+                # make thumbnail and record exceptions. Print the first one, as
+                # they really shouldn't happen
+                else:
+                    try:
+                        thumb = _make_thumbnail(image, npix)
+                        if not thumb and external_thumbs:
+                            nfail += 1
+                    except:
+                        if not nfail:
+                            traceback.print_exc()
+                        nfail += 1
+                        thumb = None
                 html += """<td style="border: 0px; text-align: left">"""
-                html += "<a href=/files/%s><img src=/files/%s alt='?'></a>" % (image, thumb)
+                if thumb:
+                    html += "<a href=/files/%s><img src=/files/%s alt='?'></a>" % (
+                        image, thumb)
+                else:
+                    html += "<a href=/files/%s><img src=/files/%s width=%d alt='?'></a>" % (
+                        image, image, npix)
                 html += "</td>\n"
             html += "</tr>\n"
         html += "</table>"
+
+        if nfail:
+            html += "(WARNING: %d thumbnails unexpectedly failed to generate, check console for errors)<br>\n" % nfail
 
         display(HTML(html))
 
