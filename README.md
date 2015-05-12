@@ -4,6 +4,10 @@ Python Astronomy Data & Results Examiner
 
 Functions and helpers for displaying FITS images etc. in an ipython notebook.
 
+[![Build Status](https://travis-ci.org/radio-astro/radiopadre.svg?branch=v0.1.2)](https://travis-ci.org/radio-astro/radiopadre)
+
+[radiopadre on pypi](https://pypi.python.org/pypi/radiopadre)
+
 
 Usage
 -----
