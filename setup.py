@@ -16,8 +16,8 @@ setup(
     license="MIT",
     keywords="ipython notebook fits dataset resultset visualisation",
     url="http://github.com/radio-astro/padre",
-    packages=['an_example_pypi_project', 'tests'],
-    long_description=read('README'),
+    packages=['padre'],
+    long_description=read('README.md'),
     classifiers=[
         "Development Status :: 3 - Alpha",
         "Topic :: Utilities",
