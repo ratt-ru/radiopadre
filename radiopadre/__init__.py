@@ -8,15 +8,15 @@ import IPython.display
 import IPython.display
 from IPython.display import HTML, display
 
-from padre.fitsfile import FITSFile
-from padre.imagefile import ImageFile
-from padre.file import data_file
-from padre.render import render_title, render_table
+from radiopadre.fitsfile import FITSFile
+from radiopadre.imagefile import ImageFile
+from radiopadre.file import data_file
+from radiopadre.render import render_title, render_table
 
 
 __version__ = '0.1'
 
-# when running inside a docker containers, these are used to tell padre
+# when running inside a docker containers, these are used to tell radiopadre
 # where the results directory is mounted, and what its original path on
 # the host is. Note that rendered paths will display the _host_ path rather
 # than the internal container path (to avoid confusing the user),
@@ -222,7 +222,7 @@ class DirList(list):
         include_files = include.split()
         exclude_files = [f for f in exclude.split() if f[-1] != '/']
         exclude_dirs = [f[:-1] for f in exclude.split() if f[-1] == '/'] + [
-            "padre-thumbnails"]
+            "radiopadre-thumbnails"]
         #
         if _scan:
             for dir_, _, files in os.walk(rootfolder):

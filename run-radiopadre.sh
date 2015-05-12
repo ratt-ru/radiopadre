@@ -1,14 +1,14 @@
 #!/bin/bash 
 
 DIR=$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )
-# add the directory where run-padre.sh resides to PYTHONPATH
+# add the directory where run-radiopadre.sh resides to PYTHONPATH
 export PYTHONPATH=$PYTHONPATH:$DIR
 
 port=${PADRE_PORT:-$[$UID+9000]}
 
 if [ "$SSH_CLIENT" != "" ]; then
   opts="--no-browser"
-  echo "Welcome to padre!"
+  echo "Welcome to radiopadre!"
   echo
   echo "I have chosen to use port $port for you. You may set PADRE_PORT if you prefer it to"
   echo "use another port. Note that if another notebook is already open on that port,"

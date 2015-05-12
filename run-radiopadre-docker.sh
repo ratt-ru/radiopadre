@@ -1,12 +1,12 @@
 #!/bin/bash
 
 #
-# run-padre-docker.sh 
+# run-radiopadre-docker.sh
 # 
-# Runs padre notebooks inside a docker container
+# Runs radiopadre notebooks inside a docker container
 #
 
-echo "This will run padre notebooks via docker"
+echo "This will run radiopadre notebooks via docker"
 
 DIR=${1:-`pwd`}
 
@@ -26,7 +26,7 @@ if ! $docker images | grep $docker_image >/dev/null; then
   echo "This is a one-time operation that may take a few minutes, please be patient."
 fi
 
-echo "Will run padre notebooks (via $docker_image) on $DIR."
+echo "Will run radiopadre notebooks (via $docker_image) on $DIR."
 echo "The notebook server will be available on port $port, set PADRE_DOCKER_PORT to override."
 echo "Point your browser to localhost:$port"
 

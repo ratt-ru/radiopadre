@@ -3,17 +3,17 @@ import traceback
 from IPython.display import HTML, display
 import matplotlib.pyplot as plt
 
-import padre
-import padre.file
+import radiopadre
+import radiopadre.file
 
 
-class FITSFile(padre.file.FileBase):
+class FITSFile(radiopadre.file.FileBase):
     FITSAxisLabels = dict(STOKES=["I", "Q", "U", "V", "YX", "XY", "YY", "XX",
                                   "LR", "RL", "LL", "RR"],
                           COMPLEX=["real", "imag", "weight"])
 
     def __init__(self, *args, **kw):
-        padre.file.FileBase.__init__(self, *args, **kw)
+        radiopadre.file.FileBase.__init__(self, *args, **kw)
         self._ff = self._image_data = None
 
     def open(self):
@@ -33,7 +33,7 @@ class FITSFile(padre.file.FileBase):
         if not fits_files:
             return None
         if title:
-            display(HTML(padre.render_title(title)))
+            display(HTML(radiopadre.render_title(title)))
         data = []
         for ff in fits_files:
             name = ff.path if showpath else ff.name
@@ -61,7 +61,7 @@ class FITSFile(padre.file.FileBase):
             except:
                 traceback.print_exc()
             data += [(name, size, resolution, axes, ff.mtime_str)]
-        display(HTML(padre.render_table(data, labels=("name", "size", "res",
+        display(HTML(radiopadre.render_table(data, labels=("name", "size", "res",
                                                       "axes", "modified"))))
 
     @staticmethod
@@ -78,12 +78,12 @@ class FITSFile(padre.file.FileBase):
         if not fits_files:
             return None
         if title:
-            display(HTML(padre.render_title(title)))
-        nrow, ncol, width = padre.file.compute_thumb_geometry(len(fits_files),
+            display(HTML(radiopadre.render_title(title)))
+        nrow, ncol, width = radiopadre.file.compute_thumb_geometry(len(fits_files),
                                                               ncol, mincol,
                                                               maxcol, width,
                                                               maxwidth)
-        plt.figure(figsize=(width * ncol, width * nrow), dpi=padre.DPI)
+        plt.figure(figsize=(width * ncol, width * nrow), dpi=radiopadre.DPI)
         for iplot, ff in enumerate(fits_files):
             ax = plt.subplot(nrow, ncol, iplot + 1)
             ax.tick_params(labelsize=kw.get('fs_axis', fs))
@@ -193,13 +193,13 @@ class FITSFile(padre.file.FileBase):
         data = ff[0].data.T
 
         # figure out image geometry and make subplots
-        nrow, ncol, width = padre.file.compute_thumb_geometry(
+        nrow, ncol, width = radiopadre.file.compute_thumb_geometry(
             1 if unroll is None else dims[unroll],
             ncol, mincol, maxcol, width, maxwidth)
         if unroll is None:
             # show single image
             fig = make_figure and plt.figure(figsize=(width, width),
-                                             dpi=padre.DPI)
+                                             dpi=radiopadre.DPI)
             plt.imshow(
                 data[tuple(baseslice)].T, vmin=vmin, vmax=vmax, cmap=cmap)
             if colorbar:
@@ -213,11 +213,11 @@ class FITSFile(padre.file.FileBase):
             plt.ylim(*ylim)
         else:
             status += ", unrolling " + axis_type[unroll]
-            nrow, ncol, width = padre.file.compute_thumb_geometry(dims[unroll],
+            nrow, ncol, width = radiopadre.file.compute_thumb_geometry(dims[unroll],
                                                                   ncol, mincol,
                                                                   maxcol, width,
                                                                   maxwidth)
-            plt.figure(figsize=(width * ncol, width * nrow), dpi=padre.DPI)
+            plt.figure(figsize=(width * ncol, width * nrow), dpi=radiopadre.DPI)
             for iplot in range(dims[unroll]):
                 ax = plt.subplot(nrow, ncol, iplot + 1)
                 ax.tick_params(labelsize=fs or fs_axis)

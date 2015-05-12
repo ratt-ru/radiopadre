@@ -1,6 +1,6 @@
 import os
 from setuptools import setup
-from padre import __version__
+from radiopadre import __version__
 
 
 def read(fname):
@@ -8,15 +8,15 @@ def read(fname):
 
 
 setup(
-    name="padre",
+    name="radiopadre",
     version=__version__,
     author="Gijs Molenaar",
     author_email="gijs@pythonic.nl",
     description=("Helpers for visualizing resultsets in ipython notebook"),
     license="MIT",
     keywords="ipython notebook fits dataset resultset visualisation",
-    url="http://github.com/radio-astro/padre",
-    packages=['padre'],
+    url="http://github.com/radio-astro/radiopadre",
+    packages=['radiopadre'],
     long_description=read('README.md'),
     classifiers=[
         "Development Status :: 3 - Alpha",

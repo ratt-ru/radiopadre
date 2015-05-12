@@ -4,12 +4,12 @@ import traceback
 import IPython.display
 from IPython.display import HTML, display
 
-import padre
-import padre.file
+import radiopadre
+import radiopadre.file
 
 
 def _make_thumbnail(image, width):
-    thumbdir = "%s/padre-thumbnails" % os.path.dirname(image)
+    thumbdir = "%s/radiopadre-thumbnails" % os.path.dirname(image)
     thumb = os.path.join(thumbdir, "%d.%s" % (width, os.path.basename(image)))
     # does thumbdir need to be created?
     if not os.path.exists(thumbdir):
@@ -26,7 +26,7 @@ def _make_thumbnail(image, width):
     return thumb
 
 
-class ImageFile(padre.file.FileBase):
+class ImageFile(radiopadre.file.FileBase):
 
     @staticmethod
     def _show_thumbs(images, width=None, ncol=None, maxwidth=None, mincol=None,
@@ -35,10 +35,10 @@ class ImageFile(padre.file.FileBase):
 
         if not images:
             return None
-        nrow, ncol, width = padre.file.compute_thumb_geometry(len(images), ncol,
+        nrow, ncol, width = radiopadre.file.compute_thumb_geometry(len(images), ncol,
                                                               mincol, maxcol,
                                                               width, maxwidth)
-        npix = int(padre.DPI * width)
+        npix = int(radiopadre.DPI * width)
 
         # make list of basename, thumbnail, filename  tuples
         filelist = sorted(
@@ -47,7 +47,7 @@ class ImageFile(padre.file.FileBase):
         # keep track of thumbnail fails
         nfail = 0
 
-        html = padre.render_title(title) + \
+        html = radiopadre.render_title(title) + \
             """<br>
                    <table style="border: 0px; text-align: left">\n
                    """
