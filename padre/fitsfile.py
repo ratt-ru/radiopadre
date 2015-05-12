@@ -1,4 +1,5 @@
 import pyfits
+import traceback
 from IPython.display import HTML, display
 import matplotlib.pyplot as plt
 
@@ -57,8 +58,8 @@ class FITSFile(padre.file.FileBase):
                             resolution.append("%.1g\""%(d*3600))
                 resolution = "&times;&deg;".join(resolution)
             except:
-                traceback.print_exception()
-            data += [ ((ff.path if showpath else ff.name), size, resolution, axes, ff.mtime_str) ]
+                traceback.print_exc()
+            data += [ (name, size, resolution, axes, ff.mtime_str) ]
         display(HTML(padre.render_table(data, labels=("name", "size", "res", "axes", "modified"))))
 
     @staticmethod
