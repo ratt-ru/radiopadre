@@ -28,7 +28,7 @@ class FITSFile(padre.file.FileBase):
         print self.path, "x".join(sizes), ",".join(axes)
 
     @staticmethod
-    def _show_summary (fits_files,title=None,showpath=False):
+    def _show_summary(fits_files, title=None, showpath=False):
         if not fits_files:
             return None
         if title:
@@ -41,9 +41,9 @@ class FITSFile(padre.file.FileBase):
             try:
                 hdr = pyfits.open(ff.fullpath)[0].header
                 naxis = hdr.get("NAXIS")
-                size = "&times;".join([str(hdr.get("NAXIS%d"%i)) for i in range(1,naxis+1)])
-                axes = ",".join([hdr.get("CTYPE%d"%i,"?").split("-",1)[0] for i in range(1,naxis+1)])
-                delt = [ abs(hdr.get("CDELT%d"%i,0)) for i in 1,2 ]
+                size = "&times;".join([str(hdr.get("NAXIS%d"%i)) for i in range(1, naxis+1)])
+                axes = ",".join([hdr.get("CTYPE%d"%i, "?").split("-", 1)[0] for i in range(1, naxis+1)])
+                delt = [abs(hdr.get("CDELT%d"%i, 0)) for i in 1, 2]
                 resolution = []
                 if all(delt):
                     if delt[0] == delt[1]:
@@ -58,8 +58,10 @@ class FITSFile(padre.file.FileBase):
                 resolution = "&times;&deg;".join(resolution)
             except:
                 traceback.print_exception()
-            data += [ ((ff.path if showpath else ff.name), size, resolution, axes, ff.mtime_str) ]
-        display(HTML(padre.render_table(data, labels=("name", "size", "res", "axes", "modified"))))
+            name = (ff.path if showpath else ff.name)
+            data += [(name, size, resolution, axes, ff.mtime_str)]
+        display(HTML(padre.render_table(data, labels=("name", "size", "res",
+                                                      "axes", "modified"))))
 
     @staticmethod
     def _show_thumbs(fits_files,
