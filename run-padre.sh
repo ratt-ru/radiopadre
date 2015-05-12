@@ -1,7 +1,8 @@
 #!/bin/bash 
 
 # add the directory where run-padre.sh resides to PYTHONPATH
-export PYTHONPATH=$PYTHONPATH:${0%/*}
+export PYTHONPATH=$PYTHONPATH:`pwd`
+
 
 port=${PADRE_PORT:-$[$UID+9000]}
 
@@ -21,7 +22,7 @@ if [ "$SSH_CLIENT" != "" ]; then
   echo "          $ ssh -L $port:localhost$port user@machine"
   echo 
 else
-  opts = ""
+  opts=""
 fi
 
 ipython notebook --notebook-dir=. --port=$[$UID+9000] $opts
