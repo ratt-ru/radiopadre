@@ -20,11 +20,11 @@ class ImageFile(padre.file.FileBase):
         npix = int(padre.DPI * width)
 
         # make list of thumbnail,filename pairs
-        filelist = [(os.path.basename(img.fullpath),
-                     "%s/thumbnails/%d.%s" % (os.path.dirname(img.fullpath),
-                                              npix,
-                                              os.path.basename(img.fullpath)),
-                     img.fullpath)
+        filelist = [(os.path.basename(img.path),
+                     "%s/padre-thumbnails/%d.%s" % (os.path.dirname(img.path),
+                                                    npix,
+                                                    os.path.basename(img.path)),
+                     img.path)
                     for img in images]
         filelist.sort()
 
@@ -57,7 +57,7 @@ class ImageFile(padre.file.FileBase):
             html += """</tr><tr style="border: 0px; text-align: left">\n"""
             for _, thumb, image in filelist_row:
                 html += """<td style="border: 0px; text-align: left">"""
-                html += "<a href=%s><img src=%s alt='?'></a>" % (image, thumb)
+                html += "<a href=/files/%s><img src=/files/%s alt='?'></a>" % (image, thumb)
                 html += "</td>\n"
             html += "</tr>\n"
         html += "</table>"

@@ -1,10 +1,10 @@
-import os
 import time
 import fnmatch
+import os
+
+import astropy
 
 import IPython.display
-import astropy
-from pandas import DataFrame
 import IPython.display
 from IPython.display import HTML, display
 
@@ -16,15 +16,21 @@ from padre.render import render_title, render_table
 
 __version__ = '0.1'
 
-NOTEBOOK_DIR = os.environ.get('RVNB_NOTEBOOK_DIR', '/notebooks')
-RESULTDIR = os.environ.get('RVNB_DATA_DIR', '/notebooks/data')
-ORIGINAL_RESULTDIR = os.environ.get('RVNB_ORIGINAL_DIR', '/notebooks/data')
+# when running inside a docker containers, these are used to tell padre
+# where the results directory is mounted, and what its original path on 
+# the host is. Note that rendered paths will display the _host_ path rather 
+# than the internal container path (to avoid confusing the user),
+# hence the need to know ORIGINAL_RESULTDIR
+RESULTDIR = os.environ.get('PADRE_DATA_DIR', None)
+ORIGINAL_RESULTDIR = os.environ.get('PADRE_ORIGINAL_DIR', None)
 
 WIDTH = None  # globally fix a plot width (inches)
 MINCOL = 2  # default min # of columns to display in thumbnail view
 MAXCOL = 4  # default max # of columns to display in thumbnail view
 MAXWIDTH = 16  # default width of thumbnail view (inches)
 DPI = 80  # screen DPI
+
+TWOCOLUMN_LIST_WIDTH = 20   # if all filenames in a list are <= this in length, use two columns by default
 
 TIMEFORMAT = "%H:%M:%S %b %d"
 
@@ -34,11 +40,15 @@ astropy.log.setLevel('ERROR')
 class FileList(list):
     _sort_attributes = dict(x="ext", n="basename", s="size", t="mtime")
 
-    def __init__(self, files=[], extcol=True, thumbs=None, title="",
+    def __init__(self, files=[], extcol=True, showpath=False,
+                 classobj=None, title="",
                  sort="xnt"):
+        """
+        """
         list.__init__(self, files)
         self._extcol = extcol
-        self._thumbs = thumbs
+        self._showpath = showpath
+        self._classobj = classobj
         self._title = title
         if sort:
             self.sort(sort)
@@ -62,66 +72,70 @@ class FileList(list):
             return 0
 
         list.sort(self, cmp=compare, reverse='r' in opt)
-        self._init_df()
         return self
 
-    def _init_df(self):
-        if self._extcol:
-            df_files = [(f.basename, f.ext, f.size, f.mtime_str) for f in self]
-            self._df = DataFrame(df_files,
-                                 columns=('name', 'ext', 'size',
-                                          'modified')) if df_files else None
-        else:
-            df_files = [(f.name, f.size, f.mtime_str) for f in self]
-            self._df = DataFrame(
-                df_files,
-                columns=('name', 'size', 'modified')) if df_files else None
-
-    def _repr_html_(self, ncol=1):
+    def _repr_html_(self, ncol=None, **kw):
         html = render_title(self._title)
+        if not self:
+            return html + ": no content"
+        # auto-set 1 or 2 columns based on filename length
+        if ncol is None:
+            ncol = 2 if max([ len(df.basename) for df in self ]) <= TWOCOLUMN_LIST_WIDTH else 1;
         if self._extcol:
             labels = "name", "ext", "size", "modified"
-            data = [(df.basename, df.ext, df.size_str, df.mtime_str) for df in
+            data = [( (df.basepath if self._showpath else df.basename), df.ext, df.size_str, df.mtime_str) for df in
                     self]
-            links = [(df.fullpath, df.fullpath, None, None) for df in self]
+            links = [(df.path, df.path, None, None) for df in self]
         else:
             labels = "name", "size", "modified"
-            data = [(df.basename, df.size_str, df.mtime_str) for df in self]
-            links = [(df.fullpath, None, None) for df in self]
+            data = [ ( (df.basepath if self._showpath else df.basename), df.size_str, df.mtime_str) for df in self]
+            links = [(df.path, None, None) for df in self]
         html += render_table(data, labels, links=links, ncol=ncol)
         return html
 
-    def show(self, ncol=1):
-        return IPython.display.display(HTML(self._repr_html_(ncol=ncol)))
+    def show(self, ncol=None, **kw):
+        return IPython.display.display(HTML(self._repr_html_(ncol=ncol,**kw)))
+
+    def list(self, ncol=None, **kw):
+        return IPython.display.display(HTML(self._repr_html_(ncol=ncol,**kw)))
+
+    def summary(self,**kw):
+        kw.setdefault('title',self._title)
+        kw.setdefault('showpath',self._showpath)
+        summary = getattr(self._classobj,"_show_summary",None)
+        return summary(self, **kw) if summary else self.list(**kw)
 
     def show_all(self):
         for f in self:
             f.show()
 
     def __call__(self, pattern):
-        files = [f for f in self if fnmatch.fnmatch(f.name, pattern)]
+        files = []
+        for patt in pattern.split():
+            files += [ f for f in self if fnmatch.fnmatch((f.path if self._showpath else f.name), patt) ]
         return FileList(files,
-                        extcol=self._extcol,
-                        thumbs=self._thumbs,
+                        extcol=self._extcol,showpath=self._showpath,
+                        classobj=self._classobj,
                         title=os.path.join(self._title, pattern))
 
     def thumbs(self, **kw):
-        kw['title'] = self._title
-        return self._thumbs(self, **kw) if self._thumbs else None
+        kw.setdefault('title',self._title)
+        kw.setdefault('showpath',self._showpath)
+        thumbs = getattr(self._classobj,"_show_thumbs",None)
+        return thumbs(self, **kw) if thumbs else None
 
     def __getslice__(self, *slc):
         return FileList(list.__getslice__(self, *slc),
-                        extcol=self._extcol,
-                        thumbs=self._thumbs,
+                        extcol=self._extcol,showpath=self._showpath,
+                        classobj=self._classobj,
                         title="%s[%s]" % (self._title, ":".join(map(str, slc))))
-
 
 class DataDir(object):
     """
     This class represents a directory in the data folder
     """
 
-    def __init__(self, name, files=[], root=""):
+    def __init__(self, name, files=[], root=".", original_root=None):
         self.fullpath = name
         if root and name.startswith(root):
             name = name[len(root):]
@@ -134,7 +148,7 @@ class DataDir(object):
 
         # our title, in HTML
         path = self.path if self.path is not "." else ""
-        self._title = os.path.join(ORIGINAL_RESULTDIR, path)
+        self._title = os.path.join(original_root or root, path)
 
         # make list of DataFiles and sort by time
         self.files = FileList([data_file(os.path.join(self.fullpath, f),
@@ -142,17 +156,15 @@ class DataDir(object):
                               title=self._title)
 
         # make separate lists of fits files and image files
-        files = [f for f in self.files if type(f) is FITSFile]
-        self.fits = FileList(files,
-                             extcol=False,
-                             thumbs=FITSFile._show_thumbs,
+        self.fits = FileList([f for f in self.files if type(f) is FITSFile],
+                             classobj=FITSFile,
                              title="FITS files, " + self._title)
-
-        self.images = FileList([f for f in self.files
-                                if type(f) is ImageFile],
-                               extcol=False,
-                               thumbs=ImageFile._show_thumbs,
+        self.images = FileList([f for f in self.files if type(f) is ImageFile],
+                               classobj=ImageFile,
                                title="Images, " + self._title)
+        self.others = FileList([f for f in self.files
+                                if type(f) is not ImageFile and type(f) is not FITSFile],
+                               title="Other files, " + self._title)
 
     def sort(self, opt):
         for f in self.files, self.fits, self.images:
@@ -162,24 +174,61 @@ class DataDir(object):
     def show(self):
         return IPython.display.display(self)
 
+    def list(self):
+        return IPython.display.display(self)
+
     def _repr_html_(self):
-        return render_title(self._title) + self.files._repr_html_()
+        return self.files._repr_html_()
 
 
 class DirList(list):
-    def __init__(self, rootfolder=None, pattern="*", scan=True, title=None):
-        self._root = rootfolder = rootfolder or RESULTDIR
-        self._title = title or ORIGINAL_RESULTDIR
-        if scan:
+    def __init__(self, rootfolder=None, include="*.jpg *.png *.fits *.txt", exclude=".* .*/", exclude_empty=True,
+                    original_rootfolder=None, title=None, _scan=True):
+        """Creates a DirList object corresponding to rootfolder and all its subdirectories.
+        include:    list of filename patterns to include
+        exclude:    list of filename patterns to exclude. Trailing slash matches directory names.
+        exclude_empty: if True, directories with no matching files will be omitted
+        original_rootfolder: the "original" name of rootfolder, used to "rewrite" displayed paths when running the 
+            notebook in e.g. a container (in which case rootfolder refers to the path inside the container, while 
+            original_rootfolder refers to the true path on the host). If None, rootfolder is used
+        title:      the title of the directory list -- uses original_rootfolder or rootfolder by default
+        _scan:       (for internal use only) if False, directory is not re-scanned
+        """
+        self._root = rootfolder = rootfolder or os.environ.get('PADRE_DATA_DIR') or os.path.realpath('.')
+        self._original_root = original_rootfolder or os.environ.get('PADRE_HOST_DATA_DIR') or rootfolder 
+        self._title = title or self._original_root
+        # setup patterns
+        include_files = include.split()
+        exclude_files = [ f for f in exclude.split() if f[-1] != '/' ] 
+        exclude_dirs  = [ f[:-1] for f in exclude.split() if f[-1] == '/' ] + [ "padre-thumbnails" ]
+        #
+        if _scan:
             for dir_, _, files in os.walk(rootfolder):
-                basename = os.path.basename(dir_)
-                if fnmatch.fnmatch(basename,
-                                   pattern) and not basename.startswith("."):
-                    self.append(DataDir(dir_, files, root=rootfolder))
-            self._sort()
+    	        basename = os.path.basename(dir_)
+                if any([ fnmatch.fnmatch(basename,patt) for patt in exclude_dirs ]):
+                    continue;
+                # get files matching include/exclude filters
+                files = [ f for f in files 
+                                if any([ fnmatch.fnmatch(f,patt) for patt in include_files ]) 
+                                and not any([ fnmatch.fnmatch(f,patt) for patt in exclude_files ]) ]
+                if files:
+    	            self.append(DataDir(dir_, files, root=rootfolder, original_root=original_rootfolder))
+        # set up aggregated file lists
+        self.files  = FileList(title=self._title,showpath=True)
+        self.fits   = FileList(classobj=FITSFile,
+                             title="FITS files, " + self._title,showpath=True)
+        self.images = FileList(classobj=ImageFile,
+                               title="Images, " + self._title,showpath=True)
+        self.others = FileList(title="Other files, " + self._title,showpath=True)
+        # init lists
+        self._sort();
 
     def _sort(self):
         self.sort(cmp=lambda x, y: cmp(x.name, y.name))
+        # redo lists of files
+        for d in self:
+            for attr in 'files', 'fits', 'images', 'others':
+                getattr(self,attr).extend(getattr(d,attr))
 
     def _repr_html_(self):
         html = render_title(self._title)
@@ -198,14 +247,19 @@ class DirList(list):
     def show(self):
         return IPython.display.display(self)
 
+    def list(self):
+        return IPython.display.display(self)
+
     def __call__(self, pattern):
-        return DirList(self._root, pattern,
-                       title=os.path.join(self._title, pattern))
+        newlist = DirList(self._root, _scan=False, title="%s/%s" % (self._title,pattern))
+        for patt in pattern.split():
+            newlist += [ d for d in self if fnmatch.fnmatch(d.path, patt) ]
+        newlist._sort()
+        return newlist
 
     def __getslice__(self, *slc):
-        newlist = DirList(self._root, scan=False,
-                          title="%s[%s]" % (self._title,
-                                            ":".join(map(str, slc))))
+        newlist = DirList(self._root, _scan=False, 
+                            title="%s[%s]" % (self._title, ":".join(map(str, slc))))
         newlist += list.__getslice__(self, *slc)
         newlist._sort()
         return newlist
