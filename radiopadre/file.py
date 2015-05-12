@@ -55,6 +55,30 @@ class FileBase(object):
         else:
             self.size_str = '0'
 
+    @staticmethod
+    def sort_list(filelist, opt="xnt"):
+        """
+        Sort a list of FileBase objects by name, eXtension, Time, Size, optionally Reverse
+        """
+        opt = opt.lower()
+        # build up order of comparison
+        cmpattr = []
+        for attr in opt:
+            if attr in FileBase._sort_attributes:
+                cmpattr.append(FileBase._sort_attributes[attr])
+
+        def compare(a, b, attrs=cmpattr):
+            for attr in attrs:
+                result = cmp(getattr(a, attr), getattr(b, attr))
+                if result:
+                    return result
+            return 0
+
+        list.sort(filelist, cmp=compare, reverse='r' in opt)
+        return filelist
+
+    _sort_attributes = dict(x="ext", n="basepath", s="size", t="mtime")
+
     def __str__(self):
         return self.path
 

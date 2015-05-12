@@ -56,7 +56,7 @@ class ImageFile(radiopadre.file.FileBase):
             filelist_row = filelist[row * ncol:(row + 1) * ncol]
             for name, image in filelist_row:
                 html += """<td style="border: 0px; text-align: center">"""
-                html += name
+                html += "<a href=/files/%s>%s</a>" % (image, name)
                 html += "</td>\n"
             html += """</tr><tr style="border: 0px; text-align: left">\n"""
             for _, image in filelist_row:

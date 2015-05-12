@@ -10,7 +10,7 @@ from IPython.display import HTML, display
 
 from radiopadre.fitsfile import FITSFile
 from radiopadre.imagefile import ImageFile
-from radiopadre.file import data_file
+from radiopadre.file import data_file, FileBase
 from radiopadre.render import render_title, render_table
 
 
@@ -39,7 +39,10 @@ astropy.log.setLevel('ERROR')
 
 
 class FileList(list):
-    _sort_attributes = dict(x="ext", n="basename", s="size", t="mtime")
+    @staticmethod
+    def list_to_string (filelist):
+        return "Contents of %s:\n"%filelist._title + "\n".join(
+                    ["%d: %s" % (i, d.path) or '.' for i, d in enumerate(filelist)])
 
     def __init__(self, files=[], extcol=True, showpath=False,
                  classobj=None, title="",
@@ -53,25 +56,7 @@ class FileList(list):
             self.sort(sort)
 
     def sort(self, opt="xnt"):
-        """
-        Sort the filelist by name, eXtension, Time, Size, optionally Reverse
-        """
-        opt = opt.lower()
-        # build up order of comparison
-        cmpattr = []
-        for attr in opt:
-            if attr in self._sort_attributes:
-                cmpattr.append(self._sort_attributes[attr])
-
-        def compare(a, b, attrs=cmpattr):
-            for attr in attrs:
-                result = cmp(getattr(a, attr), getattr(b, attr))
-                if result:
-                    return result
-            return 0
-
-        list.sort(self, cmp=compare, reverse='r' in opt)
-        return self
+        return FileBase.sort_list(self, opt)
 
     def _repr_html_(self, ncol=None, **kw):
         html = render_title(self._title)
@@ -101,15 +86,18 @@ class FileList(list):
     def list(self, ncol=None, **kw):
         return IPython.display.display(HTML(self._repr_html_(ncol=ncol, **kw)))
 
+    def __str__ (self):
+        return FileList.list_to_string(self)
+
     def summary(self, **kw):
         kw.setdefault('title', self._title)
         kw.setdefault('showpath', self._showpath)
         summary = getattr(self._classobj, "_show_summary", None)
         return summary(self, **kw) if summary else self.list(**kw)
 
-    def show_all(self):
+    def show_all(self,*args,**kw):
         for f in self:
-            f.show()
+            f.show(*args,**kw)
 
     def __call__(self, pattern):
         files = []
@@ -135,28 +123,20 @@ class FileList(list):
                         title="%s[%s]" % (self._title, ":".join(map(str, slc))))
 
 
-class DataDir(object):
-
+class DataDir(FileBase):
     """
     This class represents a directory in the data folder
     """
 
     def __init__(self, name, files=[], root=".", original_root=None):
-        self.fullpath = name
-        if root and name.startswith(root):
-            name = name[len(root):]
-            if name.startswith("/"):
-                name = name[1:]
-            name = name or "."
-        self.name = self.path = name
-        self.mtime = os.path.getmtime(self.fullpath)
+        FileBase.__init__(self, name, root=root)
+        # list of files
         files = [f for f in files if not f.startswith('.')]
-
         # our title, in HTML
-        path = self.path if self.path is not "." else ""
-        self._title = os.path.join(original_root or root, path)
+        self._original_root = root
+        self._title = os.path.join(original_root or root, self.path) or '.'
 
-        # make list of DataFiles and sort by time
+        # make list of data filesD and sort by time
         self.files = FileList([data_file(os.path.join(self.fullpath, f),
                                          root=root) for f in files],
                               title=self._title)
@@ -187,17 +167,61 @@ class DataDir(object):
     def _repr_html_(self):
         return self.files._repr_html_()
 
+    def ls (self):
+        return DirList(self.path, recursive=False, 
+                original_rootfolder=os.path.join(self._original_root, self.path))
+
+    def lsr (self):
+        return DirList(self.path, recursive=True,  
+                original_rootfolder=os.path.join(self._original_root, self.path))
+
+
+def lsd (pattern=None,*args,**kw):
+    """Creates a DirList from '.' non-recursively, optionally applying a pattern.
+
+    Args:
+        pattern: if specified, a wildcard pattern
+    """
+    kw['recursive'] = False
+    dl = DirList(*args,**kw)
+    return dl(pattern) if pattern else dl
+
+def lsdr (pattern=None,*args,**kw):
+    """Creates a DirList from '.' recursively, optionally applying a pattern.
+
+    Args:
+        pattern: if specified, a wildcard pattern
+    """
+    kw['recursive'] = True
+    dl = DirList(*args,**kw)
+    return dl(pattern) if pattern else dl
+
+def latest (*args):
+    """Creates a DirList from '.' recursively, optionally applying a pattern.
+
+    Args:
+        pattern (str):  if specified, a wildcard pattern
+        num (int):      use 2 for second-latest, 3 for third-latest, etc.
+    """
+    args = dict([(type(arg),arg) for arg in args])
+    dl = lsd(pattern=args.get(str),sort='txn')
+    if not dl:
+        raise IOError,"no subdirectories here"
+    return dl[-args.get(int, -1)].lsr()
+
 
 class DirList(list):
 
     def __init__(self, rootfolder=None, include="*.jpg *.png *.fits *.txt",
                  exclude=".* .*/", exclude_empty=True, original_rootfolder=None,
-                 title=None, _scan=True):
+                 sort="xnt",
+                 recursive=True, title=None, _scan=True):
         """
-        Creates a DirList object corresponding to rootfolder and all its
-        subdirectories.
+        Creates a DirList object corresponding to a rootfolder and (optionally)
+        all its subdirectories.
 
         Args:
+            recursive: set to False to make non-recursive list
             include: list of filename patterns to include
             exclude: list of filename patterns to exclude. Trailing slash
                 matches directory names.
@@ -208,25 +232,31 @@ class DirList(list):
                 container (in which case rootfolder refers to the path inside
                 the container, while original_rootfolder refers to the true path
                 on the host). If None, rootfolder is used
-            title: the title of the directory list -- uses
+            title:  the title of the directory list -- uses
                 original_rootfolder or rootfolder by default
+            sort:   sort order, default is 'xnt'
             _scan: (for internal use only) if False, directory is not re-scanned
         """
         self._root = rootfolder = rootfolder or os.environ.get('PADRE_DATA_DIR') or '.'
         self._original_root = original_rootfolder or os.environ.get('PADRE_HOST_DATA_DIR') or rootfolder
         self._title = title or self._original_root
 
-        # setup patterns
+        # setup exclude/include patterns
         include_files = include.split()
         exclude_files = [f for f in exclude.split() if f[-1] != '/']
         exclude_dirs = [f[:-1] for f in exclude.split() if f[-1] == '/'] + [
             "radiopadre-thumbnails"]
         #
         if _scan:
-            for dir_, _, files in os.walk(rootfolder):
-                basename = os.path.basename(dir_)
-                if dir_ != '.' and any([fnmatch.fnmatch(basename, patt) for patt in exclude_dirs]):
-                    continue
+            if not os.path.exists(rootfolder):
+                raise IOError,"directory %s does not exist"%rootfolder
+            for dir_, dirnames, files in os.walk(rootfolder):
+                # exclude subdirectories
+                if not recursive and dir_ != rootfolder:
+                    dirnames[:] = []
+                else:
+                    dirnames[:] = [ d for d in dirnames 
+                                    if not any([fnmatch.fnmatch(d, patt) for patt in exclude_dirs]) ]
                 # get files matching include/exclude filters
                 files = [f for f in files
                          if any(
@@ -236,6 +266,17 @@ class DirList(list):
                 if files or not exclude_empty:
                     self.append(DataDir(dir_, files, root=rootfolder,
                                         original_root=original_rootfolder))
+        # init lists
+        self.sort(sort)
+
+    def latest (self, num=1):
+        if not self:
+            raise IOError,"no subdirectories in %s"%self._root
+        return self.sort("t")[-num]
+
+    def sort(self, opt="xnt"):
+        self._sort_option = opt
+        FileBase.sort_list(self, opt)
         # set up aggregated file lists
         self.files = FileList(title=self._title, showpath=True)
         self.fits = FileList(classobj=FITSFile,
@@ -244,15 +285,10 @@ class DirList(list):
                                title="Images, " + self._title, showpath=True)
         self.others = FileList(title="Other files, " + self._title,
                                showpath=True)
-        # init lists
-        self._sort()
-
-    def _sort(self):
-        self.sort(cmp=lambda x, y: cmp(x.name, y.name))
-        # redo lists of files
         for d in self:
             for attr in 'files', 'fits', 'images', 'others':
                 getattr(self, attr).extend(getattr(d, attr))
+        return self
 
     def _repr_html_(self):
         html = render_title(self._title)
@@ -262,11 +298,14 @@ class DirList(list):
             nimg = len(dir_.images)
             nother = len(dir_.files) - nfits - nimg
             dirlist.append(
-                (dir_.name, nfits, nimg, nother,
+                (dir_.path or '.', nfits, nimg, nother,
                  time.strftime(TIMEFORMAT, time.localtime(dir_.mtime))))
         html += render_table(dirlist, labels=("name", "# FITS", "# img",
                                               "# others", "modified"))
         return html
+
+    def __str__ (self):
+        return FileList.list_to_string(self)
 
     def show(self):
         return IPython.display.display(self)
@@ -279,7 +318,7 @@ class DirList(list):
                                                                     pattern))
         for patt in pattern.split():
             newlist += [d for d in self if fnmatch.fnmatch(d.path, patt)]
-        newlist._sort()
+        newlist.sort(self._sort_option)
         return newlist
 
     def __getslice__(self, *slc):
@@ -287,5 +326,5 @@ class DirList(list):
                           title="%s[%s]" % (
                               self._title, ":".join(map(str, slc))))
         newlist += list.__getslice__(self, *slc)
-        newlist._sort()
+        newlist.sort(self._sort_option)
         return newlist
