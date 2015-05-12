@@ -1,7 +1,8 @@
 #!/bin/bash 
 
+DIR=$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )
 # add the directory where run-padre.sh resides to PYTHONPATH
-export PYTHONPATH=$PYTHONPATH:${0%/*}
+export PYTHONPATH=$PYTHONPATH:$DIR
 
 port=${PADRE_PORT:-$[$UID+9000]}
 
