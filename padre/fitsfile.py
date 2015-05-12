@@ -34,7 +34,6 @@ class FITSFile(padre.file.FileBase):
             return None
         if title:
             display(HTML(padre.render_title(title)))
-        labels = "name", "ext", "size", "modified"
         data = []
         for ff in fits_files:
             name = ff.path if showpath else ff.name
@@ -130,8 +129,6 @@ class FITSFile(padre.file.FileBase):
             x0, y0 = int(dims[xyaxes[0]] / 2), int(dims[xyaxes[1]] / 2)
             xz, yz = int(dims[xyaxes[0]] / (zoom * 2)), int(dims[xyaxes[1]] /
                                                             (zoom * 2))
-            # baseslice[xyaxes[0]] = slice(x0 - xz, x0 + xz)
-            # baseslice[xyaxes[1]] = slice(y0 - yz, y0 + yz)
             xlim = x0 - xz, x0 + xz
             ylim = y0 - yz, y0 + yz
             status += " zoom x%s" % zoom
