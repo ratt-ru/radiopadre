@@ -2,7 +2,7 @@ import os
 import traceback
 
 import IPython.display
-from IPython.display import HTML, display
+from IPython.display import HTML, Image, display
 
 import radiopadre
 import radiopadre.file
@@ -90,6 +90,5 @@ class ImageFile(radiopadre.file.FileBase):
 
         display(HTML(html))
 
-    def show(self, width=None):
-        IPython.display.display(IPython.display.Image(self.fullpath,
-                                                      width=width * 100))
+    def show(self, width=None, **kw):
+        display(Image(self.fullpath, width=width and width * 100))

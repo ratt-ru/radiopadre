@@ -1,8 +1,8 @@
 import math
-
+import cgi
 
 def render_title(title):
-    return "<b>%s</b>" % title
+    return "<b>%s</b>" % cgi.escape(title)
 
 
 def render_table(data, labels, ncol=1, links=None):
@@ -26,6 +26,7 @@ def render_table(data, labels, ncol=1, links=None):
             datum = data[idatum]
             html += """<td style="border: 0px">%d</td>""" % idatum
             for i, col in enumerate(datum):
+                col = cgi.escape(str(col))
                 html += """<td style="border: 0px; """
                 if ncol > 1 and icol < ncol - 1 and i == len(datum) - 1:
                     html += "border-right: 1px double; padding-right: 10px"

@@ -5,6 +5,7 @@ import matplotlib.pyplot as plt
 
 import radiopadre
 import radiopadre.file
+from radiopadre.render import render_title, render_table
 
 
 class FITSFile(radiopadre.file.FileBase):
@@ -33,7 +34,7 @@ class FITSFile(radiopadre.file.FileBase):
         if not fits_files:
             return None
         if title:
-            display(HTML(radiopadre.render_title(title)))
+            display(HTML(render_title(title)))
         data = []
         for ff in fits_files:
             name = ff.path if showpath else ff.name
@@ -61,7 +62,7 @@ class FITSFile(radiopadre.file.FileBase):
             except:
                 traceback.print_exc()
             data += [(name, size, resolution, axes, ff.mtime_str)]
-        display(HTML(radiopadre.render_table(data, labels=("name", "size", "res",
+        display(HTML(render_table(data, labels=("name", "size", "res",
                                                       "axes", "modified"))))
 
     @staticmethod
@@ -200,6 +201,7 @@ class FITSFile(radiopadre.file.FileBase):
             # show single image
             fig = make_figure and plt.figure(figsize=(width, width),
                                              dpi=radiopadre.DPI)
+            plt.suptitle(self.basename)
             plt.imshow(
                 data[tuple(baseslice)].T, vmin=vmin, vmax=vmax, cmap=cmap)
             if colorbar:
@@ -218,6 +220,7 @@ class FITSFile(radiopadre.file.FileBase):
                                                                   maxcol, width,
                                                                   maxwidth)
             plt.figure(figsize=(width * ncol, width * nrow), dpi=radiopadre.DPI)
+            plt.suptitle(self.basename)
             for iplot in range(dims[unroll]):
                 ax = plt.subplot(nrow, ncol, iplot + 1)
                 ax.tick_params(labelsize=fs or fs_axis)

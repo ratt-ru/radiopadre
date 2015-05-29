@@ -41,9 +41,8 @@ class FileBase(object):
         self.basepath, self.ext = os.path.splitext(self.path)
         self.basename = os.path.basename(self.basepath)
         self.size = os.path.getsize(self.fullpath)
-        self.mtime = os.path.getmtime(self.fullpath)
-        self.mtime_str = time.strftime(radiopadre.TIMEFORMAT,
-                                       time.localtime(self.mtime))
+        self.update_mtime()
+        
         # human-friendly size
         if self.size > 0:
             exponent = min(int(math.log(self.size, 1024)),
@@ -79,6 +78,12 @@ class FileBase(object):
 
     _sort_attributes = dict(x="ext", n="basepath", s="size", t="mtime")
 
+    def update_mtime (self):
+        self.mtime = os.path.getmtime(self.fullpath)
+        self.mtime_str = time.strftime(radiopadre.TIMEFORMAT,
+                                       time.localtime(self.mtime))
+        return self.mtime_str
+
     def __str__(self):
         return self.path
 
@@ -95,11 +100,14 @@ def data_file(path, root=""):
     """
     from radiopadre.fitsfile import FITSFile
     from radiopadre.imagefile import ImageFile
+    from radiopadre.textfile import TextFile
     ext = os.path.splitext(path)[1]
     if ext.lower() in [".fits", ".fts"]:
         return FITSFile(path, root=root)
     elif ext.lower() in [".png", ".jpg", ".jpeg"]:
         return ImageFile(path, root=root)
+    elif ext.lower() in [".txt", ".log"]:
+        return TextFile(path, root=root)
     return FileBase(path, root=root)
 
 
