@@ -1,0 +1,5 @@
+results-dirty.fits filter=lfs diff=lfs merge=lfs -crlf
+results.dirty.fits filter=lfs diff=lfs merge=lfs -crlf
+results.model.fits filter=lfs diff=lfs merge=lfs -crlf
+results.residual.fits filter=lfs diff=lfs merge=lfs -crlf
+results.restored.fits filter=lfs diff=lfs merge=lfs -crlf
