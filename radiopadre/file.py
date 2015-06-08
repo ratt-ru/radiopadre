@@ -91,7 +91,7 @@ class FileBase(object):
         return self.show() or self.path
 
     def show(self, **kw):
-        print self.path
+        print(self.path)
 
 
 def data_file(path, root=""):

@@ -5,7 +5,7 @@ import IPython.display
 from IPython.display import HTML, Image, display
 
 import radiopadre
-import radiopadre.file
+from radiopadre.file import FileBase, compute_thumb_geometry
 
 
 def _make_thumbnail(image, width):
@@ -22,11 +22,11 @@ def _make_thumbnail(image, width):
         if not os.access(thumbdir, os.W_OK) or os.path.exists(thumb) and not os.access(thumb, os.W_OK):
             return None
         if os.system("convert -thumbnail %d %s %s" % (width, image, thumb)):
-            raise RuntimeError, "thumbnail convert failed, maybe imagemagick is not installed?"
+            raise RuntimeError("thumbnail convert failed, maybe imagemagick is not installed?")
     return thumb
 
 
-class ImageFile(radiopadre.file.FileBase):
+class ImageFile(FileBase):
 
     @staticmethod
     def _show_thumbs(images, width=None, ncol=None, maxwidth=None, mincol=None,
@@ -35,9 +35,8 @@ class ImageFile(radiopadre.file.FileBase):
 
         if not images:
             return None
-        nrow, ncol, width = radiopadre.file.compute_thumb_geometry(len(images), ncol,
-                                                              mincol, maxcol,
-                                                              width, maxwidth)
+        nrow, ncol, width = compute_thumb_geometry(len(images), ncol, mincol,
+                                                   maxcol, width, maxwidth)
         npix = int(radiopadre.DPI * width)
 
         # make list of basename, filename  tuples

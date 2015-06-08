@@ -206,7 +206,7 @@ def latest (*args):
     args = dict([(type(arg),arg) for arg in args])
     dl = lsd(pattern=args.get(str),sort='txn')
     if not dl:
-        raise IOError,"no subdirectories here"
+        raise IOError("no subdirectories here")
     return dl[-args.get(int, -1)].lsr()
 
 
@@ -249,7 +249,7 @@ class DirList(list):
         #
         if _scan:
             if not os.path.exists(rootfolder):
-                raise IOError,"directory %s does not exist"%rootfolder
+                raise IOError("directory %s does not exist") % rootfolder
             for dir_, dirnames, files in os.walk(rootfolder):
                 # exclude subdirectories
                 if not recursive and dir_ != rootfolder:
@@ -271,7 +271,7 @@ class DirList(list):
 
     def latest (self, num=1):
         if not self:
-            raise IOError,"no subdirectories in %s"%self._root
+            raise IOError("no subdirectories in %s" % self._root)
         return self.sort("t")[-num]
 
     def sort(self, opt="xnt"):

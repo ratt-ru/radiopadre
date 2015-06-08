@@ -27,7 +27,7 @@ class FITSFile(radiopadre.file.FileBase):
         sizes = [str(hdr["NAXIS%d" % i]) for i in range(1, hdr["NAXIS"] + 1)]
         axes = [hdr.get("CTYPE%d" % i, str(i))
                 for i in range(1, hdr["NAXIS"] + 1)]
-        print self.path, "x".join(sizes), ",".join(axes)
+        print(self.path, "x".join(sizes), ",".join(axes))
 
     @staticmethod
     def _show_summary(fits_files, title=None, showpath=False):
@@ -46,7 +46,7 @@ class FITSFile(radiopadre.file.FileBase):
                     [str(hdr.get("NAXIS%d" % i)) for i in range(1, naxis + 1)])
                 axes = ",".join(
                     [hdr.get("CTYPE%d" % i, "?").split("-", 1)[0] for i in range(1, naxis + 1)])
-                delt = [abs(hdr.get("CDELT%d" % i, 0)) for i in 1, 2]
+                delt = [abs(hdr.get("CDELT%d" % i, 0)) for i in (1, 2)]
                 resolution = []
                 if all(delt):
                     if delt[0] == delt[1]:
@@ -150,7 +150,7 @@ class FITSFile(radiopadre.file.FileBase):
         for ax in remaining_axes:
             labels = self.FITSAxisLabels.get(axis_type[ax], None)
             rval, rpix, delt, unit = [hdr.get("C%s%d" % (kw, ax + 1), 1)
-                                      for kw in "RVAL", "RPIX", "DELT", "UNIT"]
+                                      for kw in ("RVAL", "RPIX", "DELT", "UNIT")]
             if labels:
                 axis_labels[ax] = ["%s %s" %
                                    (axis_type[ax], labels[int(rval - 1 + delt *
