@@ -46,7 +46,7 @@ else
     echo "Allowing ipython notebook to open a web browser. Use -nb or --no-browser to disable."
   fi
 fi
-
+echo Available notebooks: `find . -maxdepth 1 -name "*.ipynb"`
 echo
 opts="$opts --ContentsManager.pre_save_hook=radiopadre.notebook_utils._notebook_save_hook"
 
