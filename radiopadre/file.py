@@ -2,7 +2,10 @@ import os
 import time
 import math
 
+from IPython.display import display, HTML
+
 import radiopadre
+from radiopadre.render import render_refresh_button
 
 
 class FileBase(object):
@@ -79,10 +82,16 @@ class FileBase(object):
     _sort_attributes = dict(x="ext", n="basepath", s="size", t="mtime")
 
     def update_mtime (self):
+        """Updates mtime and mtime_str attributes according to current file mtime,
+        returns mtime_str"""
         self.mtime = os.path.getmtime(self.fullpath)
         self.mtime_str = time.strftime(radiopadre.TIMEFORMAT,
                                        time.localtime(self.mtime))
         return self.mtime_str
+
+    def is_updated (self):
+        """Returns True if mtime of underlying file has changed"""
+        return os.path.getmtime(self.fullpath) > self.mtime
 
     def __str__(self):
         return self.path
@@ -90,8 +99,12 @@ class FileBase(object):
     def _repr_html_(self):
         return self.show() or self.path
 
-    def show(self, **kw):
-        print(self.path)
+    def show(self, *args, **kw):
+        print self.path
+
+    def watch(self, *args, **kw):
+        display(HTML(render_refresh_button()))
+        return self.show(*args, **kw)
 
 
 def data_file(path, root=""):

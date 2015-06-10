@@ -32,7 +32,8 @@ class FITSFile(radiopadre.file.FileBase):
     @staticmethod
     def _show_summary(fits_files, title=None, showpath=False):
         if not fits_files:
-            return None
+            display(HTML("0 files"))
+            return
         if title:
             display(HTML(render_title(title)))
         data = []
@@ -62,8 +63,9 @@ class FITSFile(radiopadre.file.FileBase):
             except:
                 traceback.print_exc()
             data += [(name, size, resolution, axes, ff.mtime_str)]
-        display(HTML(render_table(data, labels=("name", "size", "res",
-                                                      "axes", "modified"))))
+        display(HTML(render_table(data,
+                        html=("size", "axes", "res"), 
+                        labels=("name", "size", "res", "axes", "modified"))))
 
     @staticmethod
     def _show_thumbs(fits_files,
@@ -201,7 +203,8 @@ class FITSFile(radiopadre.file.FileBase):
             # show single image
             fig = make_figure and plt.figure(figsize=(width, width),
                                              dpi=radiopadre.DPI)
-            plt.suptitle(self.basename)
+            if fig:
+                plt.suptitle(self.basename)
             plt.imshow(
                 data[tuple(baseslice)].T, vmin=vmin, vmax=vmax, cmap=cmap)
             if colorbar:

@@ -5,8 +5,8 @@ import IPython.display
 from IPython.display import HTML, Image, display
 
 import radiopadre
-from radiopadre.file import FileBase, compute_thumb_geometry
-
+import radiopadre.file
+from radiopadre.render import render_title, render_url, render_preamble
 
 def _make_thumbnail(image, width):
     thumbdir = "%s/radiopadre-thumbnails" % os.path.dirname(image)
@@ -26,7 +26,7 @@ def _make_thumbnail(image, width):
     return thumb
 
 
-class ImageFile(FileBase):
+class ImageFile(radiopadre.file.FileBase):
 
     @staticmethod
     def _show_thumbs(images, width=None, ncol=None, maxwidth=None, mincol=None,
@@ -35,8 +35,8 @@ class ImageFile(FileBase):
 
         if not images:
             return None
-        nrow, ncol, width = compute_thumb_geometry(len(images), ncol, mincol,
-                                                   maxcol, width, maxwidth)
+        nrow, ncol, width = radiopadre.file.compute_thumb_geometry(
+            len(images), ncol, mincol, maxcol, width, maxwidth)
         npix = int(radiopadre.DPI * width)
 
         # make list of basename, filename  tuples
@@ -46,7 +46,7 @@ class ImageFile(FileBase):
         # keep track of thumbnail fails
         nfail = 0
 
-        html = radiopadre.render_title(title) + \
+        html = render_preamble() + render_title(title) + \
             """<br>
                    <table style="border: 0px; text-align: left">\n
                    """
@@ -55,7 +55,7 @@ class ImageFile(FileBase):
             filelist_row = filelist[row * ncol:(row + 1) * ncol]
             for name, image in filelist_row:
                 html += """<td style="border: 0px; text-align: center">"""
-                html += "<a href=/files/%s>%s</a>" % (image, name)
+                html += "<a href=%s target='_blank'>%s</a>" % (render_url(image), name)
                 html += "</td>\n"
             html += """</tr><tr style="border: 0px; text-align: left">\n"""
             for _, image in filelist_row:
@@ -75,11 +75,11 @@ class ImageFile(FileBase):
                         thumb = None
                 html += """<td style="border: 0px; text-align: left">"""
                 if thumb:
-                    html += "<a href=/files/%s><img src=/files/%s alt='?'></a>" % (
-                        image, thumb)
+                    html += "<a href=%s target='_blank'><img src=%s alt='?'></a>" % (
+                        render_url(image), render_url(thumb))
                 else:
-                    html += "<a href=/files/%s><img src=/files/%s width=%d alt='?'></a>" % (
-                        image, image, npix)
+                    html += "<a href=%s target='_blank'><img src=%s width=%d alt='?'></a>" % (
+                        render_url(image), render_url(image), npix)
                 html += "</td>\n"
             html += "</tr>\n"
         html += "</table>"
