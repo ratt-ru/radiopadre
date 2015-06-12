@@ -6,6 +6,7 @@ from radiopadre import __version__
 def read(fname):
     return open(os.path.join(os.path.dirname(__file__), fname)).read()
 
+scripts = [ 'run-remote-padre', 'run-radiopadre.sh', 'run-radiopadre-docker.sh' ]
 
 setup(
     name="radiopadre",
@@ -17,6 +18,7 @@ setup(
     keywords="ipython notebook fits dataset resultset visualisation",
     url="http://github.com/radio-astro/radiopadre",
     packages=['radiopadre'],
+    scripts=scripts,
     long_description=read('README.md'),
     classifiers=[
         "Development Status :: 3 - Alpha",
