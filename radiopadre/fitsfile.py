@@ -5,8 +5,7 @@ import matplotlib.pyplot as plt
 
 import radiopadre
 import radiopadre.file
-from radiopadre.render import render_title, render_table
-
+from radiopadre.render import *
 
 class FITSFile(radiopadre.file.FileBase):
     FITSAxisLabels = dict(STOKES=["I", "Q", "U", "V", "YX", "XY", "YY", "XX",
@@ -40,6 +39,9 @@ class FITSFile(radiopadre.file.FileBase):
         for ff in fits_files:
             name = ff.path if showpath else ff.name
             size = resolution = axes = "?"
+            if not ff.exists():
+                data += [(name, render_missing(), '', '', '')]
+                continue
             try:
                 hdr = pyfits.open(ff.fullpath)[0].header
                 naxis = hdr.get("NAXIS")
@@ -116,6 +118,14 @@ class FITSFile(radiopadre.file.FileBase):
              colorbar=True,
              make_figure=True,
              filename_in_title=False):
+        if not self.exists():
+            if filename_in_title:
+                plt.title(self.basename, fontsize=fs or fs_title)
+            plt.text(0.5, 0.5, 'missing file', horizontalalignment='center',
+                  verticalalignment='center', color='red',
+                  transform=plt.gca().transAxes)
+            return
+
         ff = pyfits.open(self.fullpath)
         hdr = ff[0].header
 

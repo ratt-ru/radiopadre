@@ -5,7 +5,7 @@ import math
 from IPython.display import display, HTML
 
 import radiopadre
-from radiopadre.render import render_refresh_button
+from radiopadre.render import *
 
 
 class FileBase(object):
@@ -89,9 +89,13 @@ class FileBase(object):
                                        time.localtime(self.mtime))
         return self.mtime_str
 
+    def exists (self):
+        """Returns True if file still exists"""
+        return os.path.exists(self.fullpath)
+
     def is_updated (self):
         """Returns True if mtime of underlying file has changed"""
-        return os.path.getmtime(self.fullpath) > self.mtime
+        return self.exists() and os.path.getmtime(self.fullpath) > self.mtime
 
     def __str__(self):
         return self.path
@@ -105,6 +109,13 @@ class FileBase(object):
     def watch(self, *args, **kw):
         display(HTML(render_refresh_button()))
         return self.show(*args, **kw)
+
+    def _render_missing (self):
+        """If file doesn't exist, renders a 'missing file' HTML and returns it. Else returns None."""
+        if not self.exists():
+            return "<A HREF=%s target='_blank'>" % render_url(self.fullpath) + \
+                    render_title(self.path) + "</A>: " + render_missing()
+        return None
 
 
 def data_file(path, root=""):

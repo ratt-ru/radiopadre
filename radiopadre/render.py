@@ -12,6 +12,9 @@ def render_preamble ():
     """
     return """<script>document.radiopadre.fixup_hrefs()</script>"""
 
+def render_missing ():
+    return "<font color=red title='This file has gone missing since the last time the " + \
+        "directory was scanned. You may want to re-run the notebook.'>missing file</font>"
 
 def render_url (fullpath,prefix="files"):
     """Converts a path relative to the notebook (i.e. kernel) to a URL that 

@@ -6,11 +6,13 @@ from IPython.display import HTML, Image, display
 
 import radiopadre
 import radiopadre.file
-from radiopadre.render import render_title, render_url, render_preamble
+from radiopadre.render import *
 
 def _make_thumbnail(image, width):
     thumbdir = "%s/radiopadre-thumbnails" % os.path.dirname(image)
     thumb = os.path.join(thumbdir, "%d.%s" % (width, os.path.basename(image)))
+    if not os.path.exists(image):
+        return thumb
     # does thumbdir need to be created?
     if not os.path.exists(thumbdir):
         if not os.access(os.path.dirname(thumbdir), os.W_OK):
@@ -90,4 +92,8 @@ class ImageFile(radiopadre.file.FileBase):
         display(HTML(html))
 
     def show(self, width=None, **kw):
-        display(Image(self.fullpath, width=width and width * 100))
+        txt = self._render_missing()
+        if txt:
+            display(HTML(txt))
+        else:
+            display(Image(self.fullpath, width=width and width * 100))
