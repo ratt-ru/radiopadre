@@ -319,12 +319,15 @@ class DirList(list):
                 else:
                     dirnames[:] = [ d for d in dirnames 
                                     if not any([fnmatch.fnmatch(d, patt) for patt in exclude_dirs]) ]
-                # get files matching include/exclude filters
+                # get files matching include/exclude filters, and weed out
+                # non-existent ones (i.e. dangling symlinks)
                 files = [f for f in files
                          if any(
                              [fnmatch.fnmatch(f, patt) for patt in include_files])
                          and not any(
-                             [fnmatch.fnmatch(f, patt) for patt in exclude_files])]
+                             [fnmatch.fnmatch(f, patt) for patt in exclude_files])
+                         and os.path.exists(os.path.join(dir_, f))
+                        ]
                 if files or not exclude_empty:
                     self.append(DataDir(dir_, files, root=rootfolder,
                                         original_root=original_rootfolder, _skip_js_init=True))
