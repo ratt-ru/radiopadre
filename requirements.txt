@@ -6,3 +6,5 @@ tornado>=4.0
 jsonschema
 terminado
 setuptools
+pyzmq
+jinja2
