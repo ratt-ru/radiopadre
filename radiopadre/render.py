@@ -1,32 +1,28 @@
 import math
 import cgi
-import os.path
-
-import IPython.display 
-from IPython.display import display, HTML, Javascript
 
 
-def render_preamble ():
+def render_preamble():
     """Renders HTML preamble.
     Include this in the HTML of each cell to make sure that #NOTEBOOK_FILES# in links is correctly substituted
     """
     return """<script>document.radiopadre.fixup_hrefs()</script>"""
 
-def render_missing ():
-    return "<font color=red title='This file has gone missing since the last time the " + \
-        "directory was scanned. You may want to re-run the notebook.'>missing file</font>"
 
-def render_url (fullpath,prefix="files"):
-    """Converts a path relative to the notebook (i.e. kernel) to a URL that 
+def render_url(fullpath, prefix="files"):
+    """Converts a path relative to the notebook (i.e. kernel) to a URL that
     can be served by the notebook server, by prepending the notebook
     directory""";
     return ("/#NOTEBOOK_%s#/" % prefix.upper()) + fullpath;
 
+
 def render_title(title):
     return "<b>%s</b>" % cgi.escape(title)
 
+
 def render_status_message(msg):
     return "<p style='background: lightblue;'><b>%s</b></p>" % cgi.escape(msg)
+
 
 def render_table(data, labels, html=set(), ncol=1, links=None):
     txt = """<table style="border: 1px; text-align: left">
@@ -64,7 +60,7 @@ def render_table(data, labels, html=set(), ncol=1, links=None):
     return txt
 
 
-def render_refresh_button (full=False):
+def render_refresh_button(full=False):
     """Renders a "refresh" button which re-executes the current sell.
     If full is True, a double-click will re-execute the entire notebook, and the button
     will visually indicate that this is necessary
@@ -73,9 +69,9 @@ def render_refresh_button (full=False):
             style="position: absolute; right: 0; top: 0;
     """;
     if full:
-        title = "The underlying directories have changed so it is probably wise to " +\
-            "rerun the notebook. Double-click to rerun the notebook up to and including " +\
-            "this cell, or click to rerun this cell only"
+        title = "The underlying directories have changed so it is probably wise to " + \
+                "rerun the notebook. Double-click to rerun the notebook up to and including " + \
+                "this cell, or click to rerun this cell only"
         txt += """color:red;"
             title="%s" ondblclick="document.radiopadre.execute_to_current_cell();"
             >&#8635;</button>

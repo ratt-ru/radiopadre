@@ -51,7 +51,7 @@ echo
 opts="$opts --ContentsManager.pre_save_hook=radiopadre.notebook_utils._notebook_save_hook"
 
 echo "Running ipython notebook $opts"
-ipython notebook $opts &
+jupyter notebook $opts &
 pid=$!
 
 # kill the server if remote connection closes

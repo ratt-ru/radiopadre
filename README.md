@@ -4,7 +4,7 @@ Radiopadre: Python Astronomy Data & Results Examiner
 
 Astronomy visualization framework for ipython notebooks.
 
-[![Build Status](https://travis-ci.org/radio-astro/radiopadre.svg?branch=v0.1.2)](https://travis-ci.org/radio-astro/radiopadre)
+[![Build Status](https://travis-ci.org/radio-astro/radiopadre.svg?branch=master](https://travis-ci.org/radio-astro/radiopadre)
 
 [radiopadre on pypi](https://pypi.python.org/pypi/radiopadre)
 
@@ -14,7 +14,7 @@ Usage
 
 ```
 $ apt-get install imagemagick
-$ pip install -r requirements.txt
+$ pip install .
 $ ./run-radiopadre.sh
 ```
 

@@ -3,6 +3,8 @@ from setuptools import setup
 __version__ = "0.4"
 
 install_requires = [
+    'nbformat',
+    'jupyter',
     'ipython>3.0',
     'notebook',
     'matplotlib>=1.3,<1.5',

@@ -5,7 +5,8 @@ import matplotlib.pyplot as plt
 
 import radiopadre
 import radiopadre.file
-from radiopadre.render import *
+from radiopadre.render import render_title, render_table
+
 
 class FITSFile(radiopadre.file.FileBase):
     FITSAxisLabels = dict(STOKES=["I", "Q", "U", "V", "YX", "XY", "YY", "XX",
@@ -39,9 +40,6 @@ class FITSFile(radiopadre.file.FileBase):
         for ff in fits_files:
             name = ff.path if showpath else ff.name
             size = resolution = axes = "?"
-            if not ff.exists():
-                data += [(name, render_missing(), '', '', '')]
-                continue
             try:
                 hdr = pyfits.open(ff.fullpath)[0].header
                 naxis = hdr.get("NAXIS")
@@ -66,8 +64,8 @@ class FITSFile(radiopadre.file.FileBase):
                 traceback.print_exc()
             data += [(name, size, resolution, axes, ff.mtime_str)]
         display(HTML(render_table(data,
-                        html=("size", "axes", "res"), 
-                        labels=("name", "size", "res", "axes", "modified"))))
+                                  html=("size", "axes", "res"),
+                                  labels=("name", "size", "res", "axes", "modified"))))
 
     @staticmethod
     def _show_thumbs(fits_files,
@@ -85,9 +83,9 @@ class FITSFile(radiopadre.file.FileBase):
         if title:
             display(HTML(radiopadre.render_title(title)))
         nrow, ncol, width = radiopadre.file.compute_thumb_geometry(len(fits_files),
-                                                              ncol, mincol,
-                                                              maxcol, width,
-                                                              maxwidth)
+                                                                   ncol, mincol,
+                                                                   maxcol, width,
+                                                                   maxwidth)
         plt.figure(figsize=(width * ncol, width * nrow), dpi=radiopadre.DPI)
         for iplot, ff in enumerate(fits_files):
             ax = plt.subplot(nrow, ncol, iplot + 1)
@@ -118,14 +116,6 @@ class FITSFile(radiopadre.file.FileBase):
              colorbar=True,
              make_figure=True,
              filename_in_title=False):
-        if not self.exists():
-            if filename_in_title:
-                plt.title(self.basename, fontsize=fs or fs_title)
-            plt.text(0.5, 0.5, 'missing file', horizontalalignment='center',
-                  verticalalignment='center', color='red',
-                  transform=plt.gca().transAxes)
-            return
-
         ff = pyfits.open(self.fullpath)
         hdr = ff[0].header
 
@@ -229,9 +219,9 @@ class FITSFile(radiopadre.file.FileBase):
         else:
             status += ", unrolling " + axis_type[unroll]
             nrow, ncol, width = radiopadre.file.compute_thumb_geometry(dims[unroll],
-                                                                  ncol, mincol,
-                                                                  maxcol, width,
-                                                                  maxwidth)
+                                                                       ncol, mincol,
+                                                                       maxcol, width,
+                                                                       maxwidth)
             plt.figure(figsize=(width * ncol, width * nrow), dpi=radiopadre.DPI)
             plt.suptitle(self.basename)
             for iplot in range(dims[unroll]):

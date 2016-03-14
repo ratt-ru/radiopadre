@@ -5,7 +5,7 @@ import math
 from IPython.display import display, HTML
 
 import radiopadre
-from radiopadre.render import *
+from radiopadre.render import render_refresh_button
 
 
 class FileBase(object):
@@ -45,7 +45,7 @@ class FileBase(object):
         self.basename = os.path.basename(self.basepath)
         self.size = os.path.getsize(self.fullpath)
         self.update_mtime()
-        
+
         # human-friendly size
         if self.size > 0:
             exponent = min(int(math.log(self.size, 1024)),
@@ -81,7 +81,7 @@ class FileBase(object):
 
     _sort_attributes = dict(x="ext", n="basepath", s="size", t="mtime")
 
-    def update_mtime (self):
+    def update_mtime(self):
         """Updates mtime and mtime_str attributes according to current file mtime,
         returns mtime_str"""
         self.mtime = os.path.getmtime(self.fullpath)
@@ -89,13 +89,9 @@ class FileBase(object):
                                        time.localtime(self.mtime))
         return self.mtime_str
 
-    def exists (self):
-        """Returns True if file still exists"""
-        return os.path.exists(self.fullpath)
-
-    def is_updated (self):
+    def is_updated(self):
         """Returns True if mtime of underlying file has changed"""
-        return self.exists() and os.path.getmtime(self.fullpath) > self.mtime
+        return os.path.getmtime(self.fullpath) > self.mtime
 
     def __str__(self):
         return self.path
@@ -104,18 +100,11 @@ class FileBase(object):
         return self.show() or self.path
 
     def show(self, *args, **kw):
-        print self.path
+        print(self.path)
 
     def watch(self, *args, **kw):
         display(HTML(render_refresh_button()))
         return self.show(*args, **kw)
-
-    def _render_missing (self):
-        """If file doesn't exist, renders a 'missing file' HTML and returns it. Else returns None."""
-        if not self.exists():
-            return "<A HREF=%s target='_blank'>" % render_url(self.fullpath) + \
-                    render_title(self.path) + "</A>: " + render_missing()
-        return None
 
 
 def data_file(path, root=""):

@@ -1,18 +1,16 @@
 import os
 import traceback
 
-import IPython.display
 from IPython.display import HTML, Image, display
 
 import radiopadre
 import radiopadre.file
-from radiopadre.render import *
+from radiopadre.render import render_title, render_url, render_preamble
+
 
 def _make_thumbnail(image, width):
     thumbdir = "%s/radiopadre-thumbnails" % os.path.dirname(image)
     thumb = os.path.join(thumbdir, "%d.%s" % (width, os.path.basename(image)))
-    if not os.path.exists(image):
-        return thumb
     # does thumbdir need to be created?
     if not os.path.exists(thumbdir):
         if not os.access(os.path.dirname(thumbdir), os.W_OK):
@@ -29,7 +27,6 @@ def _make_thumbnail(image, width):
 
 
 class ImageFile(radiopadre.file.FileBase):
-
     @staticmethod
     def _show_thumbs(images, width=None, ncol=None, maxwidth=None, mincol=None,
                      external_thumbs=None,
@@ -49,9 +46,9 @@ class ImageFile(radiopadre.file.FileBase):
         nfail = 0
 
         html = render_preamble() + render_title(title) + \
-            """<br>
-                   <table style="border: 0px; text-align: left">\n
-                   """
+               """<br>
+                      <table style="border: 0px; text-align: left">\n
+                      """
         for row in range(nrow):
             html += """<tr style="border: 0px; text-align: left">\n"""
             filelist_row = filelist[row * ncol:(row + 1) * ncol]
@@ -92,8 +89,4 @@ class ImageFile(radiopadre.file.FileBase):
         display(HTML(html))
 
     def show(self, width=None, **kw):
-        txt = self._render_missing()
-        if txt:
-            display(HTML(txt))
-        else:
-            display(Image(self.fullpath, width=width and width * 100))
+        display(Image(self.fullpath, width=width and width * 100))

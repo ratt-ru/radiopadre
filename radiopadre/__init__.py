@@ -1,24 +1,25 @@
+import json
 import time
+
+import IPython.display
+import nbformat
+import astropy
 import fnmatch
 import os
 import pkg_resources
-import astropy
-
-import IPython.display
-import IPython.display
-from IPython.display import HTML, display, display_javascript, display_html
-
+import radiopadre.notebook_utils
+from IPython.display import display, HTML, Javascript
+from radiopadre.notebook_utils import _notebook_save_hook
+from radiopadre.notebook_utils import scrub_cell
+from .file import data_file, FileBase
 from .fitsfile import FITSFile
 from .imagefile import ImageFile
-from .file import data_file, FileBase
-from .render import *
+from .render import render_table, render_preamble, render_refresh_button, render_status_message, render_url, render_title
 
-import radiopadre.notebook_utils
-from radiopadre.notebook_utils import _notebook_save_hook
-
-
-__version__ = pkg_resources.require("MyProject")[0].version
-
+try:
+    __version__ = pkg_resources.require("radiopadre")[0].version
+except pkg_resources.DistributionNotFound:
+    __version__ = "development"
 
 # when running inside a docker containers, these are used to tell radiopadre
 # where the results directory is mounted, and what its original path on
@@ -42,7 +43,8 @@ TIMEFORMAT = "%H:%M:%S %b %d"
 ## various notebook-related init
 astropy.log.setLevel('ERROR')
 
-def _init_js_side ():
+
+def _init_js_side():
     """Checks that Javascript components of radiopadre are initialized"""
     try:
         get_ipython
@@ -50,29 +52,32 @@ def _init_js_side ():
         return None
     get_ipython().magic("matplotlib inline")
     # load radiopadre/js/init.js and init controls
-    initjs = os.path.join(os.path.dirname(__file__),"js","init.js")
+    initjs = os.path.join(os.path.dirname(__file__), "js", "init.js")
     display(Javascript(open(initjs).read()))
-    display(Javascript("document.radiopadre.init_controls('%s')"%os.environ['USER']))
+    display(Javascript("document.radiopadre.init_controls('%s')" % os.environ['USER']))
 
-def protect (author=None):
+
+def protect(author=None):
     """Makes current notebook protected with the given author name. Protected notebooks won't be saved
     unless the user matches the author."""
     author = author or os.environ['USER']
-    display(Javascript("document.radiopadre.protect('%s')"%author))
+    display(Javascript("document.radiopadre.protect('%s')" % author))
     display(HTML(render_status_message("""This notebook is now protected, author is "%s".
         All other users will have to treat this notebook as read-only.""" % author)))
 
-def unprotect ():
+
+def unprotect():
     """Makes current notebook unprotected."""
     display(Javascript("document.radiopadre.unprotect()"))
     display(HTML(render_status_message("""This notebook is now unprotected.
         All users can treat it as read-write.""")))
 
+
 class FileList(list):
     @staticmethod
-    def list_to_string (filelist):
-        return "Contents of %s:\n"%filelist._title + "\n".join(
-                    ["%d: %s" % (i, d.path) or '.' for i, d in enumerate(filelist)])
+    def list_to_string(filelist):
+        return "Contents of %s:\n" % filelist._title + "\n".join(
+            ["%d: %s" % (i, d.path) or '.' for i, d in enumerate(filelist)])
 
     def __init__(self, files=[], extcol=True, showpath=False,
                  classobj=None, title="", parent=None,
@@ -91,7 +96,7 @@ class FileList(list):
 
     def _repr_html_(self, ncol=None, **kw):
         html = render_preamble() + render_title(self._title) + \
-                render_refresh_button(full=self._parent and self._parent.is_updated());
+               render_refresh_button(full=self._parent and self._parent.is_updated());
         if not self:
             return html + ": 0 files"
         # auto-set 1 or 2 columns based on filename length
@@ -118,7 +123,7 @@ class FileList(list):
     def list(self, ncol=None, **kw):
         return IPython.display.display(HTML(self._repr_html_(ncol=ncol, **kw)))
 
-    def __str__ (self):
+    def __str__(self):
         return FileList.list_to_string(self)
 
     def summary(self, **kw):
@@ -127,7 +132,7 @@ class FileList(list):
         summary = getattr(self._classobj, "_show_summary", None)
         if summary:
             display(HTML(render_refresh_button(full=self._parent and self._parent.is_updated())))
-            return summary(self, **kw)  
+            return summary(self, **kw)
         else:
             return self.list(**kw)
 
@@ -135,12 +140,12 @@ class FileList(list):
     #     display(HTML(render_refresh_button()))
     #     self.show_all(*args,**kw)
 
-    def show_all(self,*args,**kw):
+    def show_all(self, *args, **kw):
         display(HTML(render_refresh_button(full=self._parent and self._parent.is_updated())))
         if not self:
             display(HTML("<p>0 files</p>"))
         for f in self:
-            f.show(*args,**kw)
+            f.show(*args, **kw)
 
     def __call__(self, pattern):
         files = []
@@ -162,7 +167,7 @@ class FileList(list):
         kw.setdefault('showpath', self._showpath)
         thumbs = getattr(self._classobj, "_show_thumbs", None)
         if thumbs:
-            return thumbs(self, **kw) 
+            return thumbs(self, **kw)
         display(HTML("<p>%d files. Don't know how to make thumbnails for this collection.</p>" % len(self)))
 
     def __getslice__(self, *slc):
@@ -203,7 +208,7 @@ class DataDir(FileBase):
                                title="Images, " + self._title, parent=self)
         self.others = FileList([f for f in self.files
                                 if type(f) is not ImageFile and type(
-                                    f) is not FITSFile],
+                f) is not FITSFile],
                                title="Other files, " + self._title, parent=self)
 
     def sort(self, opt):
@@ -229,53 +234,52 @@ class DataDir(FileBase):
     def __getitem__(self, item):
         return self.files[item]
 
-    def ls (self):
-        return DirList(self.path, recursive=False, 
-                original_rootfolder=os.path.join(self._original_root, self.path))
+    def ls(self):
+        return DirList(self.path, recursive=False,
+                       original_rootfolder=os.path.join(self._original_root, self.path))
 
-    def lsr (self):
-        return DirList(self.path, recursive=True,  
-                original_rootfolder=os.path.join(self._original_root, self.path))
-
-
+    def lsr(self):
+        return DirList(self.path, recursive=True,
+                       original_rootfolder=os.path.join(self._original_root, self.path))
 
 
-def lsd (pattern=None,*args,**kw):
+def lsd(pattern=None, *args, **kw):
     """Creates a DirList from '.' non-recursively, optionally applying a pattern.
 
     Args:
         pattern: if specified, a wildcard pattern
     """
     kw['recursive'] = False
-    dl = DirList(*args,**kw)
+    dl = DirList(*args, **kw)
     return dl(pattern) if pattern else dl
 
-def lsdr (pattern=None,*args,**kw):
+
+def lsdr(pattern=None, *args, **kw):
     """Creates a DirList from '.' recursively, optionally applying a pattern.
 
     Args:
         pattern: if specified, a wildcard pattern
     """
     kw['recursive'] = True
-    dl = DirList(*args,**kw)
+    dl = DirList(*args, **kw)
     return dl(pattern) if pattern else dl
 
-def latest (*args):
+
+def latest(*args):
     """Creates a DirList from '.' recursively, optionally applying a pattern.
 
     Args:
         pattern (str):  if specified, a wildcard pattern
         num (int):      use 2 for second-latest, 3 for third-latest, etc.
     """
-    args = dict([(type(arg),arg) for arg in args])
-    dl = lsd(pattern=args.get(str),sort='txn')
+    args = dict([(type(arg), arg) for arg in args])
+    dl = lsd(pattern=args.get(str), sort='txn')
     if not dl:
-        raise IOError("no subdirectories here")
+        raise (IOError, "no subdirectories here")
     return dl[-args.get(int, -1)].lsr()
 
 
 class DirList(list):
-
     def __init__(self, rootfolder=None, include="*.jpg *.png *.fits *.txt",
                  exclude=".* .*/", exclude_empty=True, original_rootfolder=None,
                  sort="xnt",
@@ -320,24 +324,24 @@ class DirList(list):
                 if not recursive and dir_ != rootfolder:
                     dirnames[:] = []
                 else:
-                    dirnames[:] = [ d for d in dirnames 
-                                    if not any([fnmatch.fnmatch(d, patt) for patt in exclude_dirs]) ]
+                    dirnames[:] = [d for d in dirnames
+                                   if not any([fnmatch.fnmatch(d, patt) for patt in exclude_dirs])]
                 # get files matching include/exclude filters, and weed out
                 # non-existent ones (i.e. dangling symlinks)
                 files = [f for f in files
                          if any(
-                             [fnmatch.fnmatch(f, patt) for patt in include_files])
+                        [fnmatch.fnmatch(f, patt) for patt in include_files])
                          and not any(
-                             [fnmatch.fnmatch(f, patt) for patt in exclude_files])
+                        [fnmatch.fnmatch(f, patt) for patt in exclude_files])
                          and os.path.exists(os.path.join(dir_, f))
-                        ]
+                         ]
                 if files or not exclude_empty:
                     self.append(DataDir(dir_, files, root=rootfolder,
                                         original_root=original_rootfolder, _skip_js_init=True))
         # init lists
         self.sort(sort)
 
-    def latest (self, num=1):
+    def latest(self, num=1):
         if not self:
             raise IOError("no subdirectories in %s" % self._root)
         return self.sort("t")[-num]
@@ -358,7 +362,7 @@ class DirList(list):
                 getattr(self, attr).extend(getattr(d, attr))
         return self
 
-    def is_updated (self):
+    def is_updated(self):
         return any([d.is_updated() for d in self])
 
     def _repr_html_(self, copy_filename=None, copy_dirs='dirs', copy_root='root', **kw):
@@ -373,31 +377,31 @@ class DirList(list):
             nfits = len(dir_.fits)
             nimg = len(dir_.images)
             nother = len(dir_.files) - nfits - nimg
-            table_entry = [ dir_.path or '.', nfits, nimg, nother,
-                            time.strftime(TIMEFORMAT, time.localtime(dir_.mtime)) ]
+            table_entry = [dir_.path or '.', nfits, nimg, nother,
+                           time.strftime(TIMEFORMAT, time.localtime(dir_.mtime))]
             if copy_filename:
                 # if copy of this notebook exists in subdirectory, show "load copy" button
-                copypath = os.path.join(dir_.fullpath,copy_filename+".ipynb")
+                copypath = os.path.join(dir_.fullpath, copy_filename + ".ipynb")
                 if os.path.exists(copypath):
                     button = """<A href=%s target='_blank'
                                 title="%s contains its own copy of this notebook, click to open."
                                 >open custom copy of notebook</a>""" % (
-                                    render_url(copypath,"notebooks"),
-                                    dir_.name)
+                        render_url(copypath, "notebooks"),
+                        dir_.name)
                 # else show "make copy" button
                 else:
-#                    button = """<button onclick="console.log('%s');" 
+                    #                    button = """<button onclick="console.log('%s');"
                     button = """<a href='#' onclick="document.radiopadre.copy_notebook('%s','%s','%s'); return false;" 
                                 title="Click to make a new copy of this radiopadre notebook in %s."
                                 >create custom copy of notebook</a>""" % (copypath, copy_dirs, copy_root, dir_.name)
                 table_entry.append(button)
             dirlist.append(table_entry)
-        labels = [ "name", "# FITS", "# img", "# others", "modified" ]
+        labels = ["name", "# FITS", "# img", "# others", "modified"]
         copy_filename and labels.append("copy")
         html += render_table(dirlist, labels=labels, html=["copy"])
         return html
 
-    def __str__ (self):
+    def __str__(self):
         return FileList.list_to_string(self)
 
     def show(self, **kw):
@@ -406,8 +410,8 @@ class DirList(list):
     def list(self, **kw):
         return display(HTML(self._repr_html_(**kw)))
 
-    def subdirectory_catalog (self, basename="results", dirs="dirs", root="root", **kw):
-        return display(HTML(self._repr_html_(copy_filename=basename,copy_dirs=dirs,copy_root=root,**kw)))
+    def subdirectory_catalog(self, basename="results", dirs="dirs", root="root", **kw):
+        return display(HTML(self._repr_html_(copy_filename=basename, copy_dirs=dirs, copy_root=root, **kw)))
 
     def __call__(self, pattern):
         newlist = DirList(self._root, _scan=False, title="%s/%s" % (self._title,
@@ -425,27 +429,24 @@ class DirList(list):
         newlist.sort(self._sort_option)
         return newlist
 
-import IPython.nbformat
-import json
-from radiopadre.notebook_utils import scrub_cell
 
-def copy_current_notebook(oldpath,newpath,cell=0,copy_dirs='dirs',copy_root='root'):
+def copy_current_notebook(oldpath, newpath, cell=0, copy_dirs='dirs', copy_root='root'):
     # read notebook data
     data = open(oldpath).read()
     version = json.loads(data)['nbformat']
-    nbdata = IPython.nbformat.reads(data,version)
-    nbdata.keys()    
+    nbdata = nbformat.reads(data, version)
+    nbdata.keys()
     # convert to current format
-    current_version = IPython.nbformat.current_nbformat
-    nbdata = IPython.nbformat.convert(nbdata, current_version)
-    current_format = getattr(IPython.nbformat,'v'+str(current_version))
+    current_version = nbformat.current_nbformat
+    nbdata = nbformat.convert(nbdata, current_version)
+    current_format = getattr(nbformat, 'v' + str(current_version))
     # accommodate worksheets, if available 
     if hasattr(nbdata, 'worksheets'):
-        raise RuntimeError,"copy_current_notebook: not compatible with worksheets"
+        raise (RuntimeError, "copy_current_notebook: not compatible with worksheets")
     metadata = nbdata['metadata']
     cells = nbdata['cells']
     # strip out all cells up to and including indicated one
-    del cells[:cell+1]
+    del cells[:cell + 1]
     # scrub cell output
     for c in cells:
         scrub_cell(c)
@@ -456,22 +457,22 @@ def copy_current_notebook(oldpath,newpath,cell=0,copy_dirs='dirs',copy_root='roo
         code += "\n%s = %s[0]" % (copy_root, copy_dirs)
     code += "\n%s.show()" % copy_dirs
     # insert output
-    output = current_format.new_output("display_data",data={
-      "text/html": [ "<b style='color: red'>Please select Cell|Run all from the menu to render this notebook.</b>" ]
-      })
-    cells.insert(0,current_format.new_code_cell(code,outputs=[output]))
+    output = current_format.new_output("display_data", data={
+        "text/html": ["<b style='color: red'>Please select Cell|Run all from the menu to render this notebook.</b>"]
+    })
+    cells.insert(0, current_format.new_code_cell(code, outputs=[output]))
     # insert markdown
     cells.insert(0, current_format.new_markdown_cell("""# %s\nThis
                 radiopadre notebook was automatically generated from ``%s`` 
                 using the 'copy notebook' feature. Please select "Cell|Run all"
                 from the menu to render this notebook.
-                """ % (newpath,oldpath),
-    ))
+                """ % (newpath, oldpath),
+                                                     ))
     # cleanup metadata
     metadata['radiopadre_notebook_protect'] = 0
     metadata['radiopadre_notebook_scrub'] = 0
     if 'signature' in metadata:
         metadata['signature'] = ""
     # save
-    IPython.nbformat.write(nbdata, open(newpath,'w'), version)
+    nbformat.write(nbdata, open(newpath, 'w'), version)
     return newpath
