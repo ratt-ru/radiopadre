@@ -1,21 +1,24 @@
 import time
 import fnmatch
 import os
-
+import pkg_resources
 import astropy
 
 import IPython.display
 import IPython.display
 from IPython.display import HTML, display, display_javascript, display_html
-from radiopadre.fitsfile import FITSFile
-from radiopadre.imagefile import ImageFile
-from radiopadre.file import data_file, FileBase
-from radiopadre.render import *
+
+from .fitsfile import FITSFile
+from .imagefile import ImageFile
+from .file import data_file, FileBase
+from .render import *
 
 import radiopadre.notebook_utils
 from radiopadre.notebook_utils import _notebook_save_hook
 
-__version__ = '0.3'
+
+__version__ = pkg_resources.require("MyProject")[0].version
+
 
 # when running inside a docker containers, these are used to tell radiopadre
 # where the results directory is mounted, and what its original path on

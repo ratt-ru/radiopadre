@@ -1,16 +1,30 @@
-import os
 from setuptools import setup
-from radiopadre import __version__
 
+__version__ = "0.4"
 
-def read(fname):
-    return open(os.path.join(os.path.dirname(__file__), fname)).read()
+install_requires = [
+    'ipython>3.0',
+    'matplotlib',
+    'pyfits',
+    'aplpy',
+    'tornado>=4.0',
+    'jsonschema',
+    'terminado',
+    'setuptools',
+    'pyzmq',
+    'jinja2',
+]
 
-scripts = [ 'run-remote-padre', 'run-radiopadre.sh', 'run-radiopadre-docker.sh' ]
+scripts = [
+    'run-remote-padre',
+    'run-radiopadre.sh',
+    'run-radiopadre-docker.sh'
+]
 
 setup(
     name="radiopadre",
     version=__version__,
+    install_requires=install_requires,
     author="Gijs Molenaar",
     author_email="gijs@pythonic.nl",
     description=("Helpers for visualizing resultsets in ipython notebook"),
@@ -19,7 +33,6 @@ setup(
     url="http://github.com/radio-astro/radiopadre",
     packages=['radiopadre'],
     scripts=scripts,
-    long_description=read('README.md'),
     classifiers=[
         "Development Status :: 3 - Alpha",
         "Topic :: Utilities",
