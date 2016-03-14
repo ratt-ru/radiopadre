@@ -4,7 +4,8 @@ __version__ = "0.4"
 
 install_requires = [
     'ipython>3.0',
-    'matplotlib',
+    'notebook',
+    'matplotlib>=1.3,<1.5',
     'pyfits',
     'aplpy',
     'tornado>=4.0',
