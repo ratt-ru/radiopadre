@@ -280,7 +280,7 @@ def latest(*args):
 
 
 class DirList(list):
-    def __init__(self, rootfolder=None, include="*.jpg *.png *.fits *.txt",
+    def __init__(self, rootfolder=None, include="*.jpg *.png *.fits *.txt *.log",
                  exclude=".* .*/", exclude_empty=True, original_rootfolder=None,
                  sort="xnt",
                  recursive=True, title=None, _scan=True):

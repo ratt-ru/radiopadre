@@ -115,9 +115,10 @@ while True:
                                        for nb in match.group(1).strip().split() ]
                     auto_notebooks = fnmatch.filter(auto_notebooks, notebook)
                 # check for notebook port, and launch second ssh when we have it
-                match = line and re.match(".*Notebook is running at: http://(localhost|127.0.0.1):([0-9]+)/.*",line)
+                match = line and re.match(".*http://(localhost|127.0.0.1):([0-9]+)/(.*)$",line.strip())
                 if match:
-                    remoteport = match.group(2);
+                    remoteport = match.group(2)
+                    path = match.group(3)
                     # find unused local port
                     localport = find_unused_port(10000+os.getuid())
                     print "Detected remote port %s, using local port %s" % (remoteport, localport)
@@ -128,7 +129,7 @@ while True:
                                 stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
                     register_process(ssh2)
                     # open browser if needed
-                    path = "http://localhost:%s" % localport
+                    path = "http://localhost:%s/%s" % (localport, path)
                     if not options.no_browser:
                         print "Opening browser for",path
                         subprocess.Popen([options.browser, path])

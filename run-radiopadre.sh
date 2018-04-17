@@ -22,10 +22,12 @@ while [ "$1" != "" ]; do
   shift 1
 done
 
+source ~/.venv/radiopadre/bin/activate
+
 # add the directory where run-radiopadre.sh resides to PYTHONPATH
 export PYTHONPATH=$PYTHONPATH:$DIR
 
-echo "Welcome to radiopadre!"
+echo "Welcome to radiopadre! $DIR `pwd`"
 echo
 echo "I have chosen to use port $port for you. You may set RADIOPADRE_PORT if you prefer"
 echo "it to use another port. Note that if another notebook is already open on that port,"
