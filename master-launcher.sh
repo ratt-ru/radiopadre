@@ -19,16 +19,19 @@ if [ $? -eq 1 ]; then
 		exit
 	fi
 else 
-	echo "virtualenv FOUND"
+	echo "virtualenv FOUND!"
 fi
 
+echo "Creating Virtual Environment"
 virtualenv radpadre_venv
-#check for missing modules and install them
-pip freeze > available_modules.txt
 
-comm -3 <(sort available_modules.txt) <(sort requirements.txt) > download.txt
-rm available_modules.txt
-echo "Installing missing modules"
-pip install -r download.txt
+#launch virtual environment
+source ./radpadre_venv/bin/activate
+
+#install the dependencies required for radiopadre
+pip install -r requirements.txt
+
+echo "Modules installed in environment"
+
 
 python ./launcher.py
