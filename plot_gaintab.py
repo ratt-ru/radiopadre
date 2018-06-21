@@ -1,5 +1,9 @@
 #!/usr/bin/env python
+"""
+Run this python script with the G tables to plot amplitude vs time
 
+"""
+import pdb
 import matplotlib
 #matplotlib.use('TkAgg')
 from pyrap.tables import table
@@ -99,9 +103,10 @@ if doplot not in ['ap','ri']:
 
 #open the table using the tt object and perform operations on it
 #ack: print message to show if table was opened succssfully
-tt = table(mytab,ack=False)
 
-#getting the unique values from  the antenna column in the table
+tt = table(mytab,ack=False)
+#pdb.set_trace()
+#getting the unique values from  the antenna column in the table, here we have the cparam
 
 ants = numpy.unique(tt.getcol('ANTENNA1'))
 fields = numpy.unique(tt.getcol('FIELD_ID'))
@@ -124,6 +129,7 @@ if int(field) not in fields.tolist():
 if plotants[0] != -1:
 	#creating a list for the antennas to be plotted
 	plotants = plotants.split(',')
+
 	for ant in plotants:
 		if int(ant) not in ants:
 			plotants.remove(ant)
@@ -153,7 +159,7 @@ ax1 = fig.add_subplot(211,facecolor='#EEEEEE')
 ax2 = fig.add_subplot(212,facecolor='#EEEEEE')'''
 
 ax1=figure(x_axis_label='Time [s]',y_axis_label='Amplitude')
-ax2=figure(x_axis_label='Time [s]',y_axis_label='Unwrapped phase [rad]')
+#ax2=figure(x_axis_label='Time [s]',y_axis_label='Unwrapped phase [rad]')
 
 
 
@@ -175,73 +181,77 @@ for ant in plotants:
 	y2col = scalarMap.to_rgba(float(ant))
 
 	#denormalizing the color array
+	
 	y1col=np.array(y1col)
 	y1col=np.array(y1col*255,dtype=int)
 	y1col=y1col.tolist()
 	y1col=tuple(y1col)
+
+
 
 	y2col=np.array(y2col)
 	y2col=np.array(y2col*255,dtype=int)
 	y2col=y2col.tolist()
 	y2col=tuple(y2col)
 
+	#pdb.set_trace()
 	#getting the rows that we want to query
-	mytaql = 'ANTENNA1=='+str(ant)+' && '
-	mytaql+= 'FIELD_ID=='+str(field)
+	mytaql = 'ANTENNA1=='+str(ant)
+	#mytaql+= 'FIELD_ID=='+str(field)
 
 	#querying the table for the 2 columns
+	#getting data from the antennas, cparam contains the correlated data, time is the time stamps
 	subtab = tt.query(query=mytaql)
 	cparam = subtab.getcol('CPARAM')
 	flagcol = subtab.getcol('FLAG')
 	times = subtab.getcol('TIME')
-	#array subtraction
+
+	#pdb.set_trace()
+	#array subtractionclear
 	times = times - times[0]
 	#creating a masked array to prevent invalid values from being computed. IF mask is true, then the element is masked, an dthus won't be used in the calculation
-	masked_data = numpy.ma.array(data=cparam,mask=flagcol)
-	print "masked_data"
-	print masked_data[:,:,corr].ndim
+	#masked_data = numpy.ma.array(data=cparam,mask=flagcol)
+	
 	if doplot == 'ap':
 		#getting a 2d array for y1
-		y1 = numpy.abs(masked_data)[:,:,corr]
-		print y1.shape
-		print "*"*25
+		#pdb.set_trace()
+		y1 = numpy.abs(cparam)[:,:,corr]
+		
 		#returns phi, the angle of a complex number
-		y2 = numpy.angle(masked_data)
-		y2 = numpy.array(y2[:,:,corr])
-		y2 = numpy.unwrap(y2[:,0])
+		#y2 = numpy.angle(masked_data)
+		#y2 = numpy.array(y2[:,:,corr])
+		#y2 = numpy.unwrap(y2[:,0])
 
-		times=times.reshape((times.size))
+		#times=times.reshape((times.size))
 		y1=y1.reshape((y1.size))
 		
 		'''ax1.plot(times,y1,'o',markersize=12,alpha=1.0,zorder=100,color=y1col)
 								ax1.plot(times,y1,'-',lw=2,alpha=0.4,zorder=100,color=y1col)
 								ax2.plot(times,y2,'o',markersize=12,alpha=1.0,zorder=100,color=y2col)
 								ax2.plot(times,y2,'-',lw=2,alpha=0.4,zorder=100,color=y2col)'''
-		print y1col[:-1]
-		print int(y1col[0]*255)
-		print "+"*25
+		
 		
 		ax1.line(times,y1,alpha=1,line_color=y1col[:-1], line_width=3)
 		ax1.circle(times,y1,size=8,alpha=1,line_dash='dashed',line_color=y2col[:-1])
 		'''hover=HoverTool(tooltips=[("(times,y1)","($x,$y)")],mode='vline')
-								ax1.add_tools(hover)'''
+								ax1.add_tools(hover)
 
-		ax2.line(times,y2,line_dash='dashed', alpha=1,line_width=3,line_color=y2col[:-1])
-		ax2.circle(times,y2,size=8,alpha=1,line_color=y2col[:-1])
+		#ax2.line(times,y2,line_dash='dashed', alpha=1,line_width=3,line_color=y2col[:-1])
+		#ax2.circle(times,y2,size=8,alpha=1,line_color=y2col[:-1])
 		
-		'''hover2=HoverTool(tooltips=[("(times,y2[0])","($x,$y)")],mode='vline')
+		hover2=HoverTool(tooltips=[("(times,y2[0])","($x,$y)")],mode='vline')
 								ax2.add_tools(hover2)'''
 	elif doplot == 'ri':
 		y1 = numpy.real(masked_data)[:,:,corr]
-		y2 = numpy.imag(masked_data)[:,:,corr]
+		#y2 = numpy.imag(masked_data)[:,:,corr]
 		'''ax1.plot(times,y1,'o',markersize=12,alpha=1.0,zorder=100,color=y1col)
 								ax1.plot(times,y1,'-',lw=2,alpha=0.4,zorder=100,color=y1col)
 								ax2.plot(times,y2,'o',markersize=12,alpha=0.8,zorder=100,color=y2col)
 								ax2.plot(times,y2,'-',lw=2,alpha=0.4,zorder=100,color=y2col)'''
 		ax1.circle(times,y1,color=y1col,size=12,alpha=1,line_dash='dashed')
 		ax1.line(times,y1,color=y1col, alpha=0.4)
-		ax2.circle(times,y2,color=y2col,size=12,alpha=1)
-		ax2.line(times,y1,color=y2col,line_dash='dashed', alpha=0.4)
+		#ax2.circle(times,y2,color=y2col,size=12,alpha=1)
+		#ax2.line(times,y1,color=y2col,line_dash='dashed', alpha=0.4)
 
 
 	subtab.close()
@@ -261,10 +271,10 @@ for ant in plotants:
 		yumin = numpy.min(y1)
 	if numpy.max(y1) > yumax:
 		yumax = numpy.max(y1)
-	if numpy.min(y2) < ylmin:
-		ylmin = numpy.min(y2)
-	if numpy.max(y2) > ylmax:
-		ylmax = numpy.max(y2)
+	'''if numpy.min(y2) < ylmin:
+					ylmin = numpy.min(y2)
+				if numpy.max(y2) > ylmax:
+					ylmax = numpy.max(y2)'''
 
 xmin = xmin-400
 xmax = xmax+400
@@ -298,8 +308,8 @@ ax1.set_ylim((yumin,yumax))
 ax2.set_ylim((ylmin,ylmax))'''
 ax1.x_range=Range1d(xmin,xmax)
 ax1.y_range=Range1d(yumin,yumax)
-ax2.x_range=Range1d(xmin,xmax)
-ax2.y_range=Range1d(ylmin,ylmax)
+#ax2.x_range=Range1d(xmin,xmax)
+#ax2.y_range=Range1d(ylmin,ylmax)
 
 if doplot == 'ap':
 	'''ax1.set_yaxis_label('Amplitude')
@@ -317,7 +327,8 @@ elif doplot == 'ri':
 #plt.show()
 
 #arrangng the figures into a column format
-figures=column(ax1,ax2)
-show(figures)
+#figures=column(ax1,ax2)
+show(ax1)
 
 print 'Rendered: '+pngname
+
