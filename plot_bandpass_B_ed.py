@@ -2,6 +2,7 @@
 
 '''
 Run script with desired B tables
+Requirement: bokeh
 '''
 import pdb
 #import matplotlib
@@ -21,24 +22,8 @@ from bokeh.models import Range1d, HoverTool
 from bokeh.io import output_file, show
 from bokeh.layouts import row, column
 
-output_file('B_tables_bokeh.html')
 
-def setup_plot(ax):
-	ax.grid(b=True,which='minor',color='white',linestyle='-',lw=2)
-	ax.grid(b=True,which='major',color='white',linestyle='-',lw=2)
-	ax.spines['top'].set_visible(False)
-	ax.spines['bottom'].set_visible(False)
-	ax.spines['left'].set_visible(False)
-	ax.spines['right'].set_visible(False)
-	ax.tick_params(axis='x',which='both',bottom='off',top='off')
-	ax.tick_params(axis='y',which='both',left='off',right='off')
-
-
-def set_fontsize(fig,fontsize):
-	def match(artist):
-		return artist.__module__ == 'matplotlib.text'
-	for textobj in fig.findobj(match=match):
-		textobj.set_fontsize(fontsize)
+#output_file('B_tables_bokeh.html')
 
 
 parser = OptionParser(usage='%prog [options] tablename')
@@ -81,9 +66,9 @@ if len(args) != 1:
 else:
 	mytab = args[0].rstrip('/')
 
-
 if pngname == '':
-	pngname = 'plot_'+mytab+'_corr'+str(corr)+'_'+doplot+'_field'+str(field)+'.png'
+	pngname = 'plot_'+mytab+'_corr'+str(corr)+'_'+doplot+'_field'+str(field)+'.html'
+	output_file(pngname)
 
 
 if doplot not in ['ap','ri']:
@@ -133,12 +118,6 @@ else:
 #creating the mpl figure for subplots	
 ax1 = figure()
 ax2 = figure()
-#ax1 = fig.line(211,facecolor='#EEEEEE')
-#ax2 = fig.line(212,facecolor='#EEEEEE')
-
-
-#setup_plot(ax1)
-#setup_plot(ax2)
 
 
 xmin = 1e20
@@ -196,17 +175,22 @@ for ant in plotants:
 #		y2 = numpy.unwrap(y2)
 		ax1.line(chans,y1,color=y1col[:-1],legend="A"+str(ant),line_width=2)
 		#ax1.circle(chans,y1,color=y1col[:-1])
-		ax1.legend.click_policy='hide'
+		#ax1.legend.click_policy='hide'
 		ax2.line(chans,y2,color=y2col[:-1],legend="A"+str(ant),line_width=2)
-		ax2.legend.click_policy='hide'
+		
 		#ax2.plot(chans,y2,'-',lw=2,alpha=0.4,zorder=100,color=y2col)
 	elif doplot == 'ri':
 		y1 = numpy.real(masked_data)[0,:,corr]
 		y2 = numpy.imag(masked_data)[0,:,corr]
-		ax1.line(chans,y1,color=y1col[:-1])
+		ax1.line(chans,y1,color=y1col[:-1],legend="A"+str(ant),line_width=2)
+		ax1.legend.click_policy='hide'
 		#ax1.plot(chans,y1,'-',lw=2,alpha=0.4,zorder=100,color=y1col)
-		ax2.line(chans,y2,color=y2col[:-1])
+		ax2.line(chans,y2,color=y2col[:-1],legend="A"+str(ant),line_width=2)
 		#ax2.plot(chans,y2,'-',lw=2,alpha=0.4,zorder=100,color=y2col)
+
+	#configuring click actions for legends
+	ax2.legend.click_policy='hide'
+	ax1.legend.click_policy='hide'
 
 	subtab.close()
 

@@ -1,10 +1,6 @@
 #!/usr/bin/env python
-"""
-Run this python script with the G tables to plot amplitude vs time
-
-"""
 import pdb
-import matplotlib
+#import matplotlib
 #matplotlib.use('TkAgg')
 from pyrap.tables import table
 from optparse import OptionParser
@@ -15,14 +11,14 @@ import numpy
 import pylab	#for imaging
 import sys
 
-from matplotlib import pyplot as plt
+#from matplotlib import pyplot as plt
 from bokeh.plotting import figure
 from bokeh.io import output_file, show
 from bokeh.layouts import row, column
 from bokeh.models import Range1d, HoverTool
 import numpy as np
 
-output_file('bokeh_casa_plot.html')
+
 
 def setup_plot(ax):
 	"""
@@ -92,7 +88,10 @@ else:
 
 
 if pngname == '':
-	pngname = 'plot_'+mytab+'_corr'+str(corr)+'_'+doplot+'_field'+str(field)+'.png'
+	pngname = 'plot_'+mytab+'_corr'+str(corr)+'_'+doplot+'_field'+str(field)+'.html'
+	output_file(pngname)
+else:
+	output_file(pngname)
 
 
 #by default is ap: amplitude and phase
@@ -158,8 +157,8 @@ ax2 = fig.add_subplot(212,facecolor='#EEEEEE')figsize=(24,18)
 ax1 = fig.add_subplot(211,facecolor='#EEEEEE')
 ax2 = fig.add_subplot(212,facecolor='#EEEEEE')'''
 
-ax1=figure(x_axis_label='Time [s]',y_axis_label='Amplitude')
-#ax2=figure(x_axis_label='Time [s]',y_axis_label='Unwrapped phase [rad]')
+ax1=figure(plot_width=1000,plot_height=800)
+ax2=figure()
 
 
 
@@ -210,20 +209,19 @@ for ant in plotants:
 	#array subtractionclear
 	times = times - times[0]
 	#creating a masked array to prevent invalid values from being computed. IF mask is true, then the element is masked, an dthus won't be used in the calculation
-	#masked_data = numpy.ma.array(data=cparam,mask=flagcol)
+	masked_data = numpy.ma.array(data=cparam,mask=flagcol)
 	
 	if doplot == 'ap':
 		#getting a 2d array for y1
 		#pdb.set_trace()
-		y1 = numpy.abs(cparam)[:,:,corr]
+		#drawing correlation 0 rather than 1
+		y1 = numpy.abs(cparam)[:,0,corr]
 		
 		#returns phi, the angle of a complex number
-		#y2 = numpy.angle(masked_data)
-		#y2 = numpy.array(y2[:,:,corr])
-		#y2 = numpy.unwrap(y2[:,0])
-
-		#times=times.reshape((times.size))
-		y1=y1.reshape((y1.size))
+		y2 = numpy.angle(masked_data)
+		y2 = numpy.array(y2[:,:,corr])
+		y2 = numpy.unwrap(y2[:,0])
+		
 		
 		'''ax1.plot(times,y1,'o',markersize=12,alpha=1.0,zorder=100,color=y1col)
 								ax1.plot(times,y1,'-',lw=2,alpha=0.4,zorder=100,color=y1col)
@@ -231,16 +229,19 @@ for ant in plotants:
 								ax2.plot(times,y2,'-',lw=2,alpha=0.4,zorder=100,color=y2col)'''
 		
 		
-		ax1.line(times,y1,alpha=1,line_color=y1col[:-1], line_width=3)
+		ax1.line(times,y1,alpha=1,line_color=y1col[:-1], line_width=3,legend="Antenna "+str(ant))
+		ax1.legend.click_policy='hide'
+		#ax1.legend.position='best'
 		ax1.circle(times,y1,size=8,alpha=1,line_dash='dashed',line_color=y2col[:-1])
 		'''hover=HoverTool(tooltips=[("(times,y1)","($x,$y)")],mode='vline')
 								ax1.add_tools(hover)
 
-		#ax2.line(times,y2,line_dash='dashed', alpha=1,line_width=3,line_color=y2col[:-1])
+		
 		#ax2.circle(times,y2,size=8,alpha=1,line_color=y2col[:-1])
 		
 		hover2=HoverTool(tooltips=[("(times,y2[0])","($x,$y)")],mode='vline')
 								ax2.add_tools(hover2)'''
+		ax2.line(times,y2,line_dash='dashed', alpha=1,line_width=3,line_color=y2col[:-1])
 	elif doplot == 'ri':
 		y1 = numpy.real(masked_data)[:,:,corr]
 		#y2 = numpy.imag(masked_data)[:,:,corr]
@@ -271,10 +272,10 @@ for ant in plotants:
 		yumin = numpy.min(y1)
 	if numpy.max(y1) > yumax:
 		yumax = numpy.max(y1)
-	'''if numpy.min(y2) < ylmin:
-					ylmin = numpy.min(y2)
-				if numpy.max(y2) > ylmax:
-					ylmax = numpy.max(y2)'''
+	if numpy.min(y2) < ylmin:
+		ylmin = numpy.min(y2)
+	if numpy.max(y2) > ylmax:
+		ylmax = numpy.max(y2)
 
 xmin = xmin-400
 xmax = xmax+400
@@ -308,17 +309,18 @@ ax1.set_ylim((yumin,yumax))
 ax2.set_ylim((ylmin,ylmax))'''
 ax1.x_range=Range1d(xmin,xmax)
 ax1.y_range=Range1d(yumin,yumax)
-#ax2.x_range=Range1d(xmin,xmax)
-#ax2.y_range=Range1d(ylmin,ylmax)
+ax2.x_range=Range1d(xmin,xmax)
+ax2.y_range=Range1d(ylmin,ylmax)
 
 if doplot == 'ap':
-	'''ax1.set_yaxis_label('Amplitude')
-				ax2.set_ylabel('Unwrapped phase [rad]')'''
+	ax1.yaxis.axis_label='Amplitude'
+	ax2.yaxis.axis_label='Unwrapped phase [rad]' 
 elif doplot == 'ri':
-	ax1.set_ylabel('Real')
-	ax2.set_ylabel('Imaginary')
-#ax1.set_xlabel('Time [s]')
-#ax2.set_xlabel('Time [s]')
+	ax1.yaxis.axis_label='Real'
+	ax2.yaxis.axis_label='Imaginary'
+
+ax1.xaxis.axis_label='Time [s]'
+ax2.xaxis.axis_label='Time [s]'
 
 
 #fig.suptitle(pngname)
@@ -327,8 +329,7 @@ elif doplot == 'ri':
 #plt.show()
 
 #arrangng the figures into a column format
-#figures=column(ax1,ax2)
+figures=column(ax1,ax2)
 show(ax1)
 
 print 'Rendered: '+pngname
-
