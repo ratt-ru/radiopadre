@@ -148,11 +148,13 @@ class FileList(list):
             f.show(*args, **kw)
 
     def __call__(self, pattern):
+        """Returns a FileList os files from this list that match a pattern. Use !pattern to invert the meaning."""
         files = []
         for patt in pattern.split():
-            files += [f for f in self if
-                      fnmatch.fnmatch((f.path if self._showpath else f.name),
-                                      patt)]
+            if patt[0] == '!':
+                files += [f for f in self if not fnmatch.fnmatch((f.path if self._showpath else f.name), patt[1:])]
+            else:
+                files += [f for f in self if fnmatch.fnmatch((f.path if self._showpath else f.name), patt)]
         return FileList(files,
                         extcol=self._extcol, showpath=self._showpath,
                         classobj=self._classobj,
