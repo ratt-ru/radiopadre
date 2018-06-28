@@ -96,7 +96,9 @@ def render_table(data, labels, html=set(), ncol=1, links=None):
     for irow in range(nrow):
         txt += """<tr style="border: 0px; text-align: left">\n"""
         for icol, idatum in enumerate(range(irow, len(data), nrow)):
-            datum = data[idatum]    #data is a list containing (name,extenstion,size and modification date)
+            datum = data[idatum]    
+            # data is a list containing (name,extension,size and modification date) for files
+            # or (name,number,...) for directories
             txt += """<td style="border: 0px">%d</td>""" % idatum   #adds the item number on the ouput list. datum, avariable with all data ie()
             for i, col in enumerate(datum):
                 if not str(col).upper().startswith("<HTML>") and not i in html and not labels[i] in html:
@@ -111,9 +113,8 @@ def render_table(data, labels, html=set(), ncol=1, links=None):
                     txt += """">%s</td>""" % col
 
                     #next line added by lexyls
-                imagename=datum[0]+datum[1]
-            if imagename.endswith('.fits'):
-                txt+=js9_button(imagename)
+            if datum[1] == '.fits':
+                txt+=js9_button(datum[0]+datum[1])
         #display(js9_button())
         txt += """</tr>\n"""
     txt += "</table>"

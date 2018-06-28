@@ -35,6 +35,9 @@ class TextFile(radiopadre.file.FileBase):
 
     def tail(self, num=10):
         try:
+            print self.fullpath
+            a = subprocess.check_output(["tail", "-" + str(abs(num)), self.fullpath])
+            print a
             return subprocess.check_output(["tail", "-" + str(abs(num)), self.fullpath])
         except Exception as exc:
             return str(exc)

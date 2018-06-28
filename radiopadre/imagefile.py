@@ -1,6 +1,6 @@
 import os
 import traceback
-
+import PIL.Image
 from IPython.display import HTML, Image, display
 
 import radiopadre
@@ -21,8 +21,11 @@ def _make_thumbnail(image, width):
         # can't write? That's ok too
         if not os.access(thumbdir, os.W_OK) or os.path.exists(thumb) and not os.access(thumb, os.W_OK):
             return None
-        if os.system("convert -thumbnail %d %s %s" % (width, image, thumb)):
-            raise RuntimeError("thumbnail convert failed, maybe imagemagick is not installed?")
+        img = PIL.Image.open(image)
+        img.thumbnail((width,int(round(width*(img.height/float(img.width))))), PIL.Image.ANTIALIAS)
+        img.save(thumb)
+#        if os.system("convert -thumbnail %d %s %s" % (width, image, thumb)):
+#            raise RuntimeError("thumbnail convert failed, maybe imagemagick is not installed?")
     return thumb
 
 

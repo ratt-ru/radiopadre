@@ -1,4 +1,4 @@
-import pyfits
+import astropy.io.fits as pyfits
 import traceback
 from IPython.display import HTML, display
 import matplotlib.pyplot as plt

@@ -160,7 +160,7 @@ class FileList(list):
                         classobj=self._classobj,
                         title=os.path.join(self._title, pattern), parent=self._parent)
 
-    def thumbs(self, **kw):
+    def thumbs(self, max=100, **kw):
         display(HTML(render_refresh_button(full=self._parent and self._parent.is_updated())))
         if not self:
             display(HTML("<p>0 files</p>"))
@@ -169,7 +169,7 @@ class FileList(list):
         kw.setdefault('showpath', self._showpath)
         thumbs = getattr(self._classobj, "_show_thumbs", None)
         if thumbs:
-            return thumbs(self, **kw)
+            return thumbs(self[:max], **kw)
         display(HTML("<p>%d files. Don't know how to make thumbnails for this collection.</p>" % len(self)))
 
     def __getslice__(self, *slc):
