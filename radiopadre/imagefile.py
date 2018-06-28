@@ -9,13 +9,12 @@ from radiopadre.render import render_title, render_url, render_preamble
 
 
 def _make_thumbnail(image, width):
-    thumbdir = "%s/radiopadre-thumbnails" % os.path.dirname(image)
+    thumbdir = radiopadre.get_cache_dir(image, "thumbs")
+    if thumbdir is None:
+        return None
+
     thumb = os.path.join(thumbdir, "%d.%s" % (width, os.path.basename(image)))
-    # does thumbdir need to be created?
-    if not os.path.exists(thumbdir):
-        if not os.access(os.path.dirname(thumbdir), os.W_OK):
-            return None
-        os.mkdir(thumbdir)
+
     # does thumb need to be updated?
     if not os.path.exists(thumb) or os.path.getmtime(thumb) < os.path.getmtime(image):
         # can't write? That's ok too

@@ -1,6 +1,6 @@
 import math
 import cgi
-
+import os, os.path
 
 #edited by me lexy
 from IPython.display import display
@@ -8,47 +8,66 @@ import ipywidgets as widgets
 from ipywidgets import VBox
 import render,time
 
+import radiopadre
+
 #lexys
 def js9_button(imag):
-    
-    from notebook import notebookapp
-    servers = list(notebookapp.list_running_servers())
-    radiopadrePort=0;
+    """Renders JS9 button for FITS image given by 'imag'"""
 
-    for server in servers:
-        if "radiopadre" in server['notebook_dir']:
-            radiopadrePort=server['port']
-            break
-    #page location in jupyter
-    js9_url="http://localhost:"+str(radiopadrePort)+"/files/js9-2.0.2/js9.html"
-    #js9_url=render.render_url('../js9-2.0.2/js9.html')
-   
-    #js9 html file to edit
-    url="../js9-2.0.2/js9.html"
-    #Long method to 'edit the dom', bs4 prospect
-    with open(url,'r') as inp:
-        data=inp.readlines()
+    # creates an HTML script per each image, by replacing the image name in a template
+    cachedir = radiopadre.get_cache_dir(imag, "js9")
+    js9_target = "{}/{}.js9.html".format(cachedir, os.path.basename(imag))
 
-    data[42]=None
-    #href='javascript:JS9.Load("http://localhost:%s/files/data/outputs/%s");'>%s</a>\n''
-    data[42]='''\t\tJS9.Load("%s%s");\n'''%('../data/outputs/',imag)
-    
-    with open(url,'w') as outp:
-        outp.writelines(data)
+    if not os.path.exists(js9_target):
+        # Long method to 'edit the dom', bs4 prospect
+        js9_source = os.path.dirname(__file__)+"/../js9-2.0.2/js9.html"
+        with open(js9_source) as inp, open(js9_target, 'w') as outp:
+            for line in inp.readlines():
+                if 'JS9.Load("PATH_TO_RADIOPADRE_IMAGE")' in line:
+                    line = '''\t\tJS9.Load("%s");\n'''.format(imag)
+                outp.write(line)
 
-    url=None  
-    #Find the first instance of radiopadre
+    # from notebook import notebookapp
+    # servers = list(notebookapp.list_running_servers())
+    # radiopadrePort=0;
+    #
+    # for server in servers:
+    #     if "radiopadre" in server['notebook_dir']:
+    #         radiopadrePort=server['port']
+    #         break
+    # #page location in jupyter
+    # js9_url="http://localhost:"+str(radiopadrePort)+"/files/js9-2.0.2/js9.html"
+    # #js9_url=render.render_url('../js9-2.0.2/js9.html')
+    #
+    # #js9 html file to edit
+    # url="../js9-2.0.2/js9.html"
+    # #Long method to 'edit the dom', bs4 prospect
+    # with open(url,'r') as inp:
+    #     data=inp.readlines()
+    #
+    # data[42]=None
+    # #href='javascript:JS9.Load("http://localhost:%s/files/data/outputs/%s");'>%s</a>\n''
+    # data[42]='''\t\tJS9.Load("%s%s");\n'''%('../data/outputs/',imag)
+    #
+    # with open(url,'w') as outp:
+    #     outp.writelines(data)
+    #
+    # url=None
+    # #Find the first instance of radiopadre
+
     load="""<script>
 
                 var loadIm=function (elem){
                     var emid=elem.id
-                    alert(emid);
-                    alert("opening image:"+emid);
+                    # alert(emid);
+                    # alert("opening image:"+emid);
                     window.open('%s','_blank');
                     JS9.Load('../data/outputs/'+emid);
                                     }
-            </script>"""%(js9_url)                             
-    #nutext="<td><a href=\"%s\" target=\"_blank\"><button onclick=loadIm()>JS9</button></a></td>"%(js9_url)
+            </script>"""%(js9_target)
+
+    # #nutext="<td><a href=\"%s\" target=\"_blank\"><button onclick=loadIm()>JS9</button></a></td>"%(js9_url)
+
     nutext="<td><button onclick=loadIm(this) id='%s'>JS9</button></td>"%imag
     nutext+=load
     return nutext

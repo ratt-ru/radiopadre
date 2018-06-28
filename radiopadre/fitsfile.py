@@ -116,8 +116,14 @@ class FITSFile(radiopadre.file.FileBase):
              colorbar=True,
              make_figure=True,
              filename_in_title=False):
-        ff = pyfits.open(self.fullpath)
-        hdr = ff[0].header
+        try:
+            ff = pyfits.open(self.fullpath)
+            hdr = ff[0].header
+        except:
+            status = "Error reading {}:".format(self.fullpath)
+            print status
+            traceback.print_exc()
+            return status
 
         # make base slice with ":" for every axis
         naxis = hdr['NAXIS']
@@ -193,7 +199,13 @@ class FITSFile(radiopadre.file.FileBase):
                 baseslice[remaxis] = i = index.pop(0)
                 status += " " + (axis_labels[remaxis][i])
                 title += " " + (axis_labels[remaxis][i])
-        data = ff[0].data.T
+        try:
+            data = ff[0].data.T
+        except:
+            status = "Error reading {}:".format(self.fullpath)
+            print status
+            traceback.print_exc()
+            return status
 
         # figure out image geometry and make subplots
         nrow, ncol, width = radiopadre.file.compute_thumb_geometry(
@@ -205,8 +217,7 @@ class FITSFile(radiopadre.file.FileBase):
                                              dpi=radiopadre.DPI)
             if fig:
                 plt.suptitle(self.basename)
-            plt.imshow(
-                data[tuple(baseslice)].T, vmin=vmin, vmax=vmax, cmap=cmap)
+            plt.imshow(data[tuple(baseslice)].T, vmin=vmin, vmax=vmax, cmap=cmap)
             if colorbar:
                 cbar = plt.colorbar()
                 cbar.ax.tick_params(labelsize=fs or fs_colorbar)

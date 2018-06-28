@@ -44,6 +44,26 @@ TIMEFORMAT = "%H:%M:%S %b %d"
 astropy.log.setLevel('ERROR')
 
 
+def get_cache_dir(path, subdir=None):
+    """Creates directory .radiopadre/subdir in directory of object given by path, and returns path to it.
+    If write permissions not available, returns None
+    """
+    basedir = os.path.dirname(path)
+    padre = os.path.join(basedir, ".radiopadre")
+    if not os.path.exists(padre):
+        if not os.access(basedir, os.W_OK):
+            return None
+        os.mkdir(padre)
+    if not os.access(padre, os.W_OK):
+        return None
+    if not subdir:
+        return padre if os.access(padre, os.W_OK) else None
+    cache = os.path.join(padre, subdir)
+    if not os.path.exists(cache):
+        os.mkdir(cache)
+    return cache if os.access(cache, os.W_OK) else None
+
+
 def _init_js_side():
     """Checks that Javascript components of radiopadre are initialized"""
     try:

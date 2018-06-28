@@ -67,6 +67,7 @@ else
       exit 1
     fi
     echo "All dependencies installed in virtual environment"
+    ipython kernel install --user --name=radiopadre
     echo "---"
   else
     echo "The radiopadre virtual environment $radpadre_venv does not exist. If you would like to create it,"
@@ -75,7 +76,12 @@ else
   fi
 fi
 
-
+if [ ! -d .radiopadre ]; then
+  if ! mkdir .radiopadre; then
+    echo "Failed to create .radiopadre/"
+    exit 1
+  fi
+fi
 
 # add the directory where run-radiopadre.sh resides to PYTHONPATH
 export PYTHONPATH=$PYTHONPATH:$DIR
@@ -104,6 +110,7 @@ fi
 echo Available notebooks: `find . -maxdepth 1 -name "*.ipynb"`
 echo
 opts="$opts --ContentsManager.pre_save_hook=radiopadre.notebook_utils._notebook_save_hook"
+opts="$opts --ContentsManager.allow_hidden=True"
 
 echo "Command is: jupyter notebook $opts"
 echo "Please wait a moment for jupyter to start up..."
