@@ -10,6 +10,14 @@ import re
 import socket
 import fnmatch
 
+REPO = "git@github.com:ratt-ru/radiopadre-devel.git"
+BRANCH = "devel-lexy"
+
+LAUNCH = "run-radiopadre.sh"
+
+DEFAULT_NOTEBOOK_SOURCE = os.path.join(os.path.dirname(__file__), "notebooks/example.ipynb")
+DEFAULT_NOTEBOOK_TARGET = "default-padre-view.ipynb"
+
 def find_unused_port (base,maxtries=1000):
     for i in range(maxtries):
         serversocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -33,14 +41,16 @@ parser = OptionParser(usage="""%prog: [options] [user@]host[:directory[/notebook
 
 # parser.add_option("--port-query",type=int,metavar="N",
 #                   help="looks for N unused ports and reports them. For internal use.");
+parser.add_option("-i","--init",action="store_true",
+                  help="automatically initialize remote radiopadre installation and virtual environment, if missing")
 parser.add_option("-p","--remote-path",type="str",
-                  help="directory in which remote run-radiopadre.sh resides. Default is to try ~/radiopadre first, "+
+                  help="directory in which remote radiopadre is installed. Default is to try ~/radiopadre first, "+
                   "and PATH second.")
 parser.add_option("-b","--browser",type="string",default=default_browser,
                   help="browser command to run. Default is %default, or set PADRE_BROWSER.")
 parser.add_option("-n","--no-browser",action="store_true",
                   help="do not open a browser for the notebooks.")
-parser.add_option("-a","--auto",metavar="PATTERN",type="string",default="default-padre-view.ipynb",
+parser.add_option("-a","--auto",metavar="PATTERN",type="string",default=DEFAULT_NOTEBOOK_TARGET,
                   help="Auto-open notebook(s) if they exist on remote, "+
                   "and if a notebook is not explicitly specified on the command line. " +
                   "Can be a wildcard pattern. Default is %default. Use -a none to disable auto-open.")
@@ -61,33 +71,180 @@ if ':' in host:
         notebook = os.path.basename(path)
         path = os.path.dirname(path) 
 
-if options.remote_path:
-    padre_execs = [ os.path.join(options.remote_path,"run-radiopadre.sh") ]
-else:
-    padre_execs = [ "~/radiopadre/run-radiopadre.sh" , "run-radiopadre.sh" ]
-# convert to shell OR-statement to try the paths in order
-padre_exec = " || ".join(padre_execs)
+print "radiopadre: Welcome!"
+print "radiopadre: Will start remote radiopadre in {}:{}, notebook(s) {}".format(host, path, notebook)
 
-print "Running remote radiopadre %s, path %s, notebook(s) %s" % (host, path, notebook)
+# Find remote run-radiopadre.sh script
+
+if options.remote_path:
+    padre_execs = [ os.path.join(options.remote_path,LAUNCH) ]
+else:
+    padre_execs = [ os.path.join("~/radiopadre",LAUNCH), LAUNCH ]
+
+DEVNULL = open("/dev/null", "w")
+
+SSH_OPTS = "-o ControlMaster=auto -o ControlPersist=1h -o ControlPath=/tmp/ssh_mux_%C".split()
+
+SCP_OPTS = ["scp"] + SSH_OPTS
+SSH_OPTS = ["ssh","-tt",] + SSH_OPTS + [host]
+
+
+# master ssh connection, to be closed when we exit
+#ssh_master = subprocess.Popen(SSH_OPTS, stdin=subprocess.PIPE, stdout=DEVNULL, stderr=DEVNULL)
+
+#raw_input("Continue?")
+
+def ssh_remote(command, fail_retcode=None, stderr=DEVNULL):
+    """Runs command on remote host. Returns its output if the exit status is 0, or None if the exit status matches fail_retcode.
+
+    Any other non-zero exit status (or any other error) will result in an exception.
+    """
+    try:
+        return subprocess.check_output(SSH_OPTS+[command], stderr=stderr)
+    except subprocess.CalledProcessError,exc:
+        if exc.returncode == fail_retcode:
+            return None
+        raise
+
+def ssh_remote_interactive(command, fail_retcode=None, stderr=DEVNULL):
+    """Runs command on remote host. Returns its output if the exit status is 0, or None if the exit status matches fail_retcode.
+
+    Any other non-zero exit status (or any other error) will result in an exception.
+    """
+    try:
+        return subprocess.check_call(SSH_OPTS+[command], stderr=stderr)
+    except subprocess.CalledProcessError,exc:
+        if exc.returncode == fail_retcode:
+            return None
+        raise
+
+def scp_to_remote(path, remote_path):
+    return subprocess.check_output(SCP_OPTS+[path, "{}:{}".format(host, remote_path)])
+
+def check_remote_file(remote_file, test="-x"):
+    """
+    Checks that a remote file exists. 'test' is specified bash-style, e.g. "-x" for executable.
+    Can also use -f and -f, for example.
+    Returns True or False, or raises an exception on other errors.
+    """
+    return ssh_remote("if [ {} {} ]; then exit 0; else exit 199; fi".format(test, remote_file),
+                            fail_retcode=199, stderr=DEVNULL) is not None
+
+def check_remote_command(command):
+    """
+    Checks that remote host has a particular command available.
+    Returns True or False, or raises an exception on other errors.
+    """
+    return bool(ssh_remote("which "+command, fail_retcode=1, stderr=DEVNULL))
+
+# Check for various remote bits
+
+print "radiopadre: Checking installation on {}".format(host)
+has_venv = check_remote_command("virtualenv") and check_remote_command("pip")
+has_git = check_remote_command("git")
+
+## Look for remote launch script
+
+def help_yourself(problem, suggestion=None):
+    print "radiopadre: {}".format(problem)
+    print "radiopadre: Please ssh into {} and sort it out yourself, then rerun this script".format(host)
+    if suggestion:
+        print "radiopadre: ({})".format(suggestion)
+    sys.exit(1)        
+
+
+bootstrap = False
+
+for padre_exec in padre_execs:
+    if check_remote_file(padre_exec):
+        print "radiopadre: Found remote radiopadre launch script at {}:{}".format(host, padre_exec)
+        break
+else:
+    print "radiopadre: No radiopadre launch script ({}) found on {}".format(LAUNCH, host)
+    install_path = options.remote_path or "~/radiopadre"
+    print "radiopadre: I could try to bootstrap a radiopadre installation into {}:{}".format(host, install_path)
+
+    if not has_git:
+        help_yourself("However, I don't see git installed on {}".format(host), 
+                      "Try 'sudo apt instal git' on {}".format(host))
+    
+    if check_remote_file(install_path, "-d"):
+        print "radiopadre: However, the directory {}:{} already exists, so I'd rather not!".format(host, install_path)
+        help_yourself("This may be a sign of a broken radiopadre installation on {},".format(host),
+                      "(For example, remove {}:{} to bootstrap from scratch.)".format(host, install_path))
+                      
+    print "radiopadre: (command would be 'git clone -b {} {} radiopadre')".format(BRANCH, REPO)
+    answ = raw_input("radiopadre: This may take a few minutes. Shall I try doing that for you (y/n)? ").upper()
+    if answ != "Y":
+        print "radiopadre: OK, bye..."
+        sys.exit(1)
+    # try the bootstrap
+    print "radiopadre: Cloning {}, branch {} into {}:~/radiopadre".format(REPO, BRANCH, host)
+    ssh_remote_interactive("git clone -b {} {} radiopadre".format(BRANCH, REPO))
+    padre_exec = os.path.join(install_path, LAUNCH)
+    if not check_remote_file(padre_exec):
+        help_yourself("git clone ran, but I still don't see the launch script {}:{}".format(host, padre_exec))
+    print "radiopadre: Success! Running remote in bootstrap mode"
+    bootstrap = True
+    
+
+## Check for remote virtualenv
+remote_venv = "~/.radiopadre-venv"
+if check_remote_file(remote_venv, "-d"):
+    activate_script = "{}/bin/activate".format(remote_venv)
+    print "radiopadre: Testing the remote virtual environment at {}:{}".format(host, remote_venv)
+    try:
+        ssh_remote("source {}".format(activate_script))
+    except subprocess.CalledProcessError:
+        help_yourself("The remote virtual environment at {}:{} exists, but we can't seem to activate it".format(host, remote_venv),
+                      "For example, remove {}:{}, and I'll try to rebuild it from scratch.".format(host, remote_venv))
+else:
+    print "radiopadre: No remote virtual environment at {}:{}, but I can create it".format(host, remote_venv)
+    if not has_venv:
+        help_yourself("However, I don't see virtualenv and/or pip installed on {}".format(host), 
+                      "Try 'sudo apt instal virtualenv pip' on {}".format(host))
+                      
+    if bootstrap:
+        print "radiopadre: Since we're bootstrapping a new installation, I will proceed to do so"
+    else:
+        answ = raw_input("radiopadre: This may take a few minutes. Shall I try doing that for you (y/n)? ").upper()
+        if answ != "Y":
+            print "radiopadre: OK, bye..."
+            sys.exit(1)
+        bootstrap = True
+
+if bootstrap:
+    padre_exec += " --bootstrap"
+
+# check for remote notebooks
+if ssh_remote("ls {}/*.ipynb".format(path), fail_retcode=2) is None and os.path.exists(DEFAULT_NOTEBOOK_SOURCE):
+    print "radiopadre: No notebooks found in {}:{}".format(host, path)
+    answ = raw_input("radiopadre: Shall I copy over a boilerplate notebook to get you started (y/n)? ").upper()
+    if answ == "Y":
+        scp_to_remote(DEFAULT_NOTEBOOK_SOURCE, "{}/{}".format(path, DEFAULT_NOTEBOOK_TARGET))
+        notebook = DEFAULT_NOTEBOOK_TARGET
+    else:
+        print "radiopadre: Suit yourself, copy your own notebooks then"
 
 # start ssh subprocess to launch notebook
-args = [ "ssh","-tt",host ]
+args = SSH_OPTS
 if path:
-    args += [ "cd %s && ( %s )" % (path, padre_exec) ]
+    args += [ "cd {} && {}".format(path, padre_exec) ]
 else:
     args += [ padre_exec ]
+    
 
-ssh = subprocess.Popen(args, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+ssh = subprocess.Popen(args, stdin=sys.stdin, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 
 # poll stdout/stderr
 poller = select.poll()
 fdlabels = {}
 
-def register_process (po,label=""):
+def register_process (po, label=""):
     poller.register(po.stdout)
     poller.register(po.stderr)
-    fdlabels[po.stdout.fileno()] = 'stdout'+label, po.stdout
-    fdlabels[po.stderr.fileno()] = 'stderr'+label, po.stderr
+    fdlabels[po.stdout.fileno()] = host, po.stdout
+    fdlabels[po.stderr.fileno()] = 'stderr', po.stderr
 
 register_process(ssh,"")
 
@@ -100,19 +257,19 @@ while True:
         for fd,event in fdlist:
             line = None
             if event & (select.POLLHUP|select.POLLERR):
-                print "ssh process gone, exiting"
+                print "radiopadre: ssh to {} complete, exiting".format(host)
                 sys.exit(0)
             # which fd is ready? read line and print it
             label,fobj = fdlabels.get(fd)
             line = fobj.readline()
-            print "ssh %s: %s" % (label,line.strip())
+            if fobj is not ssh.stderr:
+                print "\r%s: %s\r" % (label,line.strip())
             # if still looking for available notebooks line, check for it
             if not ssh2:
                 # check for available notebooks
                 match = line and re.match(".*Available notebooks: (.*)$",line)
                 if match:
-                    auto_notebooks = [ nb[2:] if nb.startswith("./") else nb 
-                                       for nb in match.group(1).strip().split() ]
+                    auto_notebooks = [ nb[2:] if nb.startswith("./") else nb for nb in match.group(1).strip().split() ]
                     auto_notebooks = fnmatch.filter(auto_notebooks, notebook)
                 # check for notebook port, and launch second ssh when we have it
                 match = line and re.match(".*http://(localhost|127.0.0.1):([0-9]+)/(.*)$",line.strip())
@@ -133,16 +290,16 @@ while True:
                     if not options.no_browser:
                         print "Opening browser for",path
                         subprocess.Popen([options.browser, path])
+                        for nb in auto_notebooks:
+                            path = "http://localhost:%s/notebooks/%s" % (localport, nb)
+                            if not options.no_browser:
+                                print "Opening browser for", path
+                                subprocess.Popen([options.browser, path])
+                            else:
+                                print "Please surf to", path
                     else:
                         print "-n/--no-browser given, not opening a browser for you"
                         print "Please surf to",path
-                    for nb in auto_notebooks:
-                        path = "http://localhost:%s/notebooks/%s" % (localport, nb)
-                        if not options.no_browser:
-                            print "Opening browser for",path
-                            subprocess.Popen([options.browser, path])
-                        else:
-                            print "Please surf to",path
     except KeyboardInterrupt:
         print "Ctrl+C caught"
         ssh.kill()
