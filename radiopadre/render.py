@@ -15,7 +15,12 @@ def js9_button(imag):
     """Renders JS9 button for FITS image given by 'imag'"""
 
     # creates an HTML script per each image, by replacing the image name in a template
-    cachedir = radiopadre.get_cache_dir(imag, "js9")
+    cachedir = radiopadre.get_cache_dir(imag, "js9-launch")
+
+    js9link = os.path.join(cachedir, "js9")
+    if not os.path.exists(js9link):
+        os.symlink(os.path.dirname(__file__)+"/../js9", js9link)
+
     js9_target = "{}/{}.js9.html".format(cachedir, os.path.basename(imag))
 
     if not os.path.exists(js9_target):
@@ -24,7 +29,7 @@ def js9_button(imag):
         with open(js9_source) as inp, open(js9_target, 'w') as outp:
             for line in inp.readlines():
                 if 'JS9.Load("PATH_TO_RADIOPADRE_IMAGE")' in line:
-                    line = '''\t\tJS9.Load("%s");\n'''.format(imag)
+                    line = '''\t\tJS9.Load("{}");\n'''.format(imag)
                 outp.write(line)
 
     # from notebook import notebookapp
@@ -59,10 +64,10 @@ def js9_button(imag):
 
                 var loadIm=function (elem){
                     var emid=elem.id
-                    # alert(emid);
-                    # alert("opening image:"+emid);
+                    alert(emid);
+                    alert("opening image:"+emid);
                     window.open('%s','_blank');
-                    JS9.Load('../data/outputs/'+emid);
+                    JS9.Load(emid);
                                     }
             </script>"""%(js9_target)
 
