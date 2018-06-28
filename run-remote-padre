@@ -54,6 +54,8 @@ parser.add_option("-a","--auto",metavar="PATTERN",type="string",default=DEFAULT_
                   help="Auto-open notebook(s) if they exist on remote, "+
                   "and if a notebook is not explicitly specified on the command line. " +
                   "Can be a wildcard pattern. Default is %default. Use -a none to disable auto-open.")
+parser.add_option("-c","--copy",action="store_true",
+                  help="If notebook does not exist on the remote, try to copy a boilerplate.")
 
 (options,args) = parser.parse_args()
 
@@ -174,10 +176,11 @@ else:
                       "(For example, remove {}:{} to bootstrap from scratch.)".format(host, install_path))
                       
     print "radiopadre: (command would be 'git clone -b {} {} radiopadre')".format(BRANCH, REPO)
-    answ = raw_input("radiopadre: This may take a few minutes. Shall I try doing that for you (y/n)? ").upper()
-    if answ != "Y":
-        print "radiopadre: OK, bye..."
-        sys.exit(1)
+    if not options.init:
+        answ = raw_input("radiopadre: This may take a few minutes. Shall I try doing that for you (y/n)? ").upper()
+        if answ != "Y":
+            print "radiopadre: OK, bye..."
+            sys.exit(1)
     # try the bootstrap
     print "radiopadre: Cloning {}, branch {} into {}:~/radiopadre".format(REPO, BRANCH, host)
     ssh_remote_interactive("git clone -b {} {} radiopadre".format(BRANCH, REPO))
@@ -207,22 +210,22 @@ else:
     if bootstrap:
         print "radiopadre: Since we're bootstrapping a new installation, I will proceed to do so"
     else:
-        answ = raw_input("radiopadre: This may take a few minutes. Shall I try doing that for you (y/n)? ").upper()
-        if answ != "Y":
-            print "radiopadre: OK, bye..."
-            sys.exit(1)
+        if not options.init:
+            answ = raw_input("radiopadre: This may take a few minutes. Shall I try doing that for you (y/n)? ").upper()
+            if answ != "Y":
+                print "radiopadre: OK, bye..."
+                sys.exit(1)
         bootstrap = True
 
 if bootstrap:
     padre_exec += " --bootstrap"
 
 # check for remote notebooks
-if ssh_remote("ls {}/*.ipynb".format(path), fail_retcode=2) is None and os.path.exists(DEFAULT_NOTEBOOK_SOURCE):
-    print "radiopadre: No notebooks found in {}:{}".format(host, path)
-    answ = raw_input("radiopadre: Shall I copy over a boilerplate notebook to get you started (y/n)? ").upper()
-    if answ == "Y":
-        scp_to_remote(DEFAULT_NOTEBOOK_SOURCE, "{}/{}".format(path, DEFAULT_NOTEBOOK_TARGET))
-        notebook = DEFAULT_NOTEBOOK_TARGET
+if not check_remote_file("{}/{}".format(path, notebook), "-f") and os.path.exists(DEFAULT_NOTEBOOK_SOURCE):
+    print "radiopadre: Notebook {}:{}/{} does not exist".format(host, path, notebook)
+    if options.copy or raw_input("radiopadre: Shall I copy over a boilerplate notebook to get you started (y/n)? ").upper() == "Y":
+        print "radiopadre: copying {} over".format(DEFAULT_NOTEBOOK_SOURCE)
+        scp_to_remote(DEFAULT_NOTEBOOK_SOURCE, "{}/{}".format(path, notebook))
     else:
         print "radiopadre: Suit yourself, copy your own notebooks then"
 
@@ -278,7 +281,7 @@ while True:
                     path = match.group(3)
                     # find unused local port
                     localport = find_unused_port(10000+os.getuid())
-                    print "Detected remote port %s, using local port %s" % (remoteport, localport)
+                    print "radiopadre: Detected remote port %s, using local port %s" % (remoteport, localport)
                     # start second ssh process to forward the port
                     ssh2 = subprocess.Popen(["ssh","-tt","-L",
                                 "%s:localhost:%s" % (localport, remoteport),
@@ -288,15 +291,15 @@ while True:
                     # open browser if needed
                     path = "http://localhost:%s/%s" % (localport, path)
                     if not options.no_browser:
-                        print "Opening browser for",path
+                        print "radiopadre: Opening browser for",path
                         subprocess.Popen([options.browser, path])
-                        for nb in auto_notebooks:
-                            path = "http://localhost:%s/notebooks/%s" % (localport, nb)
-                            if not options.no_browser:
-                                print "Opening browser for", path
+                        if auto_notebooks:
+                            print "radiopadre: Opening notebooks..."
+                            time.sleep(1)       # needed to let jupyter authentication in the first browser call to take hold
+                            for nb in auto_notebooks:
+                                path = "http://localhost:%s/notebooks/%s" % (localport, nb)
+                                print "radiopadre: Opening browser for", path
                                 subprocess.Popen([options.browser, path])
-                            else:
-                                print "Please surf to", path
                     else:
                         print "-n/--no-browser given, not opening a browser for you"
                         print "Please surf to",path
