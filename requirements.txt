@@ -1,0 +1,8 @@
+APLpy
+astropy
+jupyter
+#pixiedust
+#requests
+#pandas
+matplotlib
+pillow
