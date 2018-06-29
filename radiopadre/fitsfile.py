@@ -251,3 +251,40 @@ class FITSFile(radiopadre.file.FileBase):
                 plt.xlim(*xlim)
                 plt.ylim(*ylim)
         return status
+
+    def js9(self):
+        return display(HTML('''
+  <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=Edge;chrome=1" > 
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link type="image/x-icon" rel="shortcut icon" href="/files/.radiopadre/js9-www/.favicon.ico">
+  <link type="text/css" rel="stylesheet" href="/files/.radiopadre/js9-www/js9support.css">
+  <link type="text/css" rel="stylesheet" href="/files/.radiopadre/js9-www/js9.css">
+  <link rel="apple-touch-icon" href="/files/.radiopadre/js9-www/images/js9-apple-touch-icon.png">
+  <link type="text/css" rel="stylesheet" href="/files/.radiopadre/js9-www/js9-allinone.css">
+  <script type="text/javascript" src="/files/.radiopadre/js9-www/js9prefs.js"></script>
+  <script type="text/javascript" src="/files/.radiopadre/js9-www/js9support.min.js"></script>
+  <script type="text/javascript" src="/files/.radiopadre/js9-www/js9.min.js"></script>
+  <script type="text/javascript" src="/files/.radiopadre/js9-www/js9plugins.js"></script>
+  </style>
+    <p onload="loadIm()">
+        <div id="centerdiv">
+        <div class="JS9Menubar"></div>
+        <div class="JS9"></div>
+        <div style="margin-top: 2px;"><div class="JS9Colorbar"></div></div>
+        </div>
+        <script type="text/javascript">
+          $(document).ready(function(){
+              $("#centerdiv").draggable({
+                handle: "#JS9Menubar",
+                opacity: 0.35
+              });
+          });
+          setTimeout(function loadIm(){
+            JS9.Load("/files/''' + \
+            self.fullpath + \
+            '''");
+          },500); 
+        </script>
+    </p>
+    '''))
