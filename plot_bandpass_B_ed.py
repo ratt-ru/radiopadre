@@ -18,7 +18,7 @@ import sys
 import numpy as np
 
 from bokeh.plotting import figure
-from bokeh.models import Range1d, HoverTool
+from bokeh.models import Range1d, HoverTool, ColumnDataSource
 from bokeh.io import output_file, show
 from bokeh.layouts import row, column
 
@@ -115,9 +115,11 @@ if myms != '':
 else:
 	antnames = ''
 
-#creating the mpl figure for subplots	
-ax1 = figure()
-ax2 = figure()
+#creating the mpl figure for subplots
+TOOLS = dict(tools= 'box_select, box_zoom, reset, pan, save, wheel_zoom')
+ax1=figure(plot_width=800, plot_height=800, **TOOLS)
+ax2=figure(plot_width=800, plot_height=800, x_range=ax1.x_range, **TOOLS)
+
 
 
 xmin = 1e20
@@ -136,14 +138,14 @@ for ant in plotants:
 	y1col=np.array(y1col)
 	y1col=np.array(y1col*255,dtype=int)
 	y1col=y1col.tolist()
-	y1col=tuple(y1col)
+	y1col=tuple(y1col)[:-1]
 
 
 
 	y2col=np.array(y2col)
 	y2col=np.array(y2col*255,dtype=int)
 	y2col=y2col.tolist()
-	y2col=tuple(y2col)
+	y2col=tuple(y2col)[:-1]
 
 
 	#from the table provided, get the antenna and the field ID columns
@@ -173,19 +175,22 @@ for ant in plotants:
 		y2 = numpy.angle(masked_data[0,:,corr])
 		y2 = numpy.array(y2)
 #		y2 = numpy.unwrap(y2)
-		ax1.line(chans,y1,color=y1col[:-1],legend="A"+str(ant),line_width=2)
+		source= ColumnDataSource(data=dict(x=chans, y1=y2, y2=y2))
+		ax1.line(chans,y1,color=y1col,legend="A"+str(ant),line_width=2)
 		#ax1.circle(chans,y1,color=y1col[:-1])
 		#ax1.legend.click_policy='hide'
-		ax2.line(chans,y2,color=y2col[:-1],legend="A"+str(ant),line_width=2)
+		ax2.line(chans,y2,color=y2col,legend="A"+str(ant),line_width=2)
 		
 		#ax2.plot(chans,y2,'-',lw=2,alpha=0.4,zorder=100,color=y2col)
 	elif doplot == 'ri':
 		y1 = numpy.real(masked_data)[0,:,corr]
 		y2 = numpy.imag(masked_data)[0,:,corr]
-		ax1.line(chans,y1,color=y1col[:-1],legend="A"+str(ant),line_width=2)
+
+		source=Col
+		ax1.line(chans,y1,color=y1col,legend="A"+str(ant),line_width=2)
 		ax1.legend.click_policy='hide'
 		#ax1.plot(chans,y1,'-',lw=2,alpha=0.4,zorder=100,color=y1col)
-		ax2.line(chans,y2,color=y2col[:-1],legend="A"+str(ant),line_width=2)
+		ax2.line(chans,y2,color=y2col,legend="A"+str(ant),line_width=2)
 		#ax2.plot(chans,y2,'-',lw=2,alpha=0.4,zorder=100,color=y2col)
 
 	#configuring click actions for legends
