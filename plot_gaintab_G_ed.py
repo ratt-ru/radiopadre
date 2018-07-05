@@ -1,5 +1,4 @@
 #!/usr/bin/env python
-
 '''
 Run script with desired B tables
 Requirement: bokeh
@@ -7,17 +6,19 @@ Requirement: bokeh
 
 from pyrap.tables import table
 from optparse import OptionParser
-import matplotlib.colors as colors
-import matplotlib.cm as cmx
+import matplotlib.colors as colors 
+import matplotlib.cm as cmx 
 import glob
-import pylab
+
+import pylab	
 import sys
-import numpy as np
+
 
 from bokeh.plotting import figure
-from bokeh.models import Range1d, HoverTool, ColumnDataSource, LinearAxis, FixedTicker
 from bokeh.io import output_file, show
 from bokeh.layouts import row, column, gridplot
+from bokeh.models import Range1d, HoverTool, ColumnDataSource
+import numpy as np
 
 
 parser = OptionParser(usage='%prog [options] tablename')
@@ -55,32 +56,34 @@ pngname = options.pngname
 
 
 if len(args) != 1:
-	print 'Please specify a bandpass table to plot.'
+	print 'Please specify a gain table to plot.'
 	sys.exit(-1)
 else:
-	#to get the channels
+	#getting the name of the gain table specified
 	mytab = args[0].rstrip('/')
-	spw_table= mytab+'/SPECTRAL_WINDOW'
+
 
 if pngname == '':
 	pngname = 'plot_'+mytab+'_corr'+str(corr)+'_'+doplot+'_field'+str(field)+'.html'
 	output_file(pngname)
+else:
+	output_file(pngname)
 
 
+#by default is ap: amplitude and phase
 if doplot not in ['ap','ri']:
 	print 'Plot selection must be either ap (amp and phase) or ri (real and imag)'
 	sys.exit(-1)
 
 
+#opening the selected table
 tt = table(mytab,ack=False)
+
 ants = np.unique(tt.getcol('ANTENNA1'))
 fields = np.unique(tt.getcol('FIELD_ID'))
+flags = tt.getcol('FLAG')
 
-#getting the frequencies of the channels column
-spw=table(spw_table, ack=False)
-freqs = spw.getcol('CHAN_FREQ')[0]
-spw.close()
-
+#building the colormap fo the plot
 cNorm = colors.Normalize(vmin=0,vmax=len(ants)-1)
 mymap = cm = pylab.get_cmap(mycmap)
 scalarMap = cmx.ScalarMappable(norm=cNorm,cmap=mymap)
@@ -90,15 +93,20 @@ if int(field) not in fields.tolist():
 	print 'Field ID '+str(field)+' not found'
 	sys.exit(-1)
 
+
 if plotants[0] != -1:
+	#creating a list for the antennas to be plotted
 	plotants = plotants.split(',')
+
 	for ant in plotants:
 		if int(ant) not in ants:
 			plotants.remove(ant)
 			print 'Requested antenna ID '+str(ant)+' not found'
 	if len(plotants) == 0:
-		print 'No valid antennas indices requested'
+		print 'No valid antennas have been requested'
 		sys.exit(-1)
+	else:
+		plotants = np.array(plotants,dtype=int)
 else:
 	plotants = ants
 
@@ -109,15 +117,15 @@ if myms != '':
 else:
 	antnames = ''
 
-#creating bokeh figures for plots	
-TOOLS = dict(tools= 'box_select, box_zoom, reset, pan, save, wheel_zoom')
-ax1 = figure(plot_width=800, plot_height=800, **TOOLS)
-ax2 = figure(plot_width=800, plot_height=800,x_range=ax1.x_range, **TOOLS)
 
-hover=HoverTool(tooltips=[("(chans,y1)","($x,$y)")],mode='mouse')
-hover.point_policy='snap_to_data'
-hover2=HoverTool(tooltips=[("(chans,y2)","($x,$y)")],mode='mouse')
-hover2.point_policy='snap_to_data'
+
+TOOLS = dict(tools= 'box_select, box_zoom, reset, pan, save, wheel_zoom')
+ax1=figure(plot_width=800, plot_height=800, **TOOLS)
+
+#linking plots ax1 and ax2 via the x_axes because of similarities in range
+#y axes not linkable due to differences in magnitude
+ax2=figure(plot_width=800, plot_height=800, x_range=ax1.x_range, **TOOLS)
+
 
 xmin = 1e20
 xmax = -1e20
@@ -126,18 +134,20 @@ ylmax = -1e20
 yumin = 1e20
 yumax = -1e20
 
-#adding an extra x axis to contain channel frequencies
-ax1.extra_x_ranges={"foo": Range1d(start=freqs[0], end=freqs[-1])}
+#Setting tooltip data for ax1 and ax2
+hover=HoverTool(tooltips=[("(time,y1)","($x,$y)")],mode='mouse')
+hover.point_policy='snap_to_data'
+hover2=HoverTool(tooltips=[("(time,y2)","($x,$y)")],mode='mouse')
+hover2.point_policy='snap_to_data'
 
-linaxis = LinearAxis(x_range_name="foo", axis_label='Frequencies',  major_label_orientation='vertical')
-ax1.add_layout(linaxis, 'above')
 
-
-#for each antenna
 for ant in plotants:
+	
 	y1col = scalarMap.to_rgba(float(ant))
 	y2col = scalarMap.to_rgba(float(ant))
 
+	#denormalize y1col an 2col rgba from 0-1 and convert to rgb (0-255)
+	
 	y1col=np.array(y1col)
 	y1col=np.array(y1col*255,dtype=int)
 	y1col=y1col.tolist()
@@ -151,47 +161,50 @@ for ant in plotants:
 	y2col=tuple(y2col)[:-1]
 
 
-	#from the table provided, get the antenna and the field ID columns
-	mytaql = 'ANTENNA1=='+str(ant)+' && '
-	mytaql+= 'FIELD_ID=='+str(field)
-
-	#pdb.set_trace()
-
+	mytaql = 'ANTENNA1=='+str(ant)
+	
 	subtab = tt.query(query=mytaql)
 	cparam = subtab.getcol('CPARAM')
 	flagcol = subtab.getcol('FLAG')
-	nchan = cparam.shape[1]
-	chans = np.arange(0,nchan,dtype='int')
+	times = subtab.getcol('TIME')
 
-	#masking the flagged channels and storing them into the masked data table.
-	#if this is not done, the flagged data will also be plotted
-	#if masked, the value is the nullified and not plottted
+	#setting time relative to initial time
+	times = times - times[0]
+	#creating a masked array to prevent invalid values from being computed. IF mask is true, then the element is masked, an dthus won't be used in the calculation
+	#removing flagged data from cparams
 	masked_data = np.ma.array(data=cparam,mask=flagcol)
 
-	if doplot == 'ap':
 	
-		y1 = np.abs(masked_data)[0,:,corr]
-		y2 = np.angle(masked_data[0,:,corr])
-		y2 = np.array(y2)
-		y2 = np.unwrap(y2)
-		y2 = np.rad2deg(y2)
-		source=ColumnDataSource(data=dict(x=chans,y1=y1,y2=y2))
-		ax1.circle('x','y1',color=y1col,legend="A"+str(ant),line_width=2, source=source, nonselection_color='#7D7D7D',nonselection_line_alpha=0.3)
-		ax2.circle('x','y2',color=y2col,legend="A"+str(ant),line_width=2, source=source, nonselection_color='#7D7D7D',nonselection_line_alpha=0.3)
-		ax1.yaxis.axis_label=ax1_ylabel='Amplitude'
-		ax2.yaxis.axis_label=ax2_ylabel='Phase [Deg]'
 
+	if doplot == 'ap':
+		
+		y1 = np.abs(masked_data)[:,0,corr]
+		#y1 = np.array(y1)
+	
+		y2 = np.angle(masked_data)
+		y2 = np.array(y2[:,:,corr])
+		#remove phase limit from -pi to pi
+		y2 = np.unwrap(y2[:,0])
+		y2 = np.rad2deg(y2)
+		
+		source=ColumnDataSource(data=dict(x=times, y1=y1, y2=y2))
+		ax1.circle('x','y1',size=8,alpha=1, color=y1col,source=source,legend="A "+str(ant), nonselection_color='#7D7D7D',nonselection_fill_alpha=0.3)
+		ax2.circle('x','y2',size=8,alpha=1, color=y2col, legend='A '+str(ant),source=source,  nonselection_color='#7D7D7D',nonselection_fill_alpha=0.3)
+
+		ax1.yaxis.axis_label=ax1_ylabel='Amplitude'
+		ax2.yaxis.axis_label=ax2_ylabel='Unwrapped phase [Deg]' 
 	elif doplot == 'ri':
-		y1 = np.real(masked_data)[0,:,corr]
-		y2 = np.imag(masked_data)[0,:,corr]
+		y1 = np.real(masked_data)[:,0,corr]
+		y2 = np.imag(masked_data)[:,0,corr]
 		
-		source=ColumnDataSource(data=dict(x=chans,y1=y1,y2=y2))
-		ax1.circle('x','y1',color=y1col,legend="A"+str(ant),line_width=2, source=source, nonselection_color='#7D7D7D',nonselection_line_alpha=0.3)
-		ax2.circle('x','y2',color=y2col,legend="A"+str(ant),line_width=2, source=source, nonselection_color='#7D7D7D',nonselection_line_alpha=0.3)
-		
+		source=ColumnDataSource(data=dict(x=times, y1=y1, y2=y2))
+		ax1.circle('x','y1',size=8,alpha=1,line_dash='dashed', color=y1col,source=source,legend="A "+str(ant), nonselection_color='#7D7D7D',nonselection_fill_alpha=0.3)
+		ax2.line('x','y2',color=y2col,line_dash='dashed', alpha=1, line_width=2,legend="A "+str(ant), source=source, nonselection_color='#7D7D7D',nonselection_line_alpha=0.3)
+		ax2.circle('x','y2',size=8,alpha=1, color=y2col,source=source,legend="A "+str(ant), nonselection_color='#7D7D7D',nonselection_fill_alpha=0.3)
 		ax1.yaxis.axis_label=ax1_ylabel='Real'
 		ax2.yaxis.axis_label=ax2_ylabel='Imaginary'
 	
+
 	subtab.close()
 
 	
@@ -199,11 +212,11 @@ for ant in plotants:
 		antlabel = str(ant)
 	else:
 		antlabel = antnames[ant]
-	
-	if np.min(chans) < xmin:
-		xmin = np.min(chans)
-	if np.max(chans) > xmax:
-		xmax = np.max(chans)
+
+	if np.min(times) < xmin:
+		xmin = np.min(times)
+	if np.max(times) > xmax:
+		xmax = np.max(times)
 	if np.min(y1) < yumin:
 		yumin = np.min(y1)
 	if np.max(y1) > yumax:
@@ -213,15 +226,13 @@ for ant in plotants:
 	if np.max(y2) > ylmax:
 		ylmax = np.max(y2)
 
-xmin = xmin-4
-xmax = xmax+4
-
-#configuring click actions for legends
-ax2.legend.click_policy=ax1.legend.click_policy='hide'
+#adding tooltips to the figure
 ax1.add_tools(hover)
-ax2.add_tools(hover)
-
-
+ax2.add_tools(hover2)
+ax1.legend.click_policy=ax2.legend.click_policy='hide'
+#setting the axis limits for scaliing
+xmin = xmin-400
+xmax = xmax+400
 
 if yumin < 0.0:
 	yumin = -1*(1.1*np.abs(yumin))
@@ -248,15 +259,15 @@ if yu1 != -1:
 	yumax = yu1
 
 
-#ax2 ranges are controlled by ax1 ranges
+#aconfiguring only y_range because xrange for ax2 is dependent on ax1
 ax1.y_range=Range1d(yumin,yumax)
 ax2.y_range=Range1d(ylmin,ylmax)
 
 
-ax1.xaxis.axis_label=ax1_xlabel='Channel'
-ax2.xaxis.axis_label=ax2_xlabel='Channel'
+ax1.xaxis.axis_label = ax1_xlabel='Time [s]'
+ax2.xaxis.axis_label = ax2_xlabel='Time [s]'
 
-
+#configuring both figure titles (font size and alignment)
 ax1.title.text = ax1_ylabel + ' vs ' + ax1_xlabel
 ax1.title.align='center'
 ax1.title.text_font_size='25px'
@@ -264,7 +275,8 @@ ax2.title.text = ax2_ylabel + ' vs ' + ax2_xlabel
 ax2.title.align='center'
 ax2.title.text_font_size='25px'
 
+
+#setting the layout of the figures
 figures=gridplot([[ax1,ax2]])
 show(figures)
-
 print 'Rendered: '+pngname
