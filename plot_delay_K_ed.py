@@ -1,10 +1,9 @@
 #!/usr/bin/env python
 
 '''
-Run script with desired B tables
+Run script with desired K tables
 Requirement: bokeh
 '''
-
 from pyrap.tables import table
 from optparse import OptionParser
 import matplotlib.colors as colors
@@ -15,13 +14,14 @@ import sys
 import numpy as np
 
 from bokeh.plotting import figure
-from bokeh.models import Range1d, HoverTool, ColumnDataSource, LinearAxis, FixedTicker
+from bokeh.models import Range1d, HoverTool, ColumnDataSource, LinearAxis
 from bokeh.io import output_file, show
 from bokeh.layouts import row, column, gridplot
 
 
+
 parser = OptionParser(usage='%prog [options] tablename')
-parser.add_option('-f','--field',dest='field',help='Field ID to plot (default = 0)',default=0)
+parser.add_option('-f','--field',dest='field',help='Field ID to plot (default = 1)',default=1)
 parser.add_option('-d','--doplot',dest='doplot',help='Plot complex values as amp and phase (ap) or real and imag (ri) (default = ap)',default='ap')
 parser.add_option('-a','--ant',dest='plotants',help='Plot only this antenna, or comma-separated list of antennas',default=[-1])
 parser.add_option('-c','--corr',dest='corr',help='Correlation index to plot (usually just 0 or 1, default = 0)',default=0)
@@ -55,35 +55,34 @@ pngname = options.pngname
 
 
 if len(args) != 1:
-	print 'Please specify a bandpass table to plot.'
+	print 'Please specify a delay table to plot.'
 	sys.exit(-1)
 else:
-	#to get the channels
 	mytab = args[0].rstrip('/')
-	spw_table= mytab+'/SPECTRAL_WINDOW'
 
 if pngname == '':
 	pngname = 'plot_'+mytab+'_corr'+str(corr)+'_'+doplot+'_field'+str(field)+'.html'
 	output_file(pngname)
 
-
+#No complex data so this is generally ignored
 if doplot not in ['ap','ri']:
 	print 'Plot selection must be either ap (amp and phase) or ri (real and imag)'
 	sys.exit(-1)
 
 
 tt = table(mytab,ack=False)
-ants = np.unique(tt.getcol('ANTENNA1'))
+#to plot all the data for all the antennas
+antenna1=tt.getcol('ANTENNA1')
+ants = np.unique(antenna1)
+
 fields = np.unique(tt.getcol('FIELD_ID'))
 
-#getting the frequencies of the channels column
-spw=table(spw_table, ack=False)
-freqs = spw.getcol('CHAN_FREQ')[0]
-spw.close()
 
+#creating color scale for antenna 0 to 15
 cNorm = colors.Normalize(vmin=0,vmax=len(ants)-1)
 mymap = cm = pylab.get_cmap(mycmap)
 scalarMap = cmx.ScalarMappable(norm=cNorm,cmap=mymap)
+
 
 
 if int(field) not in fields.tolist():
@@ -102,6 +101,7 @@ if plotants[0] != -1:
 else:
 	plotants = ants
 
+#if reference ms is specified, the get the antenna names from there otherwise leave antenna names list empty
 if myms != '':
 	anttab = table(myms.rstrip('/')+'/ANTENNA')
 	antnames = anttab.getcol('NAME')
@@ -109,14 +109,17 @@ if myms != '':
 else:
 	antnames = ''
 
-#creating bokeh figures for plots	
+
+#creating bokeh figures for the plots
+#setting tools to be availed	
 TOOLS = dict(tools= 'box_select, box_zoom, reset, pan, save, wheel_zoom')
 ax1 = figure(plot_width=800, plot_height=800, **TOOLS)
-ax2 = figure(plot_width=800, plot_height=800,x_range=ax1.x_range, **TOOLS)
+ax2 = figure(plot_width=800, plot_height=800,x_range=ax1.x_range,y_range=ax1.y_range, **TOOLS)
 
-hover=HoverTool(tooltips=[("(chans,y1)","($x,$y)")],mode='mouse')
+#Configuring the axis data for the tooltips
+hover=HoverTool(tooltips=[("(antenna1,y1)","($x,$y)")],mode='mouse')
 hover.point_policy='snap_to_data'
-hover2=HoverTool(tooltips=[("(chans,y2)","($x,$y)")],mode='mouse')
+hover2=HoverTool(tooltips=[("(antenna1,y2)","($x,$y)")],mode='mouse')
 hover2.point_policy='snap_to_data'
 
 xmin = 1e20
@@ -126,18 +129,13 @@ ylmax = -1e20
 yumin = 1e20
 yumax = -1e20
 
-#adding an extra x axis to contain channel frequencies
-ax1.extra_x_ranges={"foo": Range1d(start=freqs[0], end=freqs[-1])}
-
-linaxis = LinearAxis(x_range_name="foo", axis_label='Frequencies',  major_label_orientation='vertical')
-ax1.add_layout(linaxis, 'above')
-
 
 #for each antenna
 for ant in plotants:
 	y1col = scalarMap.to_rgba(float(ant))
 	y2col = scalarMap.to_rgba(float(ant))
 
+	#denormalize rgba from 0-1 and convert to rgb (0-255)
 	y1col=np.array(y1col)
 	y1col=np.array(y1col*255,dtype=int)
 	y1col=y1col.tolist()
@@ -155,42 +153,34 @@ for ant in plotants:
 	mytaql = 'ANTENNA1=='+str(ant)+' && '
 	mytaql+= 'FIELD_ID=='+str(field)
 
-	#pdb.set_trace()
 
 	subtab = tt.query(query=mytaql)
-	cparam = subtab.getcol('CPARAM')
+	#getting correlation data from the table
+	fparam = subtab.getcol('FPARAM')
 	flagcol = subtab.getcol('FLAG')
-	nchan = cparam.shape[1]
-	chans = np.arange(0,nchan,dtype='int')
+	paramerror=subtab.getcol('PARAMERR')
 
 	#masking the flagged channels and storing them into the masked data table.
 	#if this is not done, the flagged data will also be plotted
-	#if masked, the value is the nullified and not plottted
-	masked_data = np.ma.array(data=cparam,mask=flagcol)
+	#if mask is true, the value is nullified and not plottted
+	masked_data = np.ma.array(data=fparam,mask=flagcol)
 
+	#chosing if the complex values are plotted as amplitude and phase or as real and imaginary values
 	if doplot == 'ap':
-	
-		y1 = np.abs(masked_data)[0,:,corr]
-		y2 = np.angle(masked_data[0,:,corr])
-		y2 = np.array(y2)
-		y2 = np.unwrap(y2)
-		y2 = np.rad2deg(y2)
-		source=ColumnDataSource(data=dict(x=chans,y1=y1,y2=y2))
-		ax1.circle('x','y1',color=y1col,legend="A"+str(ant),line_width=2, source=source, nonselection_color='#7D7D7D',nonselection_line_alpha=0.3)
-		ax2.circle('x','y2',color=y2col,legend="A"+str(ant),line_width=2, source=source, nonselection_color='#7D7D7D',nonselection_line_alpha=0.3)
-		ax1.yaxis.axis_label=ax1_ylabel='Amplitude'
-		ax2.yaxis.axis_label=ax2_ylabel='Phase [Deg]'
+		#for all the channels
+		y1 = masked_data[:,0,corr]
+		y1=np.array(y1)
+		y2=masked_data[:,0,1]
+
+		source=ColumnDataSource(data=dict(x=antenna1[antenna1==ant],y1=y1,y2=y2))
+		ax1.circle('x','y1',color=y1col,legend="A"+str(ant),size=8, source=source, nonselection_color='#7D7D7D',nonselection_line_alpha=0.3)
+		ax2.circle('x','y2',color=y2col,legend="A"+str(ant),size=8, source=source,  nonselection_color='#7D7D7D',nonselection_line_alpha=0.3)
+		
+		ax1.yaxis.axis_label=ax1_ylabel='Delay [Correlation 0]'
+		ax2.yaxis.axis_label=ax2_ylabel='Delay [Correlation 1]'
 
 	elif doplot == 'ri':
-		y1 = np.real(masked_data)[0,:,corr]
-		y2 = np.imag(masked_data)[0,:,corr]
-		
-		source=ColumnDataSource(data=dict(x=chans,y1=y1,y2=y2))
-		ax1.circle('x','y1',color=y1col,legend="A"+str(ant),line_width=2, source=source, nonselection_color='#7D7D7D',nonselection_line_alpha=0.3)
-		ax2.circle('x','y2',color=y2col,legend="A"+str(ant),line_width=2, source=source, nonselection_color='#7D7D7D',nonselection_line_alpha=0.3)
-		
-		ax1.yaxis.axis_label=ax1_ylabel='Real'
-		ax2.yaxis.axis_label=ax2_ylabel='Imaginary'
+		print "No complex values to plot"
 	
 	subtab.close()
 
@@ -199,11 +189,12 @@ for ant in plotants:
 		antlabel = str(ant)
 	else:
 		antlabel = antnames[ant]
-	
-	if np.min(chans) < xmin:
-		xmin = np.min(chans)
-	if np.max(chans) > xmax:
-		xmax = np.max(chans)
+
+	#setting minimum and maximum values for x, y1 and y2
+	if np.min(ant) < xmin:
+		xmin = np.min(ant)
+	if np.max(ant) > xmax:
+		xmax = np.max(ant)
 	if np.min(y1) < yumin:
 		yumin = np.min(y1)
 	if np.max(y1) > yumax:
@@ -213,10 +204,11 @@ for ant in plotants:
 	if np.max(y2) > ylmax:
 		ylmax = np.max(y2)
 
+
 xmin = xmin-4
 xmax = xmax+4
 
-#configuring click actions for legends
+#configuring click actions for legends and adding tooltips to the plots
 ax2.legend.click_policy=ax1.legend.click_policy='hide'
 ax1.add_tools(hover)
 ax2.add_tools(hover)
@@ -251,11 +243,9 @@ if yu1 != -1:
 #ax2 ranges are controlled by ax1 ranges
 ax1.y_range=Range1d(yumin,yumax)
 ax2.y_range=Range1d(ylmin,ylmax)
+	
 
-
-ax1.xaxis.axis_label=ax1_xlabel='Channel'
-ax2.xaxis.axis_label=ax2_xlabel='Channel'
-
+ax1.xaxis.axis_label=ax2.xaxis.axis_label=ax1_xlabel=ax2_xlabel='Antenna1'
 
 ax1.title.text = ax1_ylabel + ' vs ' + ax1_xlabel
 ax1.title.align='center'
@@ -264,6 +254,7 @@ ax2.title.text = ax2_ylabel + ' vs ' + ax2_xlabel
 ax2.title.align='center'
 ax2.title.text_font_size='25px'
 
+#setting the layout of the figures
 figures=gridplot([[ax1,ax2]])
 show(figures)
 
