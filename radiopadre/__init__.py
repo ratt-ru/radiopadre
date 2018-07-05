@@ -43,6 +43,7 @@ TIMEFORMAT = "%H:%M:%S %b %d"
 ## various notebook-related init
 astropy.log.setLevel('ERROR')
 
+ROOTDIR = os.getcwd()
 
 def get_cache_dir(path, subdir=None):
     """Creates directory .radiopadre/subdir in directory of object given by path, and returns path to it.
@@ -134,7 +135,8 @@ class FileList(list):
             data = [((df.basepath if self._showpath else df.basename),
                      df.size_str, df.mtime_str) for df in self]
             links = [(render_url(df.fullpath), None, None) for df in self]
-        html += render_table(data, labels, links=links, ncol=ncol)
+        actions = [ df._action_buttons_() for df in self ]
+        html += render_table(data, labels, links=links, ncol=ncol, actions=actions)
         return html
 
     def show(self, ncol=None, **kw):

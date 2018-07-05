@@ -4,8 +4,10 @@
 # get current directory
 DIR=$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )
 
-port=${RADIOPADRE_PORT:-$[$UID+9000]}
-opts="--notebook-dir=. --port=$[$UID+9000]"
+# port=${RADIOPADRE_PORT:-$[$UID+9000]}
+# --port=0" # $[$UID+9000]"
+
+opts="--notebook-dir=."
 
 force_browser=""
 bootstrap=""
@@ -81,27 +83,24 @@ if [ ! -d .radiopadre ]; then
     echo "Failed to create .radiopadre/"
     exit 1
   fi
-  ln -s $radpadre_path/js9 .radiopadre/
 fi
+if [ -f .radiopadre/js9 ]; then
+  rm .radiopadre/js9
+fi
+ln -s $radpadre_path/js9-www .radiopadre/js9
 
 # add the directory where run-radiopadre.sh resides to PYTHONPATH
 export PYTHONPATH=$PYTHONPATH:$DIR
 
 echo "Welcome to Radiopadre! $DIR `pwd`"
 echo
-echo "I have chosen to use port $port for you. You may set RADIOPADRE_PORT if you prefer"
-echo "it to use another port. Note that if another notebook is already open on that port,"
-echo "ipython will pick an unused port instead. Check the output below to see if that is"
-echo "the case."
 
 if [ "$SSH_CLIENT" != "" -a "$force_browser" == "" ]; then
   opts="$opts --no-browser"
   echo
   echo "Since you're logged in via ssh, so I'm not opening a web browser for you. Please"
-  echo "manually browse to localhost:$port. You will probably want to employ ssh port"
-  echo "port forwarding if you want to browse this notebook from your own machine, e.g."
-  echo "log in with"
-  echo "          $ ssh -L $port:localhost$port user@machine"
+  echo "manually browse to the URL printed by Jupyter below. You will probably want to employ ssh port"
+  echo "port forwarding if you want to browse this notebook from your own machine."
 else
   if ! echo $opts | grep -- --no-browser >/dev/null; then
     echo 
@@ -112,13 +111,24 @@ echo Available notebooks: `find . -maxdepth 1 -name "*.ipynb"`
 echo
 opts="$opts --ContentsManager.pre_save_hook=radiopadre.notebook_utils._notebook_save_hook"
 opts="$opts --ContentsManager.allow_hidden=True"
+opts="$opts --NotebookApp.allow_origin='*'"
 
-echo "Command is: jupyter notebook $opts"
+echo "Starting: nodejs $radpadre_path/js9-www/js9Helper.js"
+DEBUG='*' nodejs $radpadre_path/js9-www/js9Helper.js &
+helper_pid=$!
+
+echo "Starting: python -m SimpleHTTPServer 0"
+python -m SimpleHTTPServer 0 &
+serv_pid=$!
+
+echo "Starting: jupyter notebook $opts"
 echo "Please wait a moment for jupyter to start up..."
 jupyter notebook $opts &
-pid=$!
+jup_pid=$!
 
 # kill the server if remote connection closes
-trap "kill -INT $pid" SIGINT SIGTERM SIGHUP
+trap "(echo `date`: will kill -INT $jup_pid $serv_pid $helper_pid; kill -INT $jup_pid; kill -INT $serv_pid; kill $helper_pid) 2>&1 1>>.radiopadre/log" SIGINT SIGTERM SIGHUP
 
-wait $pid
+wait # $pid $serv_pid $helper_pid
+
+echo "`date`: Wait done, exiting main script" >>.radiopadre/log

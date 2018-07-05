@@ -106,6 +106,12 @@ class FileBase(object):
         display(HTML(render_refresh_button()))
         return self.show(*args, **kw)
 
+    def _action_buttons_(self):
+        """
+        Returns HTML code associated with available actions for this file. Can be None.
+        """
+        return None
+
 
 def data_file(path, root=""):
     """

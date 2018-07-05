@@ -1,5 +1,6 @@
 import astropy.io.fits as pyfits
 import traceback
+import os, os.path
 from IPython.display import HTML, display
 import matplotlib.pyplot as plt
 
@@ -7,6 +8,15 @@ import radiopadre
 import radiopadre.file
 from radiopadre.render import render_title, render_table
 
+def get_js9_config():
+    """This returns the path to the JS9 installation."""
+
+    # method 1. Use separate HTTP server
+    port = int(open(os.path.join(radiopadre.ROOTDIR, ".radiopadre", "http_port")).readline().strip())
+    return "/.radiopadre/js9", "http://localhost:{}/".format(port), "/", "js9-http.html"
+
+    # method 2: JS9 served through Tornado
+    #return "/files/.radiopadre/js9", "/files/", "/files/", "js9-tornado.html"
 
 class FITSFile(radiopadre.file.FileBase):
     FITSAxisLabels = dict(STOKES=["I", "Q", "U", "V", "YX", "XY", "YY", "XX",
@@ -252,39 +262,56 @@ class FITSFile(radiopadre.file.FileBase):
                 plt.ylim(*ylim)
         return status
 
+    def _get_js9_script(self):
+        # creates an HTML script per each image, by replacing the image name in a template
+        cachedir = radiopadre.get_cache_dir(self.fullpath, "js9-launch")
+
+        #        js9link = os.path.join(cachedir, "js9")
+        #        if not os.path.exists(js9link):
+        #            os.symlink(os.path.dirname(__file__) + "/../js9-www", js9link)
+
+        js9_file_prefix, js9_server_prefix, js9_fits_prefix, js9_target_name = get_js9_config()
+
+        js9_source = os.path.dirname(__file__) + "/html/js9-inline-template.html"
+        js9_target = "{}/{}.{}".format(cachedir, self.basename, js9_target_name)
+
+        # what's most recently modified: this radiopadre source, or FITS file
+        mtime = max(os.path.getmtime(__file__),
+                    os.path.getmtime(js9_source),
+                    os.path.getmtime(self.fullpath))
+
+        # refresh the HTML file if this is less recent
+        if not os.path.exists(js9_target) or os.path.getmtime(js9_target) < mtime:
+            # Long method to 'edit the dom', bs4 prospect
+            js9_source = os.path.dirname(__file__) + "/html/js9-inline-template.html"
+            with open(js9_source) as inp, open(js9_target, 'w') as outp:
+                for line in inp.readlines():
+                    # rewrite paths to js9 files
+                    line = line.replace('href="', 'href="{}/'.format(js9_file_prefix))
+                    line = line.replace('src="', 'src="{}/'.format(js9_file_prefix))
+                    # rewrite path to image
+                    line = line.replace("PATH_TO_RADIOPADRE_IMAGE", js9_fits_prefix + self.fullpath)
+                    outp.write(line)
+
+        return js9_target, js9_server_prefix
+
     def js9(self):
+        js9_target, js9_server_prefix = self._get_js9_script()
+
         return display(HTML('''
-  <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
-  <meta http-equiv="X-UA-Compatible" content="IE=Edge;chrome=1" > 
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <link type="image/x-icon" rel="shortcut icon" href="/files/.radiopadre/js9-www/.favicon.ico">
-  <link type="text/css" rel="stylesheet" href="/files/.radiopadre/js9-www/js9support.css">
-  <link type="text/css" rel="stylesheet" href="/files/.radiopadre/js9-www/js9.css">
-  <link rel="apple-touch-icon" href="/files/.radiopadre/js9-www/images/js9-apple-touch-icon.png">
-  <link type="text/css" rel="stylesheet" href="/files/.radiopadre/js9-www/js9-allinone.css">
-  <script type="text/javascript" src="/files/.radiopadre/js9-www/js9prefs.js"></script>
-  <script type="text/javascript" src="/files/.radiopadre/js9-www/js9support.min.js"></script>
-  <script type="text/javascript" src="/files/.radiopadre/js9-www/js9.min.js"></script>
-  <script type="text/javascript" src="/files/.radiopadre/js9-www/js9plugins.js"></script>
-  </style>
-    <p onload="loadIm()">
-        <div id="centerdiv">
-        <div class="JS9Menubar"></div>
-        <div class="JS9"></div>
-        <div style="margin-top: 2px;"><div class="JS9Colorbar"></div></div>
-        </div>
-        <script type="text/javascript">
-          $(document).ready(function(){
-              $("#centerdiv").draggable({
-                handle: "#JS9Menubar",
-                opacity: 0.35
-              });
-          });
-          setTimeout(function loadIm(){
-            JS9.Load("/files/''' + \
-            self.fullpath + \
-            '''");
-          },500); 
-        </script>
-    </p>
-    '''))
+           <iframe src="{}{}" width=1100 height=780></iframe>
+           '''.format(js9_server_prefix, js9_target)))
+
+    def _action_buttons_(self):
+        """Renders JS9 button for FITS image given by 'imag'"""
+        js9_target, js9_server_prefix = self._get_js9_script()
+
+        return """
+            <button onclick="window.open('{js9_server_prefix}{js9_target}', '_blank')">&#8599;JS9</button> 
+            <script>
+                        var loadNewWindow = function (url) {{
+                            // alert("opening: "+url);
+                            window.open(url,'_blank');
+                        }}
+            </script>
+        """.format(**locals())
