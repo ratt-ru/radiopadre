@@ -47,7 +47,7 @@ if not JS9_ERROR:
 
 # on error, init code replaced by error message
 if JS9_ERROR:
-    JS9_INIT_HTML = "<p>Error initialized JS9: {}</p>".format(JS9_ERROR)
+    JS9_INIT_HTML_JUP = JS9_INIT_HTML_HTTP = "<p>Error initializing JS9: {}</p>".format(JS9_ERROR)
 
 
 def get_init_js():
