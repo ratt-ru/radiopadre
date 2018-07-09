@@ -1,0 +1,112 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN"
+   "http://www.w3.org/TR/html4/loose.dtd">
+<html>
+<head>
+  <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=Edge;chrome=1" >
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+    {js9.JS9_INIT_HTML_HTTP}
+  <style type="text/css">
+      #centerdiv {{
+          position: absolute;
+          margin: auto;
+          top: -20;
+          right: 0;
+          bottom: 0;
+          left: 0;
+          width: 1080px;
+          height: 768px;
+      }}
+  </style>
+  <title>{fits_image_path} JS9</title>
+</head>
+<body>
+    <div id="centerdiv">
+    <TABLE>
+    <TR>
+        <TD id="rebin-top">
+            <div class="JS9Menubar" id="rebin-JS9_Menubar"></div>
+            <div class="JS9" data-height="600" id="rebin-JS9"></div>
+            <div style="margin-top: 2px;"><div class="JS9Colorbar" id="rebin-JS9_Colorbar"></div></div>
+        </TD>
+        <TD id="zoom-top">
+            <div class="JS9Menubar" id="zoom-JS9_Menubar"></div>
+            <div class="JS9" data-height="600" id="zoom-JS9"></div>
+            <div style="margin-top: 2px;"><div class="JS9Colorbar" id="zoom-JS9_Colorbar"></div></div>
+        </TD>
+        <TD>
+            <TABLE>
+                <TR><TD><div class="JS9Panner" data-width="200" data-height="200" id="rebin-JS9_Panner"></div></TD></TR>
+                <TR><TD><div class="JS9Panner" data-width="200" data-height="200" id="zoom-JS9_Panner"></div></TD></TR>
+                <TR><TD><div class="JS9Magnifier" data-width="200" data-height="200" id="zoom-JS9_Magnifier"></div></TD></TR>
+            </TABLE>
+        </TD>
+    </TR>
+    </TABLE>
+    </div>
+
+    <script type="text/javascript">
+      $(document).ready(function(){{
+          $("#centerdiv").draggable({{
+            handle: "#JS9Menubar",
+            opacity: 0.35
+          }});
+
+		JS9.Preload("{fits_image_url}", {fits2fits_options_rebin}, {{display: "rebin-JS9"}});
+		JS9.Preload("{fits_image_url}", {fits2fits_options_zoom}, {{display: "zoom-JS9"}});
+
+        var sync_colormaps = function (im)
+        {{
+            var i, tim, obj;
+            console.log("syncing colormap from ", im)
+            JS9.globalOpts.extendedPlugins = false;
+            obj = JS9.GetColormap({{display: im}});
+            console.log(obj)
+            for(i=0; i<JS9.displays.length; i++){{
+                tim = JS9.displays[i].image;
+                if( tim && (tim !== im) ){{
+                JS9.SetColormap(obj.colormap, obj.contrast, obj.bias, {{display: tim}});
+                }}
+            }}
+            JS9.globalOpts.extendedPlugins = true;
+        }}
+
+        JS9.RegisterPlugin("MyPlugins", "allconstrastbias",
+                   function(){{return;}},
+                   {{onchangecontrastbias: sync_colormaps,
+                     winDims: [0, 0]}});
+
+        JS9.RegisterPlugin("MyPlugins", "allcolormap",
+                   function(){{return;}},
+                   {{onsetcolormap: sync_colormaps,
+                     winDims: [0, 0]}});
+
+        JS9.RegisterPlugin("MyPlugins", "allscale",
+                   function(){{return;}},
+                   {{onsetscale: function(im){{
+                       var i, tim, obj;
+                       console.log("syncing scale from ", im)
+                       JS9.globalOpts.extendedPlugins = false;
+                       obj = JS9.GetScale({{display: im}});
+                       console.log(obj)
+                       for(i=0; i<JS9.displays.length; i++){{
+                           tim = JS9.displays[i].image;
+                           if( tim && (tim !== im) ){{
+                               JS9.SetScale(obj.scale, obj.smin, obj.smax, {{display: tim}});
+                           }}
+                       }}
+                       JS9.globalOpts.extendedPlugins = true;
+                   }},
+                   winDims: [0, 0]}});
+
+      }});
+
+
+
+
+
+
+    </script>
+<p>
+</body>
+</html>

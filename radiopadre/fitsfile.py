@@ -1,22 +1,16 @@
 import astropy.io.fits as pyfits
 import traceback
 import os, os.path
-from IPython.display import HTML, display
+from IPython.display import HTML, display, Javascript
 import matplotlib.pyplot as plt
+import uuid
 
 import radiopadre
 import radiopadre.file
 from radiopadre.render import render_title, render_table
 
-def get_js9_config():
-    """This returns the path to the JS9 installation."""
+from radiopadre import js9
 
-    # method 1. Use separate HTTP server
-    port = int(open(os.path.join(radiopadre.ROOTDIR, ".radiopadre", "http_port")).readline().strip())
-    return "/.radiopadre/js9", "http://localhost:{}/".format(port), "/", "js9-http.html"
-
-    # method 2: JS9 served through Tornado
-    #return "/files/.radiopadre/js9", "/files/", "/files/", "js9-tornado.html"
 
 class FITSFile(radiopadre.file.FileBase):
     FITSAxisLabels = dict(STOKES=["I", "Q", "U", "V", "YX", "XY", "YY", "XX",
@@ -25,15 +19,27 @@ class FITSFile(radiopadre.file.FileBase):
 
     def __init__(self, *args, **kw):
         radiopadre.file.FileBase.__init__(self, *args, **kw)
-        self._ff = self._image_data = None
+        self._ff = self._header = self._shape = self._image_data = None
 
-    def open(self):
+    @property
+    def fitsobj(self):
         if not self._ff:
             self._ff = pyfits.open(self.fullpath)
         return self._ff
 
+    @property
+    def header(self):
+        return self.fitsobj[0].header
+
+    @property
+    def shape(self):
+        if self._shape is None:
+            hdr = self.header
+            self._shape = [ hdr["NAXIS%d" % i] for i in range(1, hdr["NAXIS"] + 1)]
+        return self._shape
+
     def info(self):
-        hdr = self.open()[0].header
+        hdr = self.header
         sizes = [str(hdr["NAXIS%d" % i]) for i in range(1, hdr["NAXIS"] + 1)]
         axes = [hdr.get("CTYPE%d" % i, str(i))
                 for i in range(1, hdr["NAXIS"] + 1)]
@@ -51,7 +57,7 @@ class FITSFile(radiopadre.file.FileBase):
             name = ff.path if showpath else ff.name
             size = resolution = axes = "?"
             try:
-                hdr = pyfits.open(ff.fullpath)[0].header
+                hdr = ff.header
                 naxis = hdr.get("NAXIS")
                 size = "&times;".join(
                     [str(hdr.get("NAXIS%d" % i)) for i in range(1, naxis + 1)])
@@ -262,56 +268,114 @@ class FITSFile(radiopadre.file.FileBase):
                 plt.ylim(*ylim)
         return status
 
-    def _get_js9_script(self):
-        # creates an HTML script per each image, by replacing the image name in a template
+    def _make_js9_window_script(self, subset=False):
+        # creates an HTML script per each image, by replacing various arguments in a templated bit of html
+        js9_source = js9.DIRNAME + "/js9-window-template.html"
         cachedir = radiopadre.get_cache_dir(self.fullpath, "js9-launch")
+        js9_target = "{}/{}.{}.{}".format(cachedir, self.basename, "sub" if subset else "full", js9.JS9_SCRIPT_SUFFIX)
 
-        #        js9link = os.path.join(cachedir, "js9")
-        #        if not os.path.exists(js9link):
-        #            os.symlink(os.path.dirname(__file__) + "/../js9-www", js9link)
+        # make dict of substitutions for HTML scripts
+        subs = globals().copy()
+        subs.update(**locals())
+        subs['fits_image_path'] = self.fullpath
+        subs['fits_image_url'] = js9.JS9_FITS_PREFIX_HTTP + self.fullpath
 
-        js9_file_prefix, js9_server_prefix, js9_fits_prefix, js9_target_name = get_js9_config()
+        # fits2fits_opts
+        if subset:
+            subs['fits2fits_options'] = "{fits2fits:true,xcen:2048,ycen:2048,xdim:1024,ydim:1024,bin:1}"
+        else:
+            subs['fits2fits_options'] = "{fits2fits:false}"
 
-        js9_source = os.path.dirname(__file__) + "/html/js9-inline-template.html"
-        js9_target = "{}/{}.{}".format(cachedir, self.basename, js9_target_name)
+        with open(js9_source) as inp, open(js9_target, 'w') as outp:
+            # rewrite paths to js9 files
+            outp.write(inp.read().format(**subs))
 
-        # what's most recently modified: this radiopadre source, or FITS file
-        mtime = max(os.path.getmtime(__file__),
-                    os.path.getmtime(js9_source),
-                    os.path.getmtime(self.fullpath))
+        return js9_target
 
-        # refresh the HTML file if this is less recent
-        if not os.path.exists(js9_target) or os.path.getmtime(js9_target) < mtime:
-            # Long method to 'edit the dom', bs4 prospect
-            js9_source = os.path.dirname(__file__) + "/html/js9-inline-template.html"
-            with open(js9_source) as inp, open(js9_target, 'w') as outp:
-                for line in inp.readlines():
-                    # rewrite paths to js9 files
-                    line = line.replace('href="', 'href="{}/'.format(js9_file_prefix))
-                    line = line.replace('src="', 'src="{}/'.format(js9_file_prefix))
-                    # rewrite path to image
-                    line = line.replace("PATH_TO_RADIOPADRE_IMAGE", js9_fits_prefix + self.fullpath)
-                    outp.write(line)
+    def _make_js9_dual_window_script(self):
+        # creates an HTML script per each image, by replacing various arguments in a templated bit of html
+        js9_source = js9.DIRNAME + "/js9-dualwindow-template.html"
+        cachedir = radiopadre.get_cache_dir(self.fullpath, "js9-launch")
+        js9_target = "{}/{}.{}.{}".format(cachedir, self.basename, "dual", js9.JS9_SCRIPT_SUFFIX)
 
-        return js9_target, js9_server_prefix
+        # make dict of substitutions for HTML scripts
+        subs = globals().copy()
+        subs.update(**locals())
+        subs['fits_image_path'] = self.fullpath
+        subs['fits_image_url'] = js9.JS9_FITS_PREFIX_HTTP + self.fullpath
+
+        subs['fits2fits_options_rebin'] = "{fits2fits:true,xcen:2048,ycen:2048,xdim:4096,ydim:4096,bin:4}"
+        subs['fits2fits_options_zoom'] = "{fits2fits:true,xcen:2048,ycen:2048,xdim:1024,ydim:1024,bin:1}"
+
+        with open(js9_source) as inp, open(js9_target, 'w') as outp:
+            # rewrite paths to js9 files
+            outp.write(inp.read().format(**subs))
+
+        return js9_target
+
 
     def js9(self):
-        js9_target, js9_server_prefix = self._get_js9_script()
+        js9_target = self._make_js9_window_script(subset=True)
 
         return display(HTML('''
            <iframe src="{}{}" width=1100 height=780></iframe>
-           '''.format(js9_server_prefix, js9_target)))
+           '''.format(js9.JS9_SCRIPT_PREFIX_HTTP, js9_target)))
+
+    def js9_inline(self):
+        display_id = uuid.uuid4().hex
+        # print('Display id = {}'.format(display_id))
+
+        # make dict of substitutions for HTML scripts
+        subs = globals().copy()
+        subs.update(**locals())
+        subs['fits_image_url'] = js9.JS9_FITS_PREFIX_JUP + self.fullpath
+        subs['fits2fits_options'] = "{fits2fits:false}"
+
+        js9_source = js9.DIRNAME + "/js9-inline-template.html"
+
+        with open(js9_source) as inp:
+            # rewrite paths to js9 files
+            code = inp.read().format(**subs)
+
+        # print code
+        display(HTML(code))
+
+        #get_ipython().run_cell_magic('javascript', '', 'element.append("<P>test</P>");')
+        #return
+
+        # command = """
+        #     element.append("
+        #     <div id='JS-{display_id}_Main'>
+        #         <div class='JS9Menubar' id='JS9-{display_id}_Menubar'></div>
+        #         <div class='JS9' id='JS9-{display_id}'></div>
+        #         <div style='margin-top: 2px;'><div class='JS9Colorbar' id='JS9-{display_id}_Colorbar'></div></div>
+        #     </div>
+        #     ");""".format(**subs)
+        # print command
+        # get_ipython().run_cell_magic('javascript', '', command.replace("\n",""))
+        # command = """
+        #     JS9.AddDivs('JS9-{display_id}');
+        #     JS9.Load('{fits_image_url}', {fits2fits_options}, {{display: 'JS9-{display_id}'}});
+        #     """.format(**subs)
+        # print command
+        # get_ipython().run_cell_magic('javascript', '', command.replace("\n",""))
+
+
+
+
+
 
     def _action_buttons_(self):
         """Renders JS9 button for FITS image given by 'imag'"""
-        js9_target, js9_server_prefix = self._get_js9_script()
+        js9_target1 = self._make_js9_window_script(subset=True)
+        js9_target2 = self._make_js9_window_script(subset=False)
+        js9_target3 = self._make_js9_dual_window_script()
+
+        subs = globals().copy()
+        subs.update(**locals())
 
         return """
-            <button onclick="window.open('{js9_server_prefix}{js9_target}', '_blank')">&#8599;JS9</button> 
-            <script>
-                        var loadNewWindow = function (url) {{
-                            // alert("opening: "+url);
-                            window.open(url,'_blank');
-                        }}
-            </script>
-        """.format(**locals())
+            <button onclick="window.open('{js9.JS9_SCRIPT_PREFIX_HTTP}{js9_target1}', '_blank')">&#8599;JS9</button> 
+            <button onclick="window.open('{js9.JS9_SCRIPT_PREFIX_HTTP}{js9_target2}', '_blank')">&#8599;JS9 full</button> 
+            <button onclick="window.open('{js9.JS9_SCRIPT_PREFIX_HTTP}{js9_target3}', '_blank')">&#8599;JS9 dual</button> 
+        """.format(**subs)

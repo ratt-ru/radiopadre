@@ -83,11 +83,8 @@ if [ ! -d .radiopadre ]; then
     echo "Failed to create .radiopadre/"
     exit 1
   fi
+    ln -s $radpadre_venv/js9-www .radiopadre/js9-www
 fi
-if [ -f .radiopadre/js9 ]; then
-  rm .radiopadre/js9
-fi
-ln -s $radpadre_path/js9-www .radiopadre/js9
 
 # add the directory where run-radiopadre.sh resides to PYTHONPATH
 export PYTHONPATH=$PYTHONPATH:$DIR

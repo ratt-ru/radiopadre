@@ -73,10 +73,12 @@ def _init_js_side():
         return None
     get_ipython().magic("matplotlib inline")
     # load radiopadre/js/init.js and init controls
-    initjs = os.path.join(os.path.dirname(__file__), "js", "init.js")
+    initjs = os.path.join(os.path.dirname(__file__), "html", "init-radiopadre-components.js")
     display(Javascript(open(initjs).read()))
     display(Javascript("document.radiopadre.init_controls('%s')" % os.environ['USER']))
-
+    # init JS9 components
+    import js9
+    display(Javascript(js9.get_init_js()))
 
 def protect(author=None):
     """Makes current notebook protected with the given author name. Protected notebooks won't be saved

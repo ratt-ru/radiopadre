@@ -1,0 +1,176 @@
+#!/usr/bin/python
+
+import os.path
+import os
+import subprocess
+import sys
+import glob
+import socket
+
+# get radiopadre install directory
+PADRE_PATH = os.path.dirname(__file__)
+DIR = os.getcwd()
+
+JUPYTER_OPTS = [
+    "notebook",
+    "--notebook-dir=.",
+    "--ContentsManager.pre_save_hook=radiopadre.notebook_utils._notebook_save_hook",
+    "--ContentsManager.allow_hidden=True",
+    # "--NotebookApp.allow_origin='*'",
+]
+
+import argparse
+parser = argparse.ArgumentParser(description="Runs radiopadre")
+
+# parser.add_option("--port-query",type=int,metavar="N",
+#                   help="looks for N unused ports and reports them. For internal use.");
+parser.add_argument("--bootstrap", action="store_true",
+                  help="automatically initialize radiopadre virtual environment, if missing.")
+parser.add_argument("-b","--browser", action="store_true",
+                  help="open a browser session, even if running under ssh.")
+parser.add_argument("-n","--no-browser",action="store_true",
+                  help="do not open a browser session, even if running locally.")
+parser.add_argument("args", nargs="*",
+                  help="additional Jupyter arguments")
+
+options = parser.parse_args()
+
+DEVZERO = open("/dev/zero")
+DEVNULL = open("/dev/null", "w")
+
+PADRE_VENV = os.path.expanduser("~/.radiopadre-venv")
+
+def message(x, prefix='run_radiopadre: '):
+    print(prefix + x.format(**globals()))
+
+def bye(x, code=1):
+    message(x)
+    sys.exit(code)
+
+def shell(cmd):
+    return subprocess.call(cmd.format(**globals()), shell=True)
+
+activation_script = os.path.join(PADRE_VENV, "bin/activate_this.py")
+complete_cookie = os.path.join(PADRE_VENV, ".complete")
+
+# See https://stackoverflow.com/questions/1871549/determine-if-python-is-running-inside-virtualenv
+if hasattr(sys, 'real_prefix') or (hasattr(sys, 'base_prefix') and sys.base_prefix != sys.prefix):
+    if sys.prefix == PADRE_VENV:
+        message("Already running inside radiopadre virtual environment")
+    else:
+        bye("Can't run this script inside a non-radiopadre virtualenv. Please deactivate and rerun.")
+else:
+    if os.path.exists(activation_script) and os.path.exists(complete_cookie):
+        message("Found working radiopadre virtualenv")
+    elif options.bootstrap:
+        message("Can't find complete radiopadre virtualenv, bootstrapping with install_radiopadre")
+        if shell("{PADRE_PATH}/install_radiopadre"):
+            bye("Installation script failed")
+
+    print "Activating the radiopadre virtualenv"
+    execfile(activation_script, dict(__file__=activation_script))
+
+# make radiopadre directory
+if not os.path.exists(".radiopadre"):
+    os.mkdir(".radiopadre")
+
+# make link to JS9 install
+if not os.path.exists(".radiopadre/js9-www") and os.path.exists(PADRE_VENV + "/js9-www"):
+    os.symlink(PADRE_VENV + "/js9-www", ".radiopadre/js9-www")
+
+# add padre directory to PYTHONPATH
+os.environ["PYTHONPATH"] = os.environ["PYTHONPATH"] + ":" + PADRE_PATH
+
+message("Welcome to Radiopadre!")
+message("  Using radiopadre install at {PADRE_PATH}")
+message("  Running in {DIR}")
+
+if os.environ.get("SSH_CLIENT"):
+    message("You appear to have logged in via ssh")
+    if options.browser:
+        message("--browser is set so I will open a browser anyway")
+        JUPYTER_OPTS.append(" --no-browser")
+    else:
+        message("Since you're logged in via ssh, so I'm not opening a web browser for you.")
+        message("Please manually browse to the URL printed by Jupyter below. You will probably want to employ ssh")
+        message("port forwarding if you want to browse this notebook from your own machine.")
+else:
+    message("You appear to have a local session")
+    if options.no_browser:
+        message("--no-browser is set, jupyter notebook will not invoked a browser.")
+    else:
+        message("Allowing jupyter notebook to open a web browser. Use --no-browser to disable this.")
+        message("Please manually browse to the URL printed by Jupyter below.")
+
+message("Available notebooks: " + " ".join(glob.glob("*.ipynb")))
+
+# find unused ports for Jupyter & helpers
+def find_unused_port (base,maxtries=1000):
+    for i in range(maxtries):
+        serversocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        try:
+            serversocket.bind(("localhost", base))
+            serversocket.close()
+            return base
+        except:
+            base += 1
+            continue
+    return None
+
+jupyter_port = find_unused_port(1024)
+helper_port  = find_unused_port(jupyter_port+1)
+http_port    = find_unused_port(jupyter_port+2)
+
+message("Selected ports: {}:{}:{}".format(jupyter_port, helper_port, http_port))
+
+os.environ['RADIOPADRE_HTTP_PORT'] = str(http_port)
+os.environ['RADIOPADRE_JS9_HELPER_PORT'] = str(helper_port)
+# os.environ['RADIOPADRE_JS9_ACCESS'] = "http://localhost:{}/".format(http_port)  # else set to "jupyter" to use internal server
+os.environ['RADIOPADRE_JS9_HTTP'] = "http://localhost:{}/".format(http_port)
+
+JUPYTER_OPTS.append("--port={}".format(jupyter_port))
+JUPYTER_OPTS += list(options.args)
+
+child_processes = []
+
+try:
+    js9helper = PADRE_VENV+"/js9-www/js9Helper.js"
+    helper_proc = None
+    if os.path.exists(js9helper):
+        message("Starting JS9 helper process")
+        try:
+            nodejs = subprocess.check_output("which nodejs || which node", shell=True)
+        except subprocess.CalledProcessError:
+            bye("Unable to find nodejs or node -- can't run js9helper. You need to apt-get install nodejs perhaps?")
+        child_processes.append(subprocess.Popen([nodejs.strip(), js9helper, '{{"helperPort": {}}}'.format(helper_port)],
+                                   stdin=DEVZERO, stdout=sys.stdout, stderr=sys.stderr))
+
+    message("Starting HTTP server process in {DIR} on port {http_port}")
+    child_processes.append(subprocess.Popen([PADRE_VENV+"/bin/python", "-m", "SimpleHTTPServer", str(http_port)],
+                                       stdin=DEVZERO, stdout=sys.stdout, stderr=sys.stderr))
+
+    message("Starting: jupyter notebook "+" ".join(JUPYTER_OPTS))
+
+    ## start jupyter process
+    notebook_proc = subprocess.Popen([PADRE_VENV+"/bin/jupyter"] + JUPYTER_OPTS,
+                                      stdin=sys.stdin, stdout=sys.stdout, stderr=sys.stderr,
+                                      env=os.environ)
+
+    ## use this instead to debug the sessison
+    #notebook_proc = subprocess.Popen([PADRE_VENV+"/bin/ipython"],
+    #                                 stdin=sys.stdin, stdout=sys.stdout, stderr=sys.stderr,
+    #                                  env=os.environ)
+
+    child_processes.append(notebook_proc)
+
+    notebook_proc.wait()
+    message("Notebook process done")
+    child_processes.pop(-1)
+
+finally:
+    message("Terminating child processes")
+    for proc in child_processes:
+        proc.terminate()
+        proc.wait()
+
+message("Exiting")

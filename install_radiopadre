@@ -1,0 +1,146 @@
+#!/usr/bin/python
+
+import os.path
+import os
+import subprocess
+import sys
+import shutil
+
+# get radiopadre install directory
+PADRE_PATH = os.path.dirname(__file__)
+
+JS9_REPO = "https://github.com/ericmandel/js9.git"
+JS9_DIR = PADRE_PATH + "/js"
+
+import argparse
+parser = argparse.ArgumentParser(description="Inits radiopadre virtual environment and installs components")
+
+parser.add_argument("command",choices=["install", "reinstall", "reqs", "js9"], default="install", nargs="?",
+                  help="what to do. 'install' (default) to check and install as needed, 'reinstall' to reinstall everything "
+                       "from scratch, 'reqs' or 'js9' to try installing just a single component.")
+parser.add_argument("--bootstrap", action="store_true",
+                  help="automatically initialize radiopadre virtual environment, if missing.")
+parser.add_argument("--refresh", action="store_true",
+                  help="remove and reinstall the radiopadre virtual environment from scratch.")
+parser.add_argument("--js9", metavar="DIR", type=str,
+                  help="JS9 source directory or repository URL. Default is to try {JS9_DIR}, then {JS9_REPO}.".format(**globals()))
+parser.add_argument("--no-js9", action="store_true",
+                  help="skips the JS9 installation. FITS functionality will be reduced.")
+parser.add_argument("--cfitsio-path", metavar="DIR", type=str, default="/usr",
+                  help="path to cfitsio installation. Default is %(default)s")
+
+options = parser.parse_args()
+
+PADRE_VENV = os.path.expanduser("~/.radiopadre-venv")
+
+def message(x, prefix='install_radiopadre: '):
+    print(prefix + x.format(**globals()))
+
+def bye(x, code=1):
+    message(x)
+    sys.exit(code)
+
+def shell(cmd):
+    return subprocess.call(cmd.format(**globals()), shell=True)
+
+# See https://stackoverflow.com/questions/1871549/determine-if-python-is-running-inside-virtualenv
+if hasattr(sys, 'real_prefix') or (hasattr(sys, 'base_prefix') and sys.base_prefix != sys.prefix):
+    bye("Can't run this script inside a virtualenv. Please deactivate.")
+
+# Look for virtualenv. Burn it down if it needs a refresh.
+
+activation_script = os.path.join(PADRE_VENV, "bin/activate_this.py")
+complete_cookie = os.path.join(PADRE_VENV, ".complete")
+
+if os.path.exists(activation_script):
+    message("Found existing radiopadre virtualenv in {PADRE_VENV}")
+    if options.command == "reinstall":
+        message("reinstall: burning it down and starting over")
+    elif options.command == "install":
+        if os.path.exists(complete_cookie):
+            bye("Nothing to be installed. Re-run with 'reinstall' to reinstall everything from scratch instead.", 0)
+        message("The installation appears to be incomplete. Burning it down and starting over.")
+        shutil.rmtree(PADRE_VENV)
+
+# check again, maybe we burned it down
+if not os.path.exists(activation_script):
+    # make new virtualenv
+    try:
+        subprocess.check_output("which virtualenv && which pip", shell=True)
+    except subprocess.CalledProcessError:
+        message("radiopadre requires a working virtualenv and pip, sorry. Try apt install pip virtualenv?")
+        sys.exit(1)
+
+    message("Creating radiopadre virtualenv in {PADRE_VENV}")
+    if shell("virtualenv " + PADRE_VENV):
+        bye("Failed to create virtualenv")
+
+message("Activating virtualenv")
+execfile(activation_script, dict(__file__=activation_script))
+
+if options.command in ["install", "reinstall", "reqs"]:
+    message("Installing dependencies. This may take a few minutes")
+    if shell("{PADRE_VENV}/bin/pip install -r {PADRE_PATH}/requirements.txt"):
+        bye("Dependencies failed to install, see log above")
+
+    message("All dependencies installed in virtual environment. Creating ipython kernel")
+    if shell("{PADRE_VENV}/bin/ipython kernel install --user --name=radiopadre"):
+        bye("ipython kernel failed to install, see log above")
+
+if options.command in ["install", "reinstall", "js9"] and not options.no_js9:
+    # install JS9 inside venv
+    # First, check if we have a JS9 distribution inside radiopadre
+    js9_base, js9temp = options.js9 or "{}/js9".format(PADRE_PATH), None
+    if os.path.isdir(js9_base) and os.access(js9_base, os.W_OK | os.X_OK):
+        message("Found JS9 distribution in {js9_base}: will try to configure and install from there")
+    # If not, use git to clone one
+    elif options.js9.split(":")[0] not in ["https", "git"]:
+        bye("--js9 does not specify a valid directory or repository URL")
+    else:
+        import tempfile
+        js9_base = js9temp = tempfile.mkdtemp(prefix="js9")
+        message("No JS9 found locally. Will try to clone {options.js9} into {js9_base}")
+        if shell("git clone {options.js9} {js9_base}") != 0:
+            bye("Failed to clone JS9 repo, see log above")
+
+    # Configure and install
+    js9_www = PADRE_VENV + "/js9-www"
+    if subprocess.call("""cd {js9_base} && \
+        ./configure --prefix={PADRE_VENV} --with-webdir={js9_www} --with-helper=nod --with-cfitsio={options.cfitsio_path} && \
+        make && make install""".format(**globals()), shell=True):
+        bye("Failed to configure and/or build JS9 in {js9_base}, see log above. Fix it, or run with --no-js9.")
+
+    # check for cfitsio
+    try:
+        output = subprocess.check_output("grep FITSLIB {js9_base}/config.log".format(**globals()), shell=True)
+        if output.strip() != "FITSLIB='cfitsio'":
+            raise subprocess.CalledProcessError("no cfitsio")
+    except subprocess.CalledProcessError:
+        bye("JS9 did not find the cfitsio library. Try installing it (apt install libcfitsio-dev), and/or specifying"
+            " the path to it with --cfitsio-path, and/or running with --no-js9 if you're really stuck.")
+
+    # Make symlink to js9 install dir in notebook dir
+    try:
+        notebook_dir = subprocess.check_output("{PADRE_VENV}/bin/pip show jupyter| "
+                    "grep Location:|cut -d ':' -f 2".format(**globals()), shell=True).strip()
+        if not notebook_dir:
+            raise subprocess.CalledProcessError("no notebook path")
+        notebook_js9_www = notebook_dir + "/notebook/static/js9-www"
+        message("making link from {notebook_js9_www} to {js9_www}")
+        if not os.path.exists(notebook_js9_www):
+            os.symlink(js9_www, notebook_js9_www)
+    except subprocess.CalledProcessError:
+        bye("Failed to determine jupyter notebook path")
+
+    # copy config
+    shutil.copy2(PADRE_PATH + "/js9-config/js9prefs.js", js9_www)
+    shutil.copy2(PADRE_PATH + "/js9-config/js9Prefs.json", js9_www)
+
+    if js9temp:
+        message("Removing JS9 source directory {js9temp}")
+        shutil.rmtree(js9temp)
+
+
+open(complete_cookie, "w").write("installed by {__file__}".format(**globals()))
+
+message("Installation successful!")

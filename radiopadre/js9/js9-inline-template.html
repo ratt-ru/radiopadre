@@ -1,0 +1,21 @@
+<div id='{display_id}-JS9root'>
+    <TABLE>
+    <TR>
+        <TD>
+            <div class="JS9Menubar" id='{display_id}-JS9_Menubar'></div>
+            <div class="JS9" data-height="600" id='{display_id}-JS9'></div>
+            <div style="margin-top: 2px;"><div class="JS9Colorbar" id='{display_id}-JS9_Colorbar'></div></div>
+        </TD>
+        <TD>
+            <TABLE>
+                <TR><TD><div class="JS9Panner" data-width="200" data-height="200" id='{display_id}-JS9_Panner'></div></TD></TR>
+                <TR><TD><div class="JS9Magnifier" data-width="200" data-height="200" id='{display_id}-JS9_Magnifier'></div></TD></TR>
+            </TABLE>
+        </TD>
+    </TR>
+    </TABLE>
+</div>
+<script type='text/javascript'>
+    JS9.AddDivs('{display_id}-JS9')
+    JS9.Load('{fits_image_url}', {fits2fits_options}, {{display: '{display_id}-JS9'}});
+</script>

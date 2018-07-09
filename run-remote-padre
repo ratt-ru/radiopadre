@@ -32,7 +32,7 @@ def find_unused_port (base,maxtries=1000):
 
 default_browser = os.environ.get("PADRE_BROWSER","xdg-open")
 
-from optparse import OptionParser,OptionGroup
+from optparse import OptionParser
 parser = OptionParser(usage="""%prog: [options] [user@]host[:directory[/notebook.ipynb]]""",
     description="Uses ssh to connect to remote host, runs radiopadre notebook server "+
     "in the specified directory, loads the specified notebook(s) or a default notebook, if any. " +
