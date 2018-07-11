@@ -4,12 +4,18 @@ import os, os.path
 from IPython.display import HTML, display, Javascript
 import matplotlib.pyplot as plt
 import uuid
+from collections import OrderedDict
 
 import radiopadre
 import radiopadre.file
 from radiopadre.render import render_title, render_table
 
 from radiopadre import js9
+
+def read_html_template(filename, subs):
+    js9_source = os.path.join(js9.DIRNAME, filename)
+    with open(js9_source) as inp:
+        return inp.read().format(**subs)
 
 
 class FITSFile(radiopadre.file.FileBase):
@@ -268,15 +274,12 @@ class FITSFile(radiopadre.file.FileBase):
                 plt.ylim(*ylim)
         return status
 
-    def _make_js9_window_script(self, subset=False):
+    def _make_js9_window_script(self, subs, subset=False):
         # creates an HTML script per each image, by replacing various arguments in a templated bit of html
-        js9_source = js9.DIRNAME + "/js9-window-template.html"
         cachedir = radiopadre.get_cache_dir(self.fullpath, "js9-launch")
         js9_target = "{}/{}.{}.{}".format(cachedir, self.basename, "sub" if subset else "full", js9.JS9_SCRIPT_SUFFIX)
 
         # make dict of substitutions for HTML scripts
-        subs = globals().copy()
-        subs.update(**locals())
         subs['fits_image_path'] = self.fullpath
         subs['fits_image_url'] = js9.JS9_FITS_PREFIX_HTTP + self.fullpath
 
@@ -286,42 +289,75 @@ class FITSFile(radiopadre.file.FileBase):
         else:
             subs['fits2fits_options'] = "{fits2fits:false}"
 
-        with open(js9_source) as inp, open(js9_target, 'w') as outp:
-            # rewrite paths to js9 files
-            outp.write(inp.read().format(**subs))
+        with open(js9_target, 'w') as outp:
+            outp.write(read_html_template("js9-window-head-template.html", subs))
+            outp.write(read_html_template("js9-singlewindow-body-template.html", subs))
+            outp.write(read_html_template("js9-singlewindow-tail-template.html", subs))
 
         return js9_target
 
-    def _make_js9_dual_window_script(self):
+    def _make_js9_dual_window_script(self, subs):
         # creates an HTML script per each image, by replacing various arguments in a templated bit of html
-        js9_source = js9.DIRNAME + "/js9-dualwindow-template.html"
         cachedir = radiopadre.get_cache_dir(self.fullpath, "js9-launch")
         js9_target = "{}/{}.{}.{}".format(cachedir, self.basename, "dual", js9.JS9_SCRIPT_SUFFIX)
+
+        # make dict of substitutions for HTML scripts
+        subs['fits_image_path'] = self.fullpath
+        subs['fits_image_url'] = js9.JS9_FITS_PREFIX_HTTP + self.fullpath
+        subs['fits2fits_options_rebin'] = "fits2fits:true,xcen:2048,ycen:2048,xdim:4096,ydim:4096,bin:4"
+        subs['init_zoom_box'] = "'box(2048,2048,1024,1024,0)'"
+        subs['lib_scripts'] = open(os.path.join(js9.DIRNAME, "js9-radiopadre.js")).read()
+
+        with open(js9_target, 'w') as outp:
+            outp.write(read_html_template("js9-window-head-template.html", subs))
+            outp.write(read_html_template("js9-dualwindow-body-template.html", subs))
+            outp.write(read_html_template("js9-dualwindow-tail-template.html", subs))
+
+        return js9_target
+
+    # def js9_iframe(self):
+    #     js9_target = self._make_js9_window_script(subset=True)
+    #
+    #     return display(HTML('''
+    #        <iframe src="{}{}" width=1100 height=780></iframe>
+    #        '''.format(js9.JS9_SCRIPT_PREFIX_HTTP, js9_target)))
+
+    def js9_dual(self):
+        display_id = uuid.uuid4().hex
+        # print('Display id = {}'.format(display_id))
 
         # make dict of substitutions for HTML scripts
         subs = globals().copy()
         subs.update(**locals())
         subs['fits_image_path'] = self.fullpath
-        subs['fits_image_url'] = js9.JS9_FITS_PREFIX_HTTP + self.fullpath
+        subs['fits_image_url'] = js9.JS9_FITS_PREFIX_JUP + self.fullpath
+        subs['fits2fits_options'] = "{fits2fits:false}"
 
-        subs['fits2fits_options_rebin'] = "{fits2fits:true,xcen:2048,ycen:2048,xdim:4096,ydim:4096,bin:4}"
-        subs['fits2fits_options_zoom'] = "{fits2fits:true,xcen:2048,ycen:2048,xdim:1024,ydim:1024,bin:1}"
+        code = read_html_template("js9-dualwindow-body-template.html", subs)
 
-        with open(js9_source) as inp, open(js9_target, 'w') as outp:
-            # rewrite paths to js9 files
-            outp.write(inp.read().format(**subs))
+        code += """
+            <script type="text/javascript">
+            // register partner displays
+            JS9p.register_partners('rebin-{display_id}-JS9', 'zoom-{display_id}-JS9');
+        
+            // preload the image
+            JS9.Load("{fits_image_path}",
+                     {{ {fits2fits_options_rebin},
+                        onload: function(im){{
+                            console.log("loaded image is", im);
+                            JS9.AddRegions({init_zoom_box},
+                                           {{color:"red",data:"zoom_region",rotatable:false,removable:false}},
+                                           {{display:"rebin-{display_id}-JS9"}});
+                        }},
+                        zoom:'T'}},
+                     {{display:"rebin-{display_id}-JS9"}});
+            </script>
+        """
 
-        return js9_target
-
+        # print code
+        display(HTML(code))
 
     def js9(self):
-        js9_target = self._make_js9_window_script(subset=True)
-
-        return display(HTML('''
-           <iframe src="{}{}" width=1100 height=780></iframe>
-           '''.format(js9.JS9_SCRIPT_PREFIX_HTTP, js9_target)))
-
-    def js9_inline(self):
         display_id = uuid.uuid4().hex
         # print('Display id = {}'.format(display_id))
 
@@ -331,51 +367,71 @@ class FITSFile(radiopadre.file.FileBase):
         subs['fits_image_url'] = js9.JS9_FITS_PREFIX_JUP + self.fullpath
         subs['fits2fits_options'] = "{fits2fits:false}"
 
-        js9_source = js9.DIRNAME + "/js9-inline-template.html"
+        code = """
+            <link type='text/css' rel='stylesheet' href='{js9.JS9_INSTALL_PREFIX_JUP}/js9support.css'>
+            <link type='text/css' rel='stylesheet' href='{js9.JS9_INSTALL_PREFIX_JUP}/js9.css'>
+        """.format(**subs)
 
-        with open(js9_source) as inp:
-            # rewrite paths to js9 files
-            code = inp.read().format(**subs)
+        code += read_html_template("js9-singlewindow-body-template.html", subs)
+
+        code += """
+            <script type="text/javascript">
+            JS9.AddDivs("{display_id}-JS9");
+            JS9.Load("{fits_image_url}", {fits2fits_options},
+                     {{display:"{display_id}-JS9"}});
+            </script>
+        """.format(**subs)
 
         # print code
         display(HTML(code))
 
-        #get_ipython().run_cell_magic('javascript', '', 'element.append("<P>test</P>");')
-        #return
-
-        # command = """
-        #     element.append("
-        #     <div id='JS-{display_id}_Main'>
-        #         <div class='JS9Menubar' id='JS9-{display_id}_Menubar'></div>
-        #         <div class='JS9' id='JS9-{display_id}'></div>
-        #         <div style='margin-top: 2px;'><div class='JS9Colorbar' id='JS9-{display_id}_Colorbar'></div></div>
-        #     </div>
-        #     ");""".format(**subs)
-        # print command
-        # get_ipython().run_cell_magic('javascript', '', command.replace("\n",""))
-        # command = """
-        #     JS9.AddDivs('JS9-{display_id}');
-        #     JS9.Load('{fits_image_url}', {fits2fits_options}, {{display: 'JS9-{display_id}'}});
-        #     """.format(**subs)
-        # print command
-        # get_ipython().run_cell_magic('javascript', '', command.replace("\n",""))
-
-
-
-
-
-
-    def _action_buttons_(self):
-        """Renders JS9 button for FITS image given by 'imag'"""
-        js9_target1 = self._make_js9_window_script(subset=True)
-        js9_target2 = self._make_js9_window_script(subset=False)
-        js9_target3 = self._make_js9_dual_window_script()
-
+    def _action_buttons_(self, preamble=OrderedDict(), postscript=OrderedDict(), div_id=""):
+        """Renders JS9 buttons for image
+        """
         subs = globals().copy()
-        subs.update(**locals())
+        subs.update(display_id=div_id, **locals())
+        subs['init_style'] = "display:none"
+        subs['fits_image_path'] = self.fullpath
+        subs['fits_image_url'] = js9.JS9_FITS_PREFIX_HTTP + self.fullpath
+        subs['fits2fits_options_rebin'] = "fits2fits:true,xcen:2048,ycen:2048,xdim:4096,ydim:4096,bin:4"
+        subs['init_zoom_box'] = "'box(2048,2048,1024,1024,0)'"
+
+        if "JS9" not in postscript:
+            subs['init_style'] = "style='display:none'"
+            postscript["JS9"] = read_html_template("js9-dualwindow-body-template.html", subs) + \
+            """
+                <script type='text/javascript'>
+                    JS9.AddDivs('rebin-{display_id}-JS9', 'zoom-{display_id}-JS9')
+                </script>
+            """.format(**subs)
+            subs['init_style'] = ''
+
+        # use empty display ID for scripts in separate documents
+        subs['display_id'] = ''
+        js9_target1 = self._make_js9_window_script(subs, subset=True)
+        js9_target2 = self._make_js9_window_script(subs, subset=False)
+        js9_target3 = self._make_js9_dual_window_script(subs)
+        subs.update(display_id=div_id, **locals())
 
         return """
-            <button onclick="window.open('{js9.JS9_SCRIPT_PREFIX_HTTP}{js9_target1}', '_blank')">&#8599;JS9</button> 
-            <button onclick="window.open('{js9.JS9_SCRIPT_PREFIX_HTTP}{js9_target2}', '_blank')">&#8599;JS9 full</button> 
-            <button onclick="window.open('{js9.JS9_SCRIPT_PREFIX_HTTP}{js9_target3}', '_blank')">&#8599;JS9 dual</button> 
+            <script type='text/javascript'>
+                var load_inline_image = function(path) {{
+                    console.log('loading into {display_id}:', path);
+                    JS9.Load(path,
+                             {{ {fits2fits_options_rebin},
+                                onload: function(im){{
+                                    console.log('loaded image is', im);
+                                    JS9.AddRegions({init_zoom_box},
+                                                   {{color:'red',data:'zoom_region',rotatable:false,removable:false}},
+                                                   {{display:'rebin-{display_id}-JS9'}});
+                                }},
+                                zoom:'T'}},
+                             {{display:'rebin-{display_id}-JS9'}});
+                    document.getElementById("{display_id}-top").style.display = 'block'
+                }}
+            </script>
+            <button onclick="load_inline_image('{fits_image_path}')">&#8595;JS9</button>
+            <button onclick="window.open('{js9.JS9_SCRIPT_PREFIX_HTTP}{js9_target1}', '_blank')">&#8663;JS9</button> 
+            <button onclick="window.open('{js9.JS9_SCRIPT_PREFIX_HTTP}{js9_target2}', '_blank')">&#8663;JS9 full</button> 
+            <button onclick="window.open('{js9.JS9_SCRIPT_PREFIX_HTTP}{js9_target3}', '_blank')">&#8663;JS9 dual</button> 
         """.format(**subs)

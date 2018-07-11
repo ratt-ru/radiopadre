@@ -10,12 +10,12 @@ import shutil
 PADRE_PATH = os.path.dirname(__file__)
 
 JS9_REPO = "https://github.com/ericmandel/js9.git"
-JS9_DIR = PADRE_PATH + "/js"
+JS9_DIR = PADRE_PATH + "/js9"
 
 import argparse
 parser = argparse.ArgumentParser(description="Inits radiopadre virtual environment and installs components")
 
-parser.add_argument("command",choices=["install", "reinstall", "reqs", "js9"], default="install", nargs="?",
+parser.add_argument("command",choices=["install", "reinstall", "reqs", "js9" ], default="install", nargs="?",
                   help="what to do. 'install' (default) to check and install as needed, 'reinstall' to reinstall everything "
                        "from scratch, 'reqs' or 'js9' to try installing just a single component.")
 parser.add_argument("--bootstrap", action="store_true",
@@ -23,7 +23,8 @@ parser.add_argument("--bootstrap", action="store_true",
 parser.add_argument("--refresh", action="store_true",
                   help="remove and reinstall the radiopadre virtual environment from scratch.")
 parser.add_argument("--js9", metavar="DIR", type=str,
-                  help="JS9 source directory or repository URL. Default is to try {JS9_DIR}, then {JS9_REPO}.".format(**globals()))
+                  help="JS9 source directory or repository URL. Default is to try {JS9_DIR}, then {JS9_REPO}. "
+                       "Set to 'git' to force use of {JS9_REPO}.".format(**globals()))
 parser.add_argument("--no-js9", action="store_true",
                   help="skips the JS9 installation. FITS functionality will be reduced.")
 parser.add_argument("--cfitsio-path", metavar="DIR", type=str, default="/usr",
@@ -89,30 +90,45 @@ if options.command in ["install", "reinstall", "reqs"]:
 
 if options.command in ["install", "reinstall", "js9"] and not options.no_js9:
     # install JS9 inside venv
-    # First, check if we have a JS9 distribution inside radiopadre
-    js9_base, js9temp = options.js9 or "{}/js9".format(PADRE_PATH), None
-    if os.path.isdir(js9_base) and os.access(js9_base, os.W_OK | os.X_OK):
-        message("Found JS9 distribution in {js9_base}: will try to configure and install from there")
-    # If not, use git to clone one
-    elif options.js9.split(":")[0] not in ["https", "git"]:
-        bye("--js9 does not specify a valid directory or repository URL")
+    # determine whether to use existing directory or repo
+    js9_git = js9_dir = js9_temp = None
+    if options.js9:
+        if options.js9 == 'git':
+            js9_git = JS9_REPO
+            message("Will clone JS9 from default location ({JS9_REPO})")
+        elif options.js9.split(":")[0] in ["http", "git"]:
+            js9_git = options.js9
+            message("Will clone JS9 from {js9_git}")
+        elif os.path.isdir(options.js9):
+            js9_dir = options.js9
+            message("Will install JS9 from local directory {js9_dir}")
+        else:
+            bye("--js9 {options.js9}: not a valid directory or git repository")
+    elif os.path.isdir(JS9_DIR):
+        js9_dir = JS9_DIR
+        message("Will install JS9 from default directory {js9_dir}")
     else:
+        js9_git = JS9_REPO
+        message("{JS9_DIR} not found. Will clone JS9 from default location ({JS9_REPO})")
+
+    # First, check if we have a JS9 distribution inside radiopadre
+    if js9_git:
         import tempfile
-        js9_base = js9temp = tempfile.mkdtemp(prefix="js9")
-        message("No JS9 found locally. Will try to clone {options.js9} into {js9_base}")
-        if shell("git clone {options.js9} {js9_base}") != 0:
+        js9_dir = js9_temp = tempfile.mkdtemp(prefix="js9")
+        message("Cloning {js9_git} into {js9_dir}")
+        if shell("git clone {js9_git} {js9_dir}") != 0:
             bye("Failed to clone JS9 repo, see log above")
 
     # Configure and install
     js9_www = PADRE_VENV + "/js9-www"
-    if subprocess.call("""cd {js9_base} && \
+    if subprocess.call("""cd {js9_dir} && \
         ./configure --prefix={PADRE_VENV} --with-webdir={js9_www} --with-helper=nod --with-cfitsio={options.cfitsio_path} && \
         make && make install""".format(**globals()), shell=True):
-        bye("Failed to configure and/or build JS9 in {js9_base}, see log above. Fix it, or run with --no-js9.")
+        bye("Failed to configure and/or build JS9 in {js9_dir}, see log above. Fix it, or run with --no-js9.")
 
     # check for cfitsio
     try:
-        output = subprocess.check_output("grep FITSLIB {js9_base}/config.log".format(**globals()), shell=True)
+        output = subprocess.check_output("grep FITSLIB {js9_dir}/config.log".format(**globals()), shell=True)
         if output.strip() != "FITSLIB='cfitsio'":
             raise subprocess.CalledProcessError("no cfitsio")
     except subprocess.CalledProcessError:
@@ -136,9 +152,9 @@ if options.command in ["install", "reinstall", "js9"] and not options.no_js9:
     shutil.copy2(PADRE_PATH + "/js9-config/js9prefs.js", js9_www)
     shutil.copy2(PADRE_PATH + "/js9-config/js9Prefs.json", js9_www)
 
-    if js9temp:
-        message("Removing JS9 source directory {js9temp}")
-        shutil.rmtree(js9temp)
+    if js9_temp:
+        message("Removing JS9 source directory {js9_temp}")
+        shutil.rmtree(js9_temp)
 
 
 open(complete_cookie, "w").write("installed by {__file__}".format(**globals()))

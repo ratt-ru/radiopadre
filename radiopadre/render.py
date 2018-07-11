@@ -1,6 +1,6 @@
 import math
 import cgi
-import os, os.path
+from collections import OrderedDict
 
 #edited by me lexy
 from IPython.display import display
@@ -33,10 +33,13 @@ def render_status_message(msg):
     return "<p style='background: lightblue;'><b>%s</b></p>" % cgi.escape(msg)
 
 
-def render_table(data, labels, html=set(), ncol=1, links=None, actions=None):
-    #lexy
-    vbox=[]
-    txt = """<table style="border: 1px; text-align: left">
+def render_table(data, labels, html=set(), ncol=1, links=None, actions=None,
+                 preamble=OrderedDict(), postscript=OrderedDict(), div_id=None
+                 ):
+    txt = "<div id='{}'>".format(div_id) if div_id else "<div>"
+    for code in preamble.itervalues():
+        txt += code+"\n"
+    txt += """<table style="border: 1px; text-align: left">
         <tr style="border: 0px; border-bottom: 1px double; text-align: center">
     """
     if not data:
@@ -75,6 +78,9 @@ def render_table(data, labels, html=set(), ncol=1, links=None, actions=None):
                 txt += """<TD>%s</TD>""" % actions[idatum]
         txt += """</tr>\n"""
     txt += "</table>"
+    for code in postscript.itervalues():
+        txt += code+"\n"
+    txt += "</div>"
     return txt
 
 

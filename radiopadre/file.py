@@ -6,7 +6,7 @@ from IPython.display import display, HTML
 
 import radiopadre
 from radiopadre.render import render_refresh_button
-
+from collections import OrderedDict
 
 class FileBase(object):
     """Base class referring to a datafile. Sets up some standard attributes in the constructor.
@@ -106,9 +106,16 @@ class FileBase(object):
         display(HTML(render_refresh_button()))
         return self.show(*args, **kw)
 
-    def _action_buttons_(self):
+    def _action_buttons_(self, preamble=OrderedDict(), postscript=OrderedDict(), div_id=""):
         """
         Returns HTML code associated with available actions for this file. Can be None.
+
+        :param preamble: HTML code rendered before e.g. list of files. Insert your own
+                         as appropriate.
+        :param postscript: HTML code rendered after e.g. list of files. Insert your own
+                         as appropriate.
+        :param div_id:   unique ID corresponding to rendered chunk of HTML code
+        :return: HTML code for action buttons, or None
         """
         return None
 
