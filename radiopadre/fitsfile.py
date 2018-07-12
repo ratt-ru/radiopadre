@@ -336,6 +336,9 @@ class FITSFile(radiopadre.file.FileBase):
         code = read_html_template("js9-dualwindow-body-template.html", subs)
 
         code += """
+            <link type='text/css' rel='stylesheet' href='{js9.JS9_INSTALL_PREFIX_JUP}/js9support.css'>
+            <link type='text/css' rel='stylesheet' href='{js9.JS9_INSTALL_PREFIX_JUP}/js9.css'>
+            
             <script type="text/javascript">
             // register partner displays
             JS9p.register_partners('rebin-{display_id}-JS9', 'zoom-{display_id}-JS9');
@@ -400,8 +403,11 @@ class FITSFile(radiopadre.file.FileBase):
             subs['init_style'] = "style='display:none'"
             postscript["JS9"] = read_html_template("js9-dualwindow-body-template.html", subs) + \
             """
+                <link type='text/css' rel='stylesheet' href='{js9.JS9_INSTALL_PREFIX_JUP}/js9support.css'>
+                <link type='text/css' rel='stylesheet' href='{js9.JS9_INSTALL_PREFIX_JUP}/js9.css'>
                 <script type='text/javascript'>
-                    JS9.AddDivs('rebin-{display_id}-JS9', 'zoom-{display_id}-JS9')
+                    JS9.AddDivs('rebin-{display_id}-JS9', 'zoom-{display_id}-JS9');
+                    JS9p.register_partners('rebin-{display_id}-JS9', 'zoom-{display_id}-JS9');
                 </script>
             """.format(**subs)
             subs['init_style'] = ''

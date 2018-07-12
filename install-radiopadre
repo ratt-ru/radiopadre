@@ -57,6 +57,7 @@ if os.path.exists(activation_script):
     message("Found existing radiopadre virtualenv in {PADRE_VENV}")
     if options.command == "reinstall":
         message("reinstall: burning it down and starting over")
+        shutil.rmtree(PADRE_VENV)
     elif options.command == "install":
         if os.path.exists(complete_cookie):
             bye("Nothing to be installed. Re-run with 'reinstall' to reinstall everything from scratch instead.", 0)
@@ -84,9 +85,25 @@ if options.command in ["install", "reinstall", "reqs"]:
     if shell("{PADRE_VENV}/bin/pip install -r {PADRE_PATH}/requirements.txt"):
         bye("Dependencies failed to install, see log above")
 
-    message("All dependencies installed in virtual environment. Creating ipython kernel")
+    # install this venv as a custom kernel
+    message("All dependencies installed in virtual environment. Creating radiopadre ipython kernel")
     if shell("{PADRE_VENV}/bin/ipython kernel install --user --name=radiopadre"):
         bye("ipython kernel failed to install, see log above")
+
+    # get path to it because we want to install our own kernel.js
+    try:
+        out = subprocess.check_output("jupyter kernelspec list", shell=True)
+    except subprocess.CalledProcessError:
+        bye("jupyter kernelspec list failed, see log above")
+    for line in out.split("\n"):
+        columns = line.strip().split()
+        if columns[0] == "radiopadre":
+            kerneldir = columns[1]
+            break
+    else:
+        bye("jupyter kernelspec list did not return the radiopadre kernel. This is a bug?")
+    message("Linking kernel.js to {kerneldir}")
+    os.symlink(PADRE_PATH + "/radiopadre/html/radiopadre-kernel.js", kerneldir + "/kernel.js")
 
 if options.command in ["install", "reinstall", "js9"] and not options.no_js9:
     # install JS9 inside venv

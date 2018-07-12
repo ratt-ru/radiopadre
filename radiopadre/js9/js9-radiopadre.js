@@ -1,4 +1,10 @@
 // define JS9 radiopadre functionality
+var JS9p;
+if document.radiopadre.JS9p:
+    JS9p = document.radiopadre.JS9p;
+else
+{
+
 var JS9p = {
     display_props: {},
 
