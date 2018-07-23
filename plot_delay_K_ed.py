@@ -14,8 +14,8 @@ import sys
 import numpy as np
 
 from bokeh.plotting import figure
-from bokeh.models import Range1d, HoverTool, ColumnDataSource, LinearAxis
-from bokeh.io import output_file, show
+from bokeh.models import Range1d, HoverTool, ColumnDataSource, LinearAxis, FixedTicker, Legend, Toggle, CustomJS
+from bokeh.io import output_file, show, output_notebook, export_svgs
 from bokeh.layouts import row, column, gridplot
 
 
@@ -54,6 +54,11 @@ myms = options.myms
 pngname = options.pngname
 
 
+
+#uncomment next line for inline notebok output
+#output_notebook()
+
+
 if len(args) != 1:
 	print 'Please specify a delay table to plot.'
 	sys.exit(-1)
@@ -65,9 +70,58 @@ if pngname == '':
 	output_file(pngname)
 
 #No complex data so this is generally ignored
-if doplot not in ['ap','ri']:
-	print 'Plot selection must be either ap (amp and phase) or ri (real and imag)'
+if doplot != 'ap':
+	print 'Plot selection must be ap '
 	sys.exit(-1)
+
+
+#configuring the plot dimensions
+PLOT_WIDTH = 700
+PLOT_HEIGHT = 600
+
+def errorbar(fig, x, y, xerr=None, yerr=None, color='red', point_kwargs={}, error_kwargs={}):
+	'''
+	Function to plot the error bars for both x and y. 
+	Takes in 3 compulsory parameters fig, x and y
+	INPUT:
+	============
+	fig: the figure object
+	x: x_axis
+	y: y_axis
+	xerr: errors for x axis, must be a list
+	yerr: errors for y axis, must be a list
+	color: color for the error bars
+
+
+	OUTPUT
+	==============
+	Returns a multiline object for external legend rendering
+
+	'''
+
+	#setting default return value
+	h= None
+	if xerr is not None:
+
+		x_err_x = []
+		x_err_y = []
+		for px, py, err in zip(x, y, xerr):
+			x_err_x.append((px - err, px + err))
+			x_err_y.append((py, py))
+		h=fig.multi_line(x_err_x, x_err_y, color=color, line_width=3,level='underlay',visible=False,**error_kwargs)
+
+	if yerr is not None:
+		y_err_x = []
+		y_err_y = []
+		for px, py, err in zip(x, y, yerr):
+			y_err_x.append((px, px))
+			y_err_y.append((py - err, py + err))
+		h=fig.multi_line(y_err_x, y_err_y, color=color, line_width=3, level='underlay',visible=False, **error_kwargs)
+	
+	fig.legend.click_policy='hide'
+
+	return h
+
 
 
 tt = table(mytab,ack=False)
@@ -111,16 +165,25 @@ else:
 
 
 #creating bokeh figures for the plots
-#setting tools to be availed	
-TOOLS = dict(tools= 'box_select, box_zoom, reset, pan, save, wheel_zoom')
-ax1 = figure(plot_width=800, plot_height=800, **TOOLS)
-ax2 = figure(plot_width=800, plot_height=800,x_range=ax1.x_range,y_range=ax1.y_range, **TOOLS)
+#viewing tools to be availed	
+TOOLS = dict(tools= 'box_select, box_zoom, reset, pan, save, wheel_zoom,lasso_select')
+ax1 = figure(plot_width=PLOT_WIDTH, plot_height=PLOT_HEIGHT, **TOOLS)
+ax2 = figure(plot_width=PLOT_WIDTH, plot_height=PLOT_HEIGHT, x_range=ax1.x_range, **TOOLS)
 
 #Configuring the axis data for the tooltips
 hover=HoverTool(tooltips=[("(antenna1,y1)","($x,$y)")],mode='mouse')
 hover.point_policy='snap_to_data'
 hover2=HoverTool(tooltips=[("(antenna1,y2)","($x,$y)")],mode='mouse')
 hover2.point_policy='snap_to_data'
+
+
+#forming Legend object items for data and errors
+legend_items_ax1 = []
+legend_items_ax2 = []
+legend_items_err_ax1 = []
+legend_items_err_ax2 = []
+
+
 
 xmin = 1e20
 xmax = -1e20
@@ -132,6 +195,11 @@ yumax = -1e20
 
 #for each antenna
 for ant in plotants:
+	#creating legend labels
+	legend     = "A"+str(ant)
+	legend_err = "Err A"+str(ant)
+
+	#creating colors for maps
 	y1col = scalarMap.to_rgba(float(ant))
 	y2col = scalarMap.to_rgba(float(ant))
 
@@ -153,34 +221,49 @@ for ant in plotants:
 	mytaql = 'ANTENNA1=='+str(ant)+' && '
 	mytaql+= 'FIELD_ID=='+str(field)
 
-
 	subtab = tt.query(query=mytaql)
-	#getting correlation data from the table
+	antenna=subtab.getcol('ANTENNA1')
 	fparam = subtab.getcol('FPARAM')
 	flagcol = subtab.getcol('FLAG')
-	paramerror=subtab.getcol('PARAMERR')
+	paramerr = subtab.getcol('PARAMERR')
 
-	#masking the flagged channels and storing them into the masked data table.
-	#if this is not done, the flagged data will also be plotted
-	#if mask is true, the value is nullified and not plottted
 	masked_data = np.ma.array(data=fparam,mask=flagcol)
+	masked_data_err = np.ma.array(data=paramerr,mask=flagcol)
 
-	#chosing if the complex values are plotted as amplitude and phase or as real and imaginary values
 	if doplot == 'ap':
 		#for all the channels
 		y1 = masked_data[:,0,corr]
-		y1=np.array(y1)
-		y2=masked_data[:,0,1]
+		y1 = np.array(y1)
+		y1_err= masked_data_err
 
-		source=ColumnDataSource(data=dict(x=antenna1[antenna1==ant],y1=y1,y2=y2))
-		ax1.circle('x','y1',color=y1col,legend="A"+str(ant),size=8, source=source, nonselection_color='#7D7D7D',nonselection_line_alpha=0.3)
-		ax2.circle('x','y2',color=y2col,legend="A"+str(ant),size=8, source=source,  nonselection_color='#7D7D7D',nonselection_line_alpha=0.3)
-		
-		ax1.yaxis.axis_label=ax1_ylabel='Delay [Correlation 0]'
-		ax2.yaxis.axis_label=ax2_ylabel='Delay [Correlation 1]'
+		y2 = masked_data[:,0,1]
+		y2 = np.array(y2)
+		y2_err= masked_data_err
+
+		#setting up glyph data source
+		source=ColumnDataSource(data=dict(x=antenna,y1=y1,y2=y2))
+
+		p1 = ax1.circle('x','y1',color=y1col,size=8, source=source, nonselection_color='#7D7D7D',nonselection_line_alpha=0.3)
+		p1_err = errorbar(ax1, antenna, y1, color=y1col, yerr=y1_err)
+		ax1.yaxis.axis_label = ax1_ylabel= 'Delay [Correlation 0]'
+
+		p2 = ax2.circle('x','y2',color=y2col,size=8, source=source,  nonselection_color='#7D7D7D',nonselection_line_alpha=0.3)
+		p2_err = errorbar(ax2, antenna, y2, color=y2col, yerr=y2_err)
+		ax2.yaxis.axis_label = ax2_ylabel=  'Delay [Correlation 1]'
 
 	elif doplot == 'ri':
 		print "No complex values to plot"
+		sys.exit()
+	
+	#hide all the other plots until legend is clicked
+	if ant>0:
+		p1.visible=p2.visible=False
+
+	#forming legend object items
+	legend_items_ax1.append( (legend,[p1]) )
+	legend_items_ax2.append( (legend,[p2]) )
+	legend_items_err_ax1.append( (legend_err, [p1_err]) )
+	legend_items_err_ax2.append( (legend_err, [p2_err]) )
 	
 	subtab.close()
 
@@ -207,12 +290,6 @@ for ant in plotants:
 
 xmin = xmin-4
 xmax = xmax+4
-
-#configuring click actions for legends and adding tooltips to the plots
-ax2.legend.click_policy=ax1.legend.click_policy='hide'
-ax1.add_tools(hover)
-ax2.add_tools(hover)
-
 
 
 if yumin < 0.0:
@@ -245,17 +322,106 @@ ax1.y_range=Range1d(yumin,yumax)
 ax2.y_range=Range1d(ylmin,ylmax)
 	
 
-ax1.xaxis.axis_label=ax2.xaxis.axis_label=ax1_xlabel=ax2_xlabel='Antenna1'
+ax1.xaxis.axis_label=ax1_xlabel='Antenna1'
+ax2.xaxis.axis_label=ax2_xlabel='Antenna1'
 
 ax1.title.text = ax1_ylabel + ' vs ' + ax1_xlabel
 ax1.title.align='center'
-ax1.title.text_font_size='25px'
+
 ax2.title.text = ax2_ylabel + ' vs ' + ax2_xlabel
 ax2.title.align='center'
-ax2.title.text_font_size='25px'
 
-#setting the layout of the figures
-figures=gridplot([[ax1,ax2]])
-show(figures)
+
+#configuring click actions for legends
+legend_ax1 = Legend(items=legend_items_ax1, location='top_right', click_policy='hide')
+legend_err_ax1 = Legend(items=legend_items_err_ax1, location='top_right', click_policy='hide')
+legend_ax2 = Legend(items=legend_items_ax2, location='top_right', click_policy='hide')
+legend_err_ax2 = Legend(items=legend_items_err_ax2, location='top_right', click_policy='hide')
+
+
+#adding legends to the plots
+ax1.add_layout(legend_ax1, 'right')
+ax2.add_layout(legend_ax2, 'right')
+ax1.add_layout(legend_err_ax1, 'right')
+ax2.add_layout(legend_err_ax2, 'right')
+
+
+#configuring click actions for legends and adding tooltips to the plots
+ax1.add_tools(hover)
+ax2.add_tools(hover2)
+
+toggle= Toggle(label='Select All Antennas', button_type='success', width=200)
+toggle.callback = CustomJS(args=dict(glyph1=legend_items_ax1, glyph2=legend_items_ax2), code=
+	'''
+		var i;
+		 //if toggle button active
+	    if (this.active==false)
+	        {
+	            this.label='Select all Antennas';
+	            
+	            
+	            for(i=0; i<glyph1.length; i++){
+	                glyph1[i][1][0].visible = false;
+	                glyph2[i][1][0].visible = false;
+	            }
+	        }
+	    else{
+	            this.label='Deselect all Antennas';
+	            for(i=0; i<glyph1.length; i++){
+	                glyph1[i][1][0].visible = true;
+	                glyph2[i][1][0].visible = true;
+	      
+	            }
+	        }
+	'''
+	 )
+
+
+
+#configuring toggle button for showing all the errors
+toggle_err = Toggle(label='Show All Error bars', button_type='warning', width=200)
+toggle_err.callback = CustomJS(args=dict(err1=legend_items_err_ax1, err2=legend_items_err_ax2), code='''
+		var i;
+		 //if toggle button active
+	    if (this.active==false)
+	        {
+	            this.label='Show All Error bars';
+	            
+	            
+	            for(i=0; i<err1.length; i++){
+	                err1[i][1][0].visible = false;
+	                //checking for error on phase and imaginary planes as these tend to go off
+	                if (err2[i][1][0]){
+	                	err2[i][1][0].visible = false;
+	                }
+	                
+	            }
+	        }
+	    else{
+	            this.label='Hide All Error bars';
+	            for(i=0; i<err1.length; i++){
+	                err1[i][1][0].visible = true;
+	                if (err2[i][1][0]){
+	                	err2[i][1][0].visible = true;
+	                }
+	            }
+	        }
+	       
+	''')
+
+
+
+#uncomment next 2 line to save as svg also
+'''
+ax1.output_backend = "svg"
+ax2.output_backend = "svg"
+export_svgs([ax1], filename=pngname+".svg")
+export_svgs([ax1], filename=pngname+"b.svg")'
+'''
+figures   = column(ax1,toggle, toggle_err)
+figures_b = column(ax2)
+
+layout = gridplot([[figures,figures_b]], plot_width=700, plot_height=600)
+show(layout)
 
 print 'Rendered: '+pngname
