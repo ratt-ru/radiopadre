@@ -1,4 +1,3 @@
-import pdb
 from pyrap.tables import table
 from optparse import OptionParser
 import matplotlib.colors as colors
@@ -172,7 +171,7 @@ def plot_G(x_param,y_param):
 		y2 = np.array(y2[:,:,corr])
 		y2 = np.unwrap(y2[:,0])
 		y2 = np.rad2deg(y2)
-		pdb.set_trace()
+		
 		source=ColumnDataSource(data=dict(x=x_param, y1=y1, y2=y2))
 		ax1.circle('x','y1',size=8,alpha=1, color=y1col,source=source,legend="A "+str(ant), nonselection_color='#7D7D7D',nonselection_fill_alpha=0.3)
 		ax2.circle('x','y2',size=8,alpha=1, color=y2col, legend='A '+str(ant),source=source,  nonselection_color='#7D7D7D',nonselection_fill_alpha=0.3)
@@ -271,10 +270,10 @@ def plot_K(x_param, y_param):
 	global xmin, xmax,ylmin,ylmax,yumin,yumax
 	if doplot == 'ap':
 		#for all the channels
-		#pdb.set_trace()
+	
 		y1 = y_param[:,0,corr]
 
-		#pdb.set_trace()
+
 		#done to convert masked array to array
 		y1=np.array(y1)
 		y2=y_param[:,0,1]
@@ -332,7 +331,7 @@ for ant in plotants:
 	times = subtab.getcol('TIME')
 	times=times-times[0]
 
-	if '.GO' in mytab or '.BO' in mytab:
+	if '.G0' in mytab or '.B0' in mytab:
 		cparam = subtab.getcol('CPARAM')
 		nchan = cparam.shape[1]
 		masked_data = np.ma.array(data=cparam,mask=flagcol)
