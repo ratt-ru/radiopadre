@@ -10,6 +10,10 @@ from IPython.display import display, HTML, Javascript
 from radiopadre.notebook_utils import _notebook_save_hook
 from radiopadre.notebook_utils import scrub_cell
 
+import radiopadre.settings_manager
+
+settings = radiopadre.settings_manager.RadiopadreSettingsManager()
+
 from .file import data_file, FileBase
 from .dirlist import DataDir, DirList
 from .filelist import FileList
@@ -21,25 +25,6 @@ try:
     __version__ = pkg_resources.require("radiopadre")[0].version
 except pkg_resources.DistributionNotFound:
     __version__ = "development"
-
-# when running inside a docker containers, these are used to tell radiopadre
-# where the results directory is mounted, and what its original path on
-# the host is. Note that rendered paths will display the _host_ path rather
-# than the internal container path (to avoid confusing the user),
-# hence the need to know ORIGINAL_RESULTDIR
-RESULTDIR = os.environ.get('PADRE_DATA_DIR', None)
-ORIGINAL_RESULTDIR = os.environ.get('PADRE_ORIGINAL_DIR', None)
-
-WIDTH = None  # globally fix a plot width (inches)
-MINCOL = 2  # default min # of columns to display in thumbnail view
-MAXCOL = 4  # default max # of columns to display in thumbnail view
-MAXWIDTH = 16  # default width of thumbnail view (inches)
-DPI = 80  # screen DPI
-
-TWOCOLUMN_LIST_WIDTH = 20  # if all filenames in a list are <= this in length,
-# use two columns by default
-
-TIMEFORMAT = "%H:%M:%S %b %d"
 
 ## various notebook-related init
 astropy.log.setLevel('ERROR')

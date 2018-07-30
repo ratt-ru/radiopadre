@@ -4,12 +4,13 @@ import os
 import fnmatch
 from collections import OrderedDict
 import uuid
+import itertools
 
 
-from .file import data_file, FileBase
+from .file import FileBase
 from .render import render_table, render_preamble, render_refresh_button, render_status_message, render_url, render_title
 
-import radiopadre
+from radiopadre import settings
 
 class FileList(list):
     @staticmethod
@@ -34,13 +35,18 @@ class FileList(list):
 
     def _repr_html_(self, ncol=None, **kw):
         html = render_preamble() + render_title(self._title) + \
-               render_refresh_button(full=self._parent and self._parent.is_updated());
+               render_refresh_button(full=self._parent and self._parent.is_updated())
+        # if call object has a summary function, use that
+        html_summary = getattr(self._classobj, "_html_summary", None)
+        if html_summary:
+            return html + html_summary(self)
+        # else fall back to normal filelist
         if not self:
             return html + ": 0 files"
         # auto-set 1 or 2 columns based on filename length
         if ncol is None:
             max_ = max([len(df.basename) for df in self])
-            ncol = 2 if max_ <= radiopadre.TWOCOLUMN_LIST_WIDTH else 1
+            ncol = 2 if max_ <= settings.GEN.TWOCOLUMN_LIST_WIDTH else 1
         if self._extcol:
             labels = "name", "ext", "size", "modified"
             data = [((df.basepath if self._showpath else df.basename), df.ext,
@@ -60,15 +66,18 @@ class FileList(list):
                              preamble=preamble, postscript=postscript, div_id=div_id)
         return html
 
-    def show(self, ncol=None, **kw):
-        return IPython.display.display(HTML(self._repr_html_(ncol=ncol, **kw)))
-
-    def list(self, ncol=None, **kw):
-        return IPython.display.display(HTML(self._repr_html_(ncol=ncol, **kw)))
-
     def __str__(self):
         return FileList.list_to_string(self)
 
+    @property
+    def show(self, ncol=None, **kw):
+        return IPython.display.display(HTML(self._repr_html_(ncol=ncol, **kw)))
+
+    @property
+    def list(self, ncol=None, **kw):
+        return IPython.display.display(HTML(self._repr_html_(ncol=ncol, **kw)))
+
+    @property
     def summary(self, **kw):
         kw.setdefault('title', self._title)
         kw.setdefault('showpath', self._showpath)
@@ -90,10 +99,10 @@ class FileList(list):
         for f in self:
             f.show(*args, **kw)
 
-    def __call__(self, pattern):
+    def __call__(self, *patterns):
         """Returns a FileList os files from this list that match a pattern. Use !pattern to invert the meaning."""
         files = []
-        for patt in pattern.split():
+        for patt in itertools.chain(patterns.split()):
             if patt[0] == '!':
                 files += [f for f in self if not fnmatch.fnmatch((f.path if self._showpath else f.name), patt[1:])]
             else:
@@ -101,7 +110,7 @@ class FileList(list):
         return FileList(files,
                         extcol=self._extcol, showpath=self._showpath,
                         classobj=self._classobj,
-                        title=os.path.join(self._title, pattern), parent=self._parent)
+                        title=os.path.join(self._title, ",".join(patterns)), parent=self._parent)
 
     def thumbs(self, max=100, **kw):
         display(HTML(render_refresh_button(full=self._parent and self._parent.is_updated())))

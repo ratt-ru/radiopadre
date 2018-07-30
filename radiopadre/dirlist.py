@@ -11,6 +11,7 @@ from .imagefile import ImageFile
 from .render import render_table, render_preamble, render_refresh_button, render_status_message, render_url, render_title
 
 import radiopadre
+from radiopadre import settings
 
 class DataDir(FileBase):
     """
@@ -176,7 +177,7 @@ class DirList(list):
             nimg = len(dir_.images)
             nother = len(dir_.files) - nfits - nimg
             table_entry = [dir_.path or '.', nfits, nimg, nother,
-                           time.strftime(radiopadre.TIMEFORMAT, time.localtime(dir_.mtime))]
+                           time.strftime(settings.GEN.TIMEFORMAT, time.localtime(dir_.mtime))]
             if copy_filename:
                 # if copy of this notebook exists in subdirectory, show "load copy" button
                 copypath = os.path.join(dir_.fullpath, copy_filename + ".ipynb")

@@ -7,8 +7,8 @@ import sys
 import glob
 import socket
 
-# get radiopadre install directory
-PADRE_PATH = os.path.dirname(__file__)
+# get radiopadre install directory. __file__ is RADIOPADRE/bin/run-radiopadre, so take the dirname twice
+PADRE_PATH = os.path.dirname(os.path.dirname(__file__))
 DIR = os.getcwd()
 
 JUPYTER_OPTS = [
@@ -77,6 +77,8 @@ if not os.path.exists(".radiopadre"):
 # make link to JS9 install
 if not os.path.exists(".radiopadre/js9-www") and os.path.exists(PADRE_VENV + "/js9-www"):
     os.symlink(PADRE_VENV + "/js9-www", ".radiopadre/js9-www")
+if not os.path.exists(".radiopadre/radiopadre-www"):
+    os.symlink(PADRE_PATH + "/html", ".radiopadre/radiopadre-www")
 
 # add padre directory to PYTHONPATH
 os.environ["PYTHONPATH"] = os.environ["PYTHONPATH"] + ":" + PADRE_PATH
@@ -119,7 +121,7 @@ def find_unused_port (base,maxtries=1000):
 
 jupyter_port = find_unused_port(1024)
 helper_port  = find_unused_port(jupyter_port+1)
-http_port    = find_unused_port(jupyter_port+2)
+http_port    = find_unused_port(helper_port+1)
 
 message("Selected ports: {}:{}:{}".format(jupyter_port, helper_port, http_port))
 
@@ -127,6 +129,8 @@ os.environ['RADIOPADRE_HTTP_PORT'] = str(http_port)
 os.environ['RADIOPADRE_JS9_HELPER_PORT'] = str(helper_port)
 # os.environ['RADIOPADRE_JS9_ACCESS'] = "http://localhost:{}/".format(http_port)  # else set to "jupyter" to use internal server
 os.environ['RADIOPADRE_JS9_HTTP'] = "http://localhost:{}/".format(http_port)
+
+open(".radiopadre/js9prefs.js", "w").write("JS9Prefs.globalOpts.helperPort = {};\n".format(helper_port));
 
 JUPYTER_OPTS.append("--port={}".format(jupyter_port))
 JUPYTER_OPTS += list(options.args)
@@ -146,7 +150,7 @@ try:
                                    stdin=DEVZERO, stdout=sys.stdout, stderr=sys.stderr))
 
     message("Starting HTTP server process in {DIR} on port {http_port}")
-    child_processes.append(subprocess.Popen([PADRE_VENV+"/bin/python", "-m", "SimpleHTTPServer", str(http_port)],
+    child_processes.append(subprocess.Popen([PADRE_VENV+"/bin/python", PADRE_PATH+"/bin/http_server.py", str(http_port)],
                                        stdin=DEVZERO, stdout=sys.stdout, stderr=sys.stderr))
 
     message("Starting: jupyter notebook "+" ".join(JUPYTER_OPTS))

@@ -3,19 +3,21 @@ import traceback
 import os, os.path
 from IPython.display import HTML, display, Javascript
 import matplotlib.pyplot as plt
+import matplotlib.colors
 import uuid
 from collections import OrderedDict
 
 import radiopadre
 import radiopadre.file
-from radiopadre.render import render_title, render_table
+from radiopadre.render import rich_string, render_title, render_table
 
-from radiopadre import js9
+from radiopadre import js9, settings
 
 def read_html_template(filename, subs):
     js9_source = os.path.join(js9.DIRNAME, filename)
     with open(js9_source) as inp:
         return inp.read().format(**subs)
+
 
 
 class FITSFile(radiopadre.file.FileBase):
@@ -26,15 +28,18 @@ class FITSFile(radiopadre.file.FileBase):
     def __init__(self, *args, **kw):
         radiopadre.file.FileBase.__init__(self, *args, **kw)
         self._ff = self._header = self._shape = self._image_data = None
+        self._rms = {}
 
     @property
     def fitsobj(self):
-        if not self._ff:
+        if not self._ff or self.is_updated():
             self._ff = pyfits.open(self.fullpath)
+            self.update_mtime()
+            self._rms = {}
         return self._ff
 
     @property
-    def header(self):
+    def header(self,xxx=None):
         return self.fitsobj[0].header
 
     @property
@@ -44,50 +49,76 @@ class FITSFile(radiopadre.file.FileBase):
             self._shape = [ hdr["NAXIS%d" % i] for i in range(1, hdr["NAXIS"] + 1)]
         return self._shape
 
+    @property
     def info(self):
-        hdr = self.header
-        sizes = [str(hdr["NAXIS%d" % i]) for i in range(1, hdr["NAXIS"] + 1)]
-        axes = [hdr.get("CTYPE%d" % i, str(i))
-                for i in range(1, hdr["NAXIS"] + 1)]
-        print(self.path, "x".join(sizes), ",".join(axes))
+        return self.summary
+
+    def _get_summary_items(self, showpath=False):
+        """
+        Helper method employed by summary() and _html_summary()
+        :return: tuple of name, size, resolution, axes, mod date
+        """
+        name = self.path if showpath else self.name
+        size = resolution = axes = "?"
+        try:
+            hdr = self.header
+            naxis = hdr.get("NAXIS")
+            size = "&times;".join(
+                [str(hdr.get("NAXIS%d" % i)) for i in range(1, naxis + 1)])
+            axes = ",".join(
+                [hdr.get("CTYPE%d" % i, "?").split("-", 1)[0] for i in range(1, naxis + 1)])
+            delt = [abs(hdr.get("CDELT%d" % i, 0)) for i in (1, 2)]
+            resolution = []
+            if all(delt):
+                if delt[0] == delt[1]:
+                    delt = [delt[0]]
+                for d in delt:
+                    if d >= 1:
+                        resolution.append("%.2f&deg;" % d)
+                    elif d >= 1 / 60.:
+                        resolution.append("%.2f'" % (d * 60))
+                    elif d >= 1 / 3600:
+                        resolution.append("%.2f\"" % (d * 3600))
+                    else:
+                        resolution.append("%.2g\"" % (d * 3600))
+            resolution = "&times;&deg;".join(resolution)
+        except:
+            traceback.print_exc()
+        return name, size, resolution, axes, self.mtime_str
+
+    @property
+    def summary(self):
+        data = [ self._get_summary_items() ]
+        preamble = OrderedDict()
+        postscript = OrderedDict()
+        div_id = uuid.uuid4().hex
+        actions = [ self._action_buttons_(preamble=preamble, postscript=postscript, div_id=div_id) ]
+        return rich_string(" ".join(map(str,data[0])),
+                    render_table(data, html=("size", "axes", "res"), labels=("name", "size", "res", "axes", "modified"),
+                                     header=False, numbering=False, actions=actions,
+                                     preamble=preamble, postscript=postscript, div_id=div_id))
+
+    def _repr_html_(self):
+        return self.summary._repr_html_()
 
     @staticmethod
-    def _show_summary(fits_files, title=None, showpath=False):
+    def _html_summary(fits_files, title=None, showpath=False, **kw):
         if not fits_files:
-            display(HTML("0 files"))
-            return
-        if title:
-            display(HTML(render_title(title)))
-        data = []
-        for ff in fits_files:
-            name = ff.path if showpath else ff.name
-            size = resolution = axes = "?"
-            try:
-                hdr = ff.header
-                naxis = hdr.get("NAXIS")
-                size = "&times;".join(
-                    [str(hdr.get("NAXIS%d" % i)) for i in range(1, naxis + 1)])
-                axes = ",".join(
-                    [hdr.get("CTYPE%d" % i, "?").split("-", 1)[0] for i in range(1, naxis + 1)])
-                delt = [abs(hdr.get("CDELT%d" % i, 0)) for i in (1, 2)]
-                resolution = []
-                if all(delt):
-                    if delt[0] == delt[1]:
-                        delt = [delt[0]]
-                    for d in delt:
-                        if d >= 1:
-                            resolution.append("%.1f&deg;" % d)
-                        elif d >= 1 / 60.:
-                            resolution.append("%.1f'" % (d * 60))
-                        else:
-                            resolution.append("%.1g\"" % (d * 3600))
-                resolution = "&times;&deg;".join(resolution)
-            except:
-                traceback.print_exc()
-            data += [(name, size, resolution, axes, ff.mtime_str)]
-        display(HTML(render_table(data,
-                                  html=("size", "axes", "res"),
-                                  labels=("name", "size", "res", "axes", "modified"))))
+            return "0 files"
+        html = render_title(title) if title else ""
+        data = [ ff._get_summary_items() for ff in fits_files ]
+        preamble = OrderedDict()
+        postscript = OrderedDict()
+        div_id = uuid.uuid4().hex
+        actions = [ df._action_buttons_(preamble=preamble, postscript=postscript, div_id=div_id) for df in fits_files ]
+        html += render_table(data, html=("size", "axes", "res"), labels=("name", "size", "res", "axes", "modified"),
+                             actions=actions,
+                             preamble=preamble, postscript=postscript, div_id=div_id)
+        return html
+
+    @staticmethod
+    def _show_summary(fits_files, **kw):
+        display(HTML(FITSFile._html_summary(fits_files, **kw)))
 
     @staticmethod
     def _show_thumbs(fits_files,
@@ -108,7 +139,7 @@ class FITSFile(radiopadre.file.FileBase):
                                                                    ncol, mincol,
                                                                    maxcol, width,
                                                                    maxwidth)
-        plt.figure(figsize=(width * ncol, width * nrow), dpi=radiopadre.DPI)
+        plt.figure(figsize=(width * ncol, width * nrow), dpi=settings.PLOT.SCREEN_DPI)
         for iplot, ff in enumerate(fits_files):
             ax = plt.subplot(nrow, ncol, iplot + 1)
             ax.tick_params(labelsize=kw.get('fs_axis', fs))
@@ -124,7 +155,8 @@ class FITSFile(radiopadre.file.FileBase):
              unroll='STOKES',
              vmin=None,
              vmax=None,
-             cmap='cubehelix',
+             scale=None,
+             colormap=None,
              zoom=None,
              width=None,
              maxwidth=None,
@@ -139,7 +171,7 @@ class FITSFile(radiopadre.file.FileBase):
              make_figure=True,
              filename_in_title=False):
         try:
-            ff = pyfits.open(self.fullpath)
+            ff = self.fitsobj
             hdr = ff[0].header
         except:
             status = "Error reading {}:".format(self.fullpath)
@@ -198,9 +230,11 @@ class FITSFile(radiopadre.file.FileBase):
         # is there an unroll axis specified
         if unroll is not None:
             if type(unroll) is str:
-                unroll = axis_type.index(
-                    unroll) if unroll in axis_type else None
-                if dims[unroll] < 2:
+                if unroll in axis_type:
+                    unroll = axis_type.index(unroll)
+                    if dims[unroll] < 2:
+                        unroll = None
+                else:
                     unroll = None
             if unroll is not None:
                 if unroll in remaining_axes:
@@ -233,13 +267,24 @@ class FITSFile(radiopadre.file.FileBase):
         nrow, ncol, width = radiopadre.file.compute_thumb_geometry(
             1 if unroll is None else dims[unroll],
             ncol, mincol, maxcol, width, maxwidth)
+        vmin = settings.FITS.get(VMIN=vmin)
+        vmax = settings.FITS.get(VMAX=vmax)
+        cmap = settings.FITS.get(COLORMAP=colormap)
+        scale = settings.FITS.get(SCALE=scale)
+        if scale == 'linear':
+            norm = None
+        elif scale == 'log':
+            norm = matplotlib.colors.SymLogNorm(vmin, vmax)
+        else:
+            raise ValueError("unknown scle setting'{}'", scale)
+
         if unroll is None:
             # show single image
             fig = make_figure and plt.figure(figsize=(width, width),
-                                             dpi=radiopadre.DPI)
+                                             dpi=settings.PLOT.SCREEN_DPI)
             if fig:
                 plt.suptitle(self.basename)
-            plt.imshow(data[tuple(baseslice)].T, vmin=vmin, vmax=vmax, cmap=cmap)
+            plt.imshow(data[tuple(baseslice)].T, vmin=vmin, vmax=vmax, cmap=cmap, norm=norm)
             if colorbar:
                 cbar = plt.colorbar()
                 cbar.ax.tick_params(labelsize=fs or fs_colorbar)
@@ -255,14 +300,14 @@ class FITSFile(radiopadre.file.FileBase):
                                                                        ncol, mincol,
                                                                        maxcol, width,
                                                                        maxwidth)
-            plt.figure(figsize=(width * ncol, width * nrow), dpi=radiopadre.DPI)
+            plt.figure(figsize=(width * ncol, width * nrow), dpi=settings.PLOT.SCREEN_DPI)
             plt.suptitle(self.basename)
             for iplot in range(dims[unroll]):
                 ax = plt.subplot(nrow, ncol, iplot + 1)
                 ax.tick_params(labelsize=fs or fs_axis)
                 baseslice[unroll] = iplot
                 plt.imshow(data[tuple(baseslice)].T, vmin=vmin, vmax=vmax,
-                           cmap=cmap)
+                           cmap=cmap, norm=norm)
                 plt.title(title + " " + axis_labels[unroll][iplot],
                           fontsize=fs or fs_title)
                 plt.xlabel(axis_type[xyaxes[0]], fontsize=fs or fs_axis)
@@ -277,6 +322,9 @@ class FITSFile(radiopadre.file.FileBase):
     def _make_js9_window_script(self, subs, subset=False):
         # creates an HTML script per each image, by replacing various arguments in a templated bit of html
         cachedir = radiopadre.get_cache_dir(self.fullpath, "js9-launch")
+        symlink = "{}/{}".format(cachedir, self.name)
+        if not os.path.exists(symlink):
+            os.symlink(os.path.abspath(self.fullpath), symlink)
         js9_target = "{}/{}.{}.{}".format(cachedir, self.basename, "sub" if subset else "full", js9.JS9_SCRIPT_SUFFIX)
 
         # make dict of substitutions for HTML scripts
@@ -299,12 +347,15 @@ class FITSFile(radiopadre.file.FileBase):
     def _make_js9_dual_window_script(self, subs):
         # creates an HTML script per each image, by replacing various arguments in a templated bit of html
         cachedir = radiopadre.get_cache_dir(self.fullpath, "js9-launch")
+        symlink = "{}/{}".format(cachedir, self.name)
+        if not os.path.exists(symlink):
+            os.symlink(os.path.abspath(self.fullpath), symlink)
         js9_target = "{}/{}.{}.{}".format(cachedir, self.basename, "dual", js9.JS9_SCRIPT_SUFFIX)
 
         # make dict of substitutions for HTML scripts
         subs['fits_image_path'] = self.fullpath
         subs['fits_image_url'] = js9.JS9_FITS_PREFIX_HTTP + self.fullpath
-        subs['fits2fits_options_rebin'] = "fits2fits:true,xcen:2048,ycen:2048,xdim:4096,ydim:4096,bin:4"
+        subs['fits2fits_options_rebin'] = "fits2fits:true,xcen:2048,ycen:2048,xdim:4096,ydim:4096,bin:'4a'"
         subs['init_zoom_box'] = "'box(2048,2048,1024,1024,0)'"
         subs['lib_scripts'] = open(os.path.join(js9.DIRNAME, "js9-radiopadre.js")).read()
 
@@ -331,7 +382,7 @@ class FITSFile(radiopadre.file.FileBase):
         subs.update(**locals())
         subs['fits_image_path'] = self.fullpath
         subs['fits_image_url'] = js9.JS9_FITS_PREFIX_JUP + self.fullpath
-        subs['fits2fits_options'] = "{fits2fits:false}"
+        subs['fits2fits_options_rebin'] = "fits2fits:true,xcen:2048,ycen:2048,xdim:4096,ydim:4096,bin:'4a'"
 
         code = read_html_template("js9-dualwindow-body-template.html", subs)
 
@@ -393,35 +444,41 @@ class FITSFile(radiopadre.file.FileBase):
         """
         subs = globals().copy()
         subs.update(display_id=div_id, **locals())
-        subs['init_style'] = "display:none"
-        subs['fits_image_path'] = self.fullpath
         subs['fits_image_url'] = js9.JS9_FITS_PREFIX_HTTP + self.fullpath
-        subs['fits2fits_options_rebin'] = "fits2fits:true,xcen:2048,ycen:2048,xdim:4096,ydim:4096,bin:4"
+        subs['fits2fits_options_rebin'] = "fits2fits:true,xcen:2048,ycen:2048,xdim:4096,ydim:4096,bin:'4a'"
         subs['init_zoom_box'] = "'box(2048,2048,1024,1024,0)'"
 
         if "JS9" not in postscript:
-            subs['init_style'] = "style='display:none'"
-            postscript["JS9"] = read_html_template("js9-dualwindow-body-template.html", subs) + \
-            """
-                <link type='text/css' rel='stylesheet' href='{js9.JS9_INSTALL_PREFIX_JUP}/js9support.css'>
-                <link type='text/css' rel='stylesheet' href='{js9.JS9_INSTALL_PREFIX_JUP}/js9.css'>
-                <script type='text/javascript'>
-                    JS9.AddDivs('rebin-{display_id}-JS9', 'zoom-{display_id}-JS9');
-                    JS9p.register_partners('rebin-{display_id}-JS9', 'zoom-{display_id}-JS9');
-                </script>
-            """.format(**subs)
-            subs['init_style'] = ''
+            subs1 = subs.copy()
+            zoom_size = 700
+            rebin_size = zoom_size/3
+            plugin_size = zoom_size/3 - 20
+            subs1.update(init_style= "display:none",
+                         plugin_size = plugin_size,
+                         js9_zoom_height = zoom_size - 36 - 40 - 2,
+                         js9_zoom_width = zoom_size,
+                         js9_rebin_height = rebin_size,
+                         js9_rebin_width = rebin_size)
+            postscript["JS9"] = read_html_template("js9-dualwindow-inline-template.html", subs1) + \
+                """<script type='text/javascript'>
+                        JS9.AddDivs('rebin-{display_id}-JS9', 'zoom-{display_id}-JS9');
+                        JS9p.register_partners('rebin-{display_id}-JS9', 'zoom-{display_id}-JS9');
+                    </script>
+                """.format(**subs1)
 
         # use empty display ID for scripts in separate documents
-        subs['display_id'] = ''
-        js9_target1 = self._make_js9_window_script(subs, subset=True)
-        js9_target2 = self._make_js9_window_script(subs, subset=False)
-        js9_target3 = self._make_js9_dual_window_script(subs)
-        subs.update(display_id=div_id, **locals())
+        subs1 = subs.copy()
+        subs1['init_style'] = ''
+        subs1['display_id'] = ''
+        js9_target1 = self._make_js9_window_script(subs1, subset=True)
+        js9_target2 = self._make_js9_window_script(subs1, subset=False)
+        js9_target3 = self._make_js9_dual_window_script(subs1)
 
-        return """
+        subs.update(**locals())
+
+        code = """
             <script type='text/javascript'>
-                var load_inline_image = function(path) {{
+                var load_inline_image_{display_id} = function(path) {{
                     console.log('loading into {display_id}:', path);
                     JS9.Load(path,
                              {{ {fits2fits_options_rebin},
@@ -433,11 +490,13 @@ class FITSFile(radiopadre.file.FileBase):
                                 }},
                                 zoom:'T'}},
                              {{display:'rebin-{display_id}-JS9'}});
-                    document.getElementById("{display_id}-top").style.display = 'block'
+                    // document.getElementById('outer-{display_id}').style.height = '60vw'
+                    document.getElementById('outer-{display_id}').style.display = 'block'
                 }}
             </script>
-            <button onclick="load_inline_image('{fits_image_path}')">&#8595;JS9</button>
+            <button onclick="load_inline_image_{display_id}('{fits_image_url}')">&#8595;JS9</button>
             <button onclick="window.open('{js9.JS9_SCRIPT_PREFIX_HTTP}{js9_target1}', '_blank')">&#8663;JS9</button> 
             <button onclick="window.open('{js9.JS9_SCRIPT_PREFIX_HTTP}{js9_target2}', '_blank')">&#8663;JS9 full</button> 
-            <button onclick="window.open('{js9.JS9_SCRIPT_PREFIX_HTTP}{js9_target3}', '_blank')">&#8663;JS9 dual</button> 
+            <button onclick="window.open('{js9.JS9_SCRIPT_PREFIX_HTTP}{js9_target3}', '_blank')">&#8663;JS9 dual</button>
         """.format(**subs)
+        return code

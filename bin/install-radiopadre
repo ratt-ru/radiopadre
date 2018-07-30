@@ -103,7 +103,21 @@ if options.command in ["install", "reinstall", "reqs"]:
     else:
         bye("jupyter kernelspec list did not return the radiopadre kernel. This is a bug?")
     message("Linking kernel.js to {kerneldir}")
-    os.symlink(PADRE_PATH + "/radiopadre/html/radiopadre-kernel.js", kerneldir + "/kernel.js")
+    os.symlink(PADRE_PATH + "/html/radiopadre-kernel.js", kerneldir + "/kernel.js")
+
+# get jupyter path
+notebook_dir = subprocess.check_output("{PADRE_VENV}/bin/pip show jupyter| "
+                                       "grep Location:|cut -d ':' -f 2".format(**globals()), shell=True).strip()
+if not notebook_dir:
+    raise subprocess.CalledProcessError("jupyter installation path not found")
+
+# add link to radiopadre web components in notebook static dir
+if options.command in ["install", "reinstall", "reqs"]:
+    notebook_padre_www = notebook_dir + "/notebook/static/radiopadre-www"
+    padre_www = PADRE_PATH + "/html"
+    message("making link from {notebook_padre_www} to {padre_www}")
+    if not os.path.exists(notebook_padre_www):
+        os.symlink(padre_www, notebook_padre_www)
 
 if options.command in ["install", "reinstall", "js9"] and not options.no_js9:
     # install JS9 inside venv
@@ -154,10 +168,6 @@ if options.command in ["install", "reinstall", "js9"] and not options.no_js9:
 
     # Make symlink to js9 install dir in notebook dir
     try:
-        notebook_dir = subprocess.check_output("{PADRE_VENV}/bin/pip show jupyter| "
-                    "grep Location:|cut -d ':' -f 2".format(**globals()), shell=True).strip()
-        if not notebook_dir:
-            raise subprocess.CalledProcessError("no notebook path")
         notebook_js9_www = notebook_dir + "/notebook/static/js9-www"
         message("making link from {notebook_js9_www} to {js9_www}")
         if not os.path.exists(notebook_js9_www):

@@ -6,6 +6,7 @@ from IPython.display import HTML, Image, display
 import radiopadre
 import radiopadre.file
 from radiopadre.render import render_title, render_url, render_preamble
+from radiopadre import settings
 
 
 def _make_thumbnail(image, width):
@@ -38,7 +39,7 @@ class ImageFile(radiopadre.file.FileBase):
             return None
         nrow, ncol, width = radiopadre.file.compute_thumb_geometry(
             len(images), ncol, mincol, maxcol, width, maxwidth)
-        npix = int(radiopadre.DPI * width)
+        npix = int(settings.PLOT.SCREEN_DPI * width)
 
         # make list of basename, filename  tuples
         filelist = sorted(
