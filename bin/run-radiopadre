@@ -40,7 +40,7 @@ DEVNULL = open("/dev/null", "w")
 
 PADRE_VENV = os.path.expanduser("~/.radiopadre-venv")
 
-def message(x, prefix='run_radiopadre: '):
+def message(x, prefix='run-radiopadre: '):
     print(prefix + x.format(**globals()))
 
 def bye(x, code=1):
@@ -64,7 +64,7 @@ else:
         message("Found working radiopadre virtualenv")
     elif options.bootstrap:
         message("Can't find complete radiopadre virtualenv, bootstrapping with install_radiopadre")
-        if shell("{PADRE_PATH}/install-radiopadre"):
+        if shell("{PADRE_PATH}/bin/install-radiopadre"):
             bye("Installation script failed")
 
     print "Activating the radiopadre virtualenv"
@@ -81,7 +81,11 @@ if not os.path.exists(".radiopadre/radiopadre-www"):
     os.symlink(PADRE_PATH + "/html", ".radiopadre/radiopadre-www")
 
 # add padre directory to PYTHONPATH
-os.environ["PYTHONPATH"] = os.environ["PYTHONPATH"] + ":" + PADRE_PATH
+if "PYTHONPATH" in os.environ:
+    os.environ["PYTHONPATH"] = os.environ["PYTHONPATH"] + ":" + PADRE_PATH
+else:
+    os.environ["PYTHONPATH"] = PADRE_PATH
+
 
 message("Welcome to Radiopadre!")
 message("  Using radiopadre install at {PADRE_PATH}")
