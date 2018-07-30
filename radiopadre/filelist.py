@@ -102,7 +102,7 @@ class FileList(list):
     def __call__(self, *patterns):
         """Returns a FileList os files from this list that match a pattern. Use !pattern to invert the meaning."""
         files = []
-        for patt in itertools.chain(patterns.split()):
+        for patt in itertools.chain(*[x.split() for x in patterns]):
             if patt[0] == '!':
                 files += [f for f in self if not fnmatch.fnmatch((f.path if self._showpath else f.name), patt[1:])]
             else:
