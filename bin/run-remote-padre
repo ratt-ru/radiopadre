@@ -228,6 +228,8 @@ else:
 if bootstrap:
     padre_exec += " --bootstrap"
 
+padre_exec += "  --remote"
+
 # check for remote notebooks
 if not check_remote_file("{}/{}".format(path, notebook), "-f") and os.path.exists(DEFAULT_NOTEBOOK_SOURCE):
     print "radiopadre: Notebook {}:{}/{} does not exist".format(host, path, notebook)
@@ -245,7 +247,7 @@ else:
     args += [ padre_exec ]
     
 
-ssh = subprocess.Popen(args, stdin=DEVZERO, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+ssh = subprocess.Popen(args, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 
 # poll stdout/stderr
 poller = select.poll()
@@ -309,10 +311,11 @@ while True:
                     print "radiopadre: remote port %s, selecting local port %s\r" % (remoteport, localport)
                     ssh2_args += [ "-L", "localhost:%s:localhost:%s" % (localport, remoteport) ]
                 # start second ssh process to forward the port
-                # this also indicates the local ports selected to the remote process
-                ssh2_args.append("cd {} && echo {} >.radiopadre/http_port && echo {} >.radiopadre/helper_port && "
-                    "cat >/dev/null".format(path, local_ports[1], local_ports[2]))
+                ssh2_args.append("cat >/dev/null")
                 ssh2 = subprocess.Popen(ssh2_args, stdin=DEVZERO, stdout=DEVNULL, stderr=DEVNULL)
+
+                # tell first ssh process the ports we have selected
+                ssh.stdin.write("{} {}\n".format(*local_ports[1:]))
                 #ssh2 = subprocess.Popen(ssh2_args, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
                 #register_process(ssh2, "sshpf")
                 # open browser if needed

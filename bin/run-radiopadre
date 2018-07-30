@@ -26,6 +26,8 @@ parser = argparse.ArgumentParser(description="Runs radiopadre")
 #                   help="looks for N unused ports and reports them. For internal use.");
 parser.add_argument("--bootstrap", action="store_true",
                   help="automatically initialize radiopadre virtual environment, if missing.")
+parser.add_argument("--remote", action="store_true",
+                  help="runs script in remote mode. Normally used by run-remote-padre -- not to be invoked directly.")
 parser.add_argument("-b","--browser", action="store_true",
                   help="open a browser session, even if running under ssh.")
 parser.add_argument("-n","--no-browser",action="store_true",
@@ -129,10 +131,17 @@ http_port    = find_unused_port(helper_port+1)
 
 message("Selected ports: {}:{}:{}".format(jupyter_port, helper_port, http_port))
 
-os.environ['RADIOPADRE_HTTP_PORT'] = str(http_port)
-os.environ['RADIOPADRE_JS9_HELPER_PORT'] = str(helper_port)
+forwarded_helper_port, forwarded_http_port = helper_port, http_port
+
+if options.remote:
+    forwarded_ports = raw_input("{Remote mode} please enter fowarded port numbers: ")
+    forwarded_http_port, forwarded_helper_port = forwarded_ports.strip().split(1)
+
+
+os.environ['RADIOPADRE_HTTP_PORT'] = str(forwarded_http_port)
+os.environ['RADIOPADRE_JS9_HELPER_PORT'] = str(forwarded_helper_port)
 # os.environ['RADIOPADRE_JS9_ACCESS'] = "http://localhost:{}/".format(http_port)  # else set to "jupyter" to use internal server
-os.environ['RADIOPADRE_JS9_HTTP'] = "http://localhost:{}/".format(http_port)
+os.environ['RADIOPADRE_JS9_HTTP'] = "http://localhost:{}/".format(forwarded_http_port)
 
 open(".radiopadre/js9prefs.js", "w").write("JS9Prefs.globalOpts.helperPort = {};\n".format(helper_port));
 
