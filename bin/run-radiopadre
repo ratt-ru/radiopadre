@@ -63,7 +63,7 @@ else:
     if os.path.exists(activation_script) and os.path.exists(complete_cookie):
         message("Found working radiopadre virtualenv")
     elif options.bootstrap:
-        message("Can't find complete radiopadre virtualenv, bootstrapping with install_radiopadre")
+        message("Can't find complete radiopadre virtualenv, bootstrapping with install-radiopadre")
         if shell("{PADRE_PATH}/bin/install-radiopadre"):
             bye("Installation script failed")
 

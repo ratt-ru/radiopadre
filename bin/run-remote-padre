@@ -13,7 +13,7 @@ import fnmatch
 REPO = "git@github.com:ratt-ru/radiopadre-devel.git"
 BRANCH = "custom-js"
 
-LAUNCH = "run-radiopadre.sh"
+LAUNCH = "run-radiopadre"
 
 DEFAULT_NOTEBOOK_SOURCE = os.path.join(os.path.dirname(__file__), "notebooks/example.ipynb")
 DEFAULT_NOTEBOOK_TARGET = "default-padre-view.ipynb"
@@ -83,7 +83,7 @@ print "radiopadre: Will start remote radiopadre in {}:{}, notebook(s) {}".format
 if options.remote_path:
     padre_execs = [ os.path.join(options.remote_path,LAUNCH) ]
 else:
-    padre_execs = [ os.path.join("~/radiopadre",LAUNCH), LAUNCH ]
+    padre_execs = [ os.path.join("~/radiopadre/bin",LAUNCH), LAUNCH ]
 
 DEVZERO = open("/dev/zero")
 DEVNULL = open("/dev/null", "w")
@@ -166,7 +166,7 @@ for padre_exec in padre_execs:
         print "radiopadre: Found remote radiopadre launch script at {}:{}".format(host, padre_exec)
         if options.update:
             padre_dir = os.path.dirname(padre_exec)
-            print "radiopadre: --update specified, will try a git pull in {}".format(host, padre_dir)
+            print "radiopadre: --update specified, will try a git pull in {}".format(padre_dir)
             ssh_remote("cd {} ; git pull".format(padre_dir))
         break
 else:
@@ -261,10 +261,7 @@ register_process(ssh,"ssh")
 
 ssh2 = None
 auto_notebooks = []
-remote_jupyter_port = remote_http_port = None
-
-# this is fied for now, but needs to be made dynamic
-remote_js9helper_port = 2718
+remote_ports = notebook_path = None
 
 while True:
     try:
@@ -291,23 +288,20 @@ while True:
                 # check for notebook port, and launch second ssh when we have it
                 match = re.match("^http://(localhost|127.0.0.1):([0-9]+)/(.*)$",line)
                 if match:
-                    remote_jupyter_port = match.group(2)
                     notebook_path = match.group(3)
-                    print "radiopadre: Detected remote Jupyter port %s\r" % remote_jupyter_port
 
-                match = re.match(".*Serving HTTP on 0.0.0.0 port (\d+)[^\d]", line)
+                match = re.match(".*Selected ports: ([\d]+):([\d]+):([\d]+)[\s]*$",line)
                 if match:
-                    remote_http_port = match.group(1)
-                    print "radiopadre: Detected remote HTTP port %s\r" % remote_http_port
+                    remote_jupyter_port, remote_js9helper_port, remote_http_port = remote_ports = match.groups()
+                    print "radiopadre: Detected remote ports %s:%s:%s\r" % tuple(remote_ports)
 
-                ports = [ remote_jupyter_port, remote_http_port, remote_js9helper_port ]
-                if not all([ x is not None for x in ports]):
+                if remote_ports is None or notebook_path is None:
                     continue
 
                 ssh2_args = list(SSH_OPTS)
                 local_ports = []
                 starting_local_port = 10000+os.getuid()
-                for remoteport in ports:
+                for remoteport in remote_ports:
                     # find unused local port
                     localport = find_unused_port(starting_local_port)
                     local_ports.append(localport)

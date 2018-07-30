@@ -172,6 +172,12 @@ if options.command in ["install", "reinstall", "js9"] and not options.no_js9:
         message("making link from {notebook_js9_www} to {js9_www}")
         if not os.path.exists(notebook_js9_www):
             os.symlink(js9_www, notebook_js9_www)
+
+        notebook_socket_io = notebook_dir + "/notebook/static/socket.io.js"
+        js9_socket_io = js9_www + "/node_modules/socket.io-client/dist/socket.io.js"
+        message("making link from {notebook_socket_io} to {js9_socket_io}")
+        if not os.path.exists(notebook_socket_io):
+            os.symlink(js9_socket_io, notebook_socket_io)
     except subprocess.CalledProcessError:
         bye("Failed to determine jupyter notebook path")
 
