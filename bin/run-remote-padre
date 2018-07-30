@@ -46,6 +46,8 @@ parser.add_option("-i","--init",action="store_true",
 parser.add_option("-p","--remote-path",type="str",
                   help="directory in which remote radiopadre is installed. Default is to try ~/radiopadre first, "+
                   "and PATH second.")
+parser.add_option("-u","--update",action="store_true",
+                  help="update remote radiopadre installation using git pull")
 parser.add_option("-b","--browser",type="string",default=default_browser,
                   help="browser command to run. Default is %default, or set PADRE_BROWSER.")
 parser.add_option("-n","--no-browser",action="store_true",
@@ -162,6 +164,10 @@ bootstrap = False
 for padre_exec in padre_execs:
     if check_remote_file(padre_exec):
         print "radiopadre: Found remote radiopadre launch script at {}:{}".format(host, padre_exec)
+        if options.update:
+            padre_dir = os.path.dirname(padre_exec)
+            print "radiopadre: --update specified, will try a git pull in {}".format(host, padre_dir)
+            ssh_remote("cd {} ; git pull".format(padre_dir))
         break
 else:
     print "radiopadre: No radiopadre launch script ({}) found on {}".format(LAUNCH, host)

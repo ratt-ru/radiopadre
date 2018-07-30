@@ -64,7 +64,7 @@ else:
         message("Found working radiopadre virtualenv")
     elif options.bootstrap:
         message("Can't find complete radiopadre virtualenv, bootstrapping with install_radiopadre")
-        if shell("{PADRE_PATH}/install_radiopadre"):
+        if shell("{PADRE_PATH}/install-radiopadre"):
             bye("Installation script failed")
 
     print "Activating the radiopadre virtualenv"
