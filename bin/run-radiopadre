@@ -135,7 +135,8 @@ forwarded_helper_port, forwarded_http_port = helper_port, http_port
 
 if options.remote:
     forwarded_ports = raw_input("{Remote mode} please enter fowarded port numbers: ")
-    forwarded_http_port, forwarded_helper_port = forwarded_ports.strip().split(1)
+    forwarded_helper_port, forwarded_http_port = forwarded_ports.strip().split(" ",1)
+    print forwarded_helper_port, forwarded_http_port
 
 
 os.environ['RADIOPADRE_HTTP_PORT'] = str(forwarded_http_port)
@@ -143,7 +144,7 @@ os.environ['RADIOPADRE_JS9_HELPER_PORT'] = str(forwarded_helper_port)
 # os.environ['RADIOPADRE_JS9_ACCESS'] = "http://localhost:{}/".format(http_port)  # else set to "jupyter" to use internal server
 os.environ['RADIOPADRE_JS9_HTTP'] = "http://localhost:{}/".format(forwarded_http_port)
 
-open(".radiopadre/js9prefs.js", "w").write("JS9Prefs.globalOpts.helperPort = {};\n".format(helper_port));
+open(".radiopadre/js9prefs.js", "w").write("JS9Prefs.globalOpts.helperPort = {};\n".format(forwarded_helper_port));
 
 JUPYTER_OPTS.append("--port={}".format(jupyter_port))
 JUPYTER_OPTS += list(options.args)

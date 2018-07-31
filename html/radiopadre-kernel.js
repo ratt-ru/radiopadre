@@ -5,7 +5,7 @@ if (appname === 'NotebookApp')
 {
     io = io1
 
-    console.log("initializing radiopadre components")
+    console.log("initializing radiopadre components xxx",io)
 
     document.radiopadre = {}
 
@@ -276,4 +276,6 @@ if (appname === 'NotebookApp')
 
 }
 })
+
+return function () {};
 })
