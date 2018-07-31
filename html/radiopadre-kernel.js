@@ -262,14 +262,12 @@ if (appname === 'NotebookApp')
       <script type='text/javascript'> console.log('loaded JS9 prefs 1') </script>\
       <script type='text/javascript' src='/files/.radiopadre/js9prefs.js'></script>\
       <script type='text/javascript'> console.log('loaded JS9 prefs 2')</script>\
-      <script type='text/javascript'> console.log('loaded socket.io', io)</script> \
-      <script type='text/javascript'> const io = require('socket.io')(); console.log('loaded socket.io', io);</script> -->\
       <script type='text/javascript' src='/static/js9-www/js9support.min.js'></script>\
       <script type='text/javascript' src='/static/js9-www/js9.min.js'></script>\
       <script type='text/javascript' src='/static/js9-www/js9plugins.js'></script>\
-      <script type='text/javascript'> console.log('loaded JS9 components3') </script>\
-      <script type='text/javascript' src='/static/radiopadre-www/js9partners.js'></script>\
       <script type='text/javascript'> console.log('loaded JS9 components') </script>\
+      <script type='text/javascript' src='/static/radiopadre-www/js9partners.js'></script>\
+      <script type='text/javascript'> console.log('loaded JS9 partner plugin') </script>\
     "
     Jupyter.toolbar.element.append(wrapper);
 
