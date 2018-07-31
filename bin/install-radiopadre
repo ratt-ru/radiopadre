@@ -7,7 +7,7 @@ import sys
 import shutil
 
 # get radiopadre install directory
-PADRE_PATH = os.path.dirname(os.path.dirname(__file__))
+PADRE_PATH = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 JS9_REPO = "https://github.com/ericmandel/js9.git"
 JS9_DIR = PADRE_PATH + "/js9"
