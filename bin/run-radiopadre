@@ -99,7 +99,7 @@ if os.environ.get("SSH_CLIENT"):
         message("--browser is set so I will open a browser anyway")
         JUPYTER_OPTS.append(" --no-browser")
     else:
-        message("Since you're logged in via ssh, so I'm not opening a web browser for you.")
+        message("You're logged in via ssh, so I'm not opening a web browser for you.")
         message("Please manually browse to the URL printed by Jupyter below. You will probably want to employ ssh")
         message("port forwarding if you want to browse this notebook from your own machine.")
 else:

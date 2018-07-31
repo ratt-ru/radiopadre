@@ -5,7 +5,7 @@ if (appname === 'NotebookApp')
 {
     io = io1
 
-    console.log("initializing radiopadre components xxx",io)
+    console.log("initializing radiopadre components. io:", io)
 
     document.radiopadre = {}
 
@@ -262,7 +262,6 @@ if (appname === 'NotebookApp')
       <script type='text/javascript'> console.log('loaded JS9 prefs 1') </script>\
       <script type='text/javascript' src='/files/.radiopadre/js9prefs.js'></script>\
       <script type='text/javascript'> console.log('loaded JS9 prefs 2')</script>\
-<!--      <script type='text/javascript' src='http://localhost:1025/socket.io/socket.io.js'></script>\
       <script type='text/javascript'> console.log('loaded socket.io', io)</script> \
       <script type='text/javascript'> const io = require('socket.io')(); console.log('loaded socket.io', io);</script> -->\
       <script type='text/javascript' src='/static/js9-www/js9support.min.js'></script>\

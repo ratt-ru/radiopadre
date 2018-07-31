@@ -280,8 +280,8 @@ while True:
             print "\r%s: %s\r" % (label,line)
             if not line:
                 continue
-            # if support ssh process not started yet, check output
-            if not ssh2:
+            # if remote is not yet started, check output
+            if notebook_path is None:
                 # check for available notebooks
                 match = re.match(".*Available notebooks: (.*)$",line)
                 if match:
@@ -291,33 +291,34 @@ while True:
                 match = re.match("^http://(localhost|127.0.0.1):([0-9]+)/(.*)$",line)
                 if match:
                     notebook_path = match.group(3)
+                    print "radiopadre: Received notebook URL from remote"
 
                 match = re.match(".*Selected ports: ([\d]+):([\d]+):([\d]+)[\s]*$",line)
                 if match:
                     remote_jupyter_port, remote_js9helper_port, remote_http_port = remote_ports = match.groups()
                     print "radiopadre: Detected remote ports %s:%s:%s\r" % tuple(remote_ports)
 
-                if remote_ports is None or notebook_path is None:
+                    ssh2_args = list(SSH_OPTS)
+                    local_ports = []
+                    starting_local_port = 10000+os.getuid()
+                    for remoteport in remote_ports:
+                        # find unused local port
+                        localport = find_unused_port(starting_local_port)
+                        local_ports.append(localport)
+                        starting_local_port = localport+1
+                        print "radiopadre: remote port %s, selecting local port %s\r" % (remoteport, localport)
+                        ssh2_args += [ "-L", "localhost:%s:localhost:%s" % (localport, remoteport) ]
+                    # start second ssh process to forward the port
+                    ssh2_args.append("cat >/dev/null")
+                    ssh2 = subprocess.Popen(ssh2_args, stdin=DEVZERO, stdout=DEVNULL, stderr=DEVNULL)
+
+                    # tell first ssh process the ports we have selected
+                    print "radiopadre: Passing local port assignments to remote end"
+                    ssh.stdin.write("{} {}\n".format(*local_ports[1:]))
+
+                if notebook_path is None:
                     continue
 
-                ssh2_args = list(SSH_OPTS)
-                local_ports = []
-                starting_local_port = 10000+os.getuid()
-                for remoteport in remote_ports:
-                    # find unused local port
-                    localport = find_unused_port(starting_local_port)
-                    local_ports.append(localport)
-                    starting_local_port = localport+1
-                    print "radiopadre: remote port %s, selecting local port %s\r" % (remoteport, localport)
-                    ssh2_args += [ "-L", "localhost:%s:localhost:%s" % (localport, remoteport) ]
-                # start second ssh process to forward the port
-                ssh2_args.append("cat >/dev/null")
-                ssh2 = subprocess.Popen(ssh2_args, stdin=DEVZERO, stdout=DEVNULL, stderr=DEVNULL)
-
-                # tell first ssh process the ports we have selected
-                ssh.stdin.write("{} {}\n".format(*local_ports[1:]))
-                #ssh2 = subprocess.Popen(ssh2_args, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-                #register_process(ssh2, "sshpf")
                 # open browser if needed
                 nb_root_path = "http://localhost:%s/%s" % (local_ports[0], notebook_path)
                 if not options.no_browser:
