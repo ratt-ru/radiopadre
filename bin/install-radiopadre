@@ -142,13 +142,21 @@ if options.command in ["install", "reinstall", "js9"] and not options.no_js9:
         js9_git = JS9_REPO
         message("{JS9_DIR} not found. Will clone JS9 from default location ({JS9_REPO})")
 
-    # First, check if we have a JS9 distribution inside radiopadre
+    # Run git clone if needed
     if js9_git:
-        import tempfile
-        js9_dir = js9_temp = tempfile.mkdtemp(prefix="js9")
+        if os.access(PADRE_PATH, os.W_OK) and not os.path.exists(JS9_DIR):
+            js9_dir = JS9_DIR
+        else:
+            import tempfile
+            js9_dir = js9_temp = tempfile.mkdtemp(prefix="js9")
         message("Cloning {js9_git} into {js9_dir}")
         if shell("git clone {js9_git} {js9_dir}") != 0:
             bye("Failed to clone JS9 repo, see log above")
+    else:
+        if js9_dir == JS9_DIR and os.access(JS9_DIR, os.W_OK) and os.path.exists(JS9_DIR + "/.git"):
+            message("Will do a git pull in {js9_dir}")
+            if shell("git -C {js9_dir} pull") != 0:
+                bye("Failed to git pull in JS9 directory, see log above")
 
     # Configure and install
     js9_www = PADRE_VENV + "/js9-www"
