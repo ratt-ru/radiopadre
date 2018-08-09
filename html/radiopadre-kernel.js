@@ -197,59 +197,6 @@ if (appname === 'NotebookApp')
     // init controls for null user
     document.radiopadre.init_controls('')
 
-    JS9p = {
-        display_props: {},
-
-        // checks if the given display has a colormap and scale saved -- resets if if so
-        reset_scale_colormap: function(im)
-        {
-            props = JS9p.display_props[im.display.id];
-            if( props ) {
-              JS9.globalOpts.xeqPlugins = false;
-              colormap = props.colormaps;
-              scale = props.scale;
-              console.log("saved scale and colormap",scale,colormap);
-              if( colormap ) {
-                  console.log("resetting colormap", colormap);
-                  JS9.SetColormap(colormap.colormap, colormap.contrast, colormap.bias, {display: im});
-              }
-              if( scale ) {
-                  console.log("resetting scale", scale);
-                  JS9.SetScale(scale.scale, scale.smin, scale.smax, {display: im});
-              }
-              JS9.globalOpts.xeqPlugins = true;
-            }
-        },
-
-        // registers two displays as partnered
-        register_partners: function(d1, d2)
-        {
-            JS9p.display_props[d1] = {partner_display: d2}
-            JS9p.display_props[d2] = {partner_display: d1}
-        },
-
-        // if display of image im has a partner, return it
-        get_partner_display: function(im)
-        {
-            props = JS9p.display_props[im.display.id];
-            return props ? props.partner_display : false;
-        },
-
-        // if display of image im has a partner, syncs colormap to it
-        sync_partner_colormaps: function (im)
-        {
-            JS9.globalOpts.xeqPlugins = false;
-            console.log("syncing colormap from ", im);
-            partner = JS9p.get_partner_display(im);
-            colormap = JS9.GetColormap({display:im});
-            if( partner ) {
-                JS9.SetColormap(colormap.colormap, colormap.contrast, colormap.bias, {display: partner});
-                JS9p.display_props[im.display.id].colormap = colormap;
-                JS9p.display_props[partner].colormap = colormap;
-            }
-            JS9.globalOpts.xeqPlugins = true;
-        }
-    }
 
     // load JS9 components
     var wrapper = document.createElement("div");

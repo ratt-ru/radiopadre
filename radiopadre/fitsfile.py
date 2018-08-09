@@ -461,8 +461,7 @@ class FITSFile(radiopadre.file.FileBase):
                          js9_rebin_width = rebin_size)
             postscript["JS9"] = read_html_template("js9-dualwindow-inline-template.html", subs1) + \
                 """<script type='text/javascript'>
-                        JS9.AddDivs('rebin-{display_id}-JS9', 'zoom-{display_id}-JS9');
-                        JS9p.register_partners('rebin-{display_id}-JS9', 'zoom-{display_id}-JS9');
+                        JS9p._pd_{display_id} = new JS9p_PartneredDisplays('{display_id}')
                     </script>
                 """.format(**subs1)
 
@@ -474,27 +473,15 @@ class FITSFile(radiopadre.file.FileBase):
         js9_target2 = self._make_js9_window_script(subs1, subset=False)
         js9_target3 = self._make_js9_dual_window_script(subs1)
 
+        xsize, ysize = self.shape[:2]
+        bin = "'4a'"
+        zoombox = "'box({},{},{},{},0)'".format(xsize//2, ysize//2, min(xsize, settings.FITS.MAX_JS9_SLICE),
+                                                                  min(ysize, settings.FITS.MAX_JS9_SLICE))
+
         subs.update(**locals())
 
         code = """
-            <script type='text/javascript'>
-                var load_inline_image_{display_id} = function(path) {{
-                    console.log('loading into {display_id}:', path);
-                    JS9.Load(path,
-                             {{ {fits2fits_options_rebin},
-                                onload: function(im){{
-                                    console.log('loaded image is', im);
-                                    JS9.AddRegions({init_zoom_box},
-                                                   {{color:'red',data:'zoom_region',rotatable:false,removable:false}},
-                                                   {{display:'rebin-{display_id}-JS9'}});
-                                }},
-                                zoom:'T'}},
-                             {{display:'rebin-{display_id}-JS9'}});
-                    // document.getElementById('outer-{display_id}').style.height = '60vw'
-                    document.getElementById('outer-{display_id}').style.display = 'block'
-                }}
-            </script>
-            <button onclick="load_inline_image_{display_id}('{fits_image_url}')">&#8595;JS9</button>
+            <button onclick="JS9p._pd_{display_id}.loadImage('{fits_image_url}', {xsize}, {ysize}, {zoombox}, {bin})">&#8595;JS9</button>
             <button onclick="window.open('{js9.JS9_SCRIPT_PREFIX_HTTP}{js9_target1}', '_blank')">&#8663;JS9</button> 
             <button onclick="window.open('{js9.JS9_SCRIPT_PREFIX_HTTP}{js9_target2}', '_blank')">&#8663;JS9 full</button> 
             <button onclick="window.open('{js9.JS9_SCRIPT_PREFIX_HTTP}{js9_target3}', '_blank')">&#8663;JS9 dual</button>

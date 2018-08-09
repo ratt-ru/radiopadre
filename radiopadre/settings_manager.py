@@ -97,3 +97,5 @@ class RadiopadreSettingsManager(SettingsManager):
         FITS.SCALE = 'linear'
         FITS.VMIN = None
         FITS.VMAX = None
+
+        FITS.MAX_JS9_SLICE = 2048

@@ -1,7 +1,9 @@
 <style type="text/css">
 .outer-{display_id}-table {{ display:table; width:100%; height:100%; }}
 
-.outer-{display_id}-row {{ display: table-row; width: 100%; height: 100%; clear: both; }}
+.outer-{display_id}-statrow {{ display: table-row; width: 100%; height: 24px; clear: both; }}
+    .status-{display_id} {{ display: table-cell; width: 100%; height: auto; }}
+.outer-{display_id}-row {{ display: table-row; width: 100%; height: auto; clear: both; }}
     .zoom-{display_id}-cell {{ display: table-cell; width: 66%; height: auto; }}
         .zoom-{display_id}-cell-column {{ display: table; width: 100%; height: 100%; }}
             .zoom-{display_id}-menubar {{ display: table-row; height: 36px; }}
@@ -20,6 +22,9 @@
 
 <div class="outer-{display_id}" id="outer-{display_id}" style="{init_style}">
     <div class="outer-{display_id}-table">
+        <div class="oute-{display_id}-statrow">
+            <div class="status-{display_id}" id="status-{display_id}"></div>
+        </div>
         <div class="outer-{display_id}-row">
             <div class="zoom-{display_id}-cell">
                 <div class="zoom-{display_id}-cell-column">

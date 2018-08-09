@@ -3,6 +3,79 @@
 
 /*global JS9 */
 
+function JS9p_PartneredDisplays(display_id)
+{
+    this.outer = document.getElementById('outer-' + display_id)
+    this.disp_rebin = 'rebin-' + display_id + '-JS9'
+    this.disp_zoom  = 'zoom-'  + display_id + '-JS9'
+    this.status = document.getElementById('status-' + display_id)
+
+    JS9p.display_props[this.disp_rebin] = {partnership:this, partner_display: this.disp_zoom}
+    JS9p.display_props[this.disp_zoom]  = {partnership:this, partner_display: this.disp_rebin}
+
+    JS9.AddDivs(this.disp_rebin, this.disp_zoom)
+}
+
+JS9p_PartneredDisplays.prototype.setStatus = function(status)
+{
+    if( JS9p.debug ) {
+        console.log('JS9p_PartneredDisplays status:', status);
+    }
+    this.status.innerHTML = status
+}
+
+JS9p_PartneredDisplays.prototype.loadImage = function(path,xsz,ysz,zoombox,bin)
+{
+    this.setStatus("Loading "+path+" preview, please wait...")
+    JS9.Load(path, {fits2fits:true, xcen:(xsz/2>>0), ycen:(ysz/2>>0), xdim:xsz, ydim:ysz, bin:bin,
+                    onload: im => this.onLoadRebin(im, zoombox),
+                    zoom:'T'},
+                   {display:this.disp_rebin});
+    // document.getElementById('outer-{display_id}').style.height = '60vw'
+    this.outer.style.display = 'block'
+}
+
+JS9p_PartneredDisplays.prototype.onLoadRebin = function(im, zoombox)
+{
+    if( JS9p.debug ) {
+            console.log('loaded image', im, 'into rebinned view');
+        }
+    JS9.AddRegions(zoombox,
+                   {color:'red',data:'zoom_region',rotatable:false,removable:false},
+                   {display:this.disp_rebin})
+    im._js9p_partnered_displays = this
+    this.setStatus(`Loaded preview image for ${im.id}`)
+}
+
+JS9p_PartneredDisplays.prototype.onLoadZoom = function(im)
+{
+    JS9p.reset_scale_colormap(im)
+    this.setStatus(`Loaded ${im.id} (slice ${xreg.lcs.width}x${xreg.lcs.height}@${xreg.lcs.x},${xreg.lcs.y})`)
+}
+
+JS9p_PartneredDisplays.prototype.check_zoom_region = function(im, xreg)
+{
+    if( im.display == this.disp_rebin && xreg.data === "zoom_region" ) {
+        if( JS9p.debug ){
+            // eslint-disable-next-line no-console
+            console.log("zoom-syncing", im, xreg);
+        }
+        JS9.CloseImage({clear:false},{display: this.disp_zoom});
+        this.setStatus(`Loading ${im.id} (slice ${xreg.lcs.width}x${xreg.lcs.height}@${xreg.lcs.x},${xreg.lcs.y}), please wait...`)
+
+        JS9.Load(im.id, {fits2fits:true,
+                             xcen:xreg.lcs.x,
+                             ycen:xreg.lcs.y,
+                             xdim:xreg.lcs.width,
+                             ydim:xreg.lcs.height,
+                             bin:1,
+                             zoom:'T',
+                             onload: this.onLoadZoom
+                         },
+                 {display: this.disp_zoom});
+    }
+}
+
 var JS9p = {
     debug: true,
     display_props: {},
@@ -113,25 +186,12 @@ var JS9p = {
 	//      JS9.globalOpts.xeqPlugins = true;
         delete props.sync_partner_scales;
     },
-    load_partner: function(im, xreg)
+    check_zoom_region: function(im, xreg)
     {
-	var partner = JS9p.get_partner_display(im);
-	if( partner && xreg.data === "zoom_region" ) {
-            if( JS9p.debug ){
-                // eslint-disable-next-line no-console
-                console.log("zoom-syncing", im, xreg);
-            }
-            JS9.CloseImage({clear:false},{display: partner});
-            JS9.Load(im.id, {fits2fits:true,
-			     xcen:xreg.lcs.x,
-			     ycen:xreg.lcs.y,
-			     xdim:xreg.lcs.width,
-			     ydim:xreg.lcs.height,
-			     bin:1,
-			     zoom:'T',
-			     onload: JS9p.reset_scale_colormap},
-		     {display: partner});
-	}
+        console.log(im, im._js9p_partnered_displays, xreg)
+        partners = im._js9p_partnered_displays
+        if( partners )
+            partners.check_zoom_region(im, xreg)
     }
 };
 
@@ -146,6 +206,6 @@ $(document).ready(function() {
                        {onchangecontrastbias: JS9p.sync_partner_colormaps,
                         onsetcolormap:  JS9p.sync_partner_colormaps,
                         onsetscale: JS9p.sync_partner_scales,
-                        onregionschange: JS9p.load_partner,
+                        onregionschange: JS9p.check_zoom_region,
                         winDims: [0, 0]});
 })
