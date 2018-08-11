@@ -160,8 +160,9 @@ try:
             nodejs = subprocess.check_output("which nodejs || which node", shell=True)
         except subprocess.CalledProcessError:
             bye("Unable to find nodejs or node -- can't run js9helper. You need to apt-get install nodejs perhaps?")
-        child_processes.append(subprocess.Popen([nodejs.strip(), js9helper, '{{"helperPort": {}}}'.format(helper_port)],
-                                   stdin=DEVZERO, stdout=sys.stdout, stderr=sys.stderr))
+        child_processes.append(subprocess.Popen([nodejs.strip(), js9helper, 
+            '{{"helperPort": {}}}'.format(helper_port)],
+            stdin=DEVZERO, stdout=sys.stdout, stderr=sys.stderr))
 
     message("Starting HTTP server process in {DIR} on port {http_port}")
     child_processes.append(subprocess.Popen([PADRE_VENV+"/bin/python", PADRE_PATH+"/bin/http_server.py", str(http_port)],

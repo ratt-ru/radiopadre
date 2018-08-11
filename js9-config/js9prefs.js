@@ -16,7 +16,8 @@ var JS9Prefs = {
 		},
 		 "dataPath":	     "$HOME/Desktop:$HOME/data",
 		 "analysisPlugins":  "./analysis-plugins",
-		 "analysisWrappers": "./analysis-wrappers"},
+		 "analysisWrappers": "./analysis-wrappers",
+		 "requireHelper":    true},
   "imageOpts":  {"colormap":	     "grey",
   		 "scale":     	     "linear"}
 }
