@@ -357,7 +357,7 @@ class FITSFile(radiopadre.file.FileBase):
         subs['fits_image_url'] = js9.JS9_FITS_PREFIX_HTTP + self.fullpath
         subs['fits2fits_options_rebin'] = "fits2fits:true,xcen:2048,ycen:2048,xdim:4096,ydim:4096,bin:'4a'"
         subs['init_zoom_box'] = "'box(2048,2048,1024,1024,0)'"
-        subs['lib_scripts'] = open(os.path.join(js9.DIRNAME, "js9-radiopadre.js")).read()
+        # subs['lib_scripts'] = open(os.path.join(js9.DIRNAME, "js9-radiopadre.js")).read()
 
         with open(js9_target, 'w') as outp:
             outp.write(read_html_template("js9-window-head-template.html", subs))
@@ -445,8 +445,6 @@ class FITSFile(radiopadre.file.FileBase):
         subs = globals().copy()
         subs.update(display_id=div_id, **locals())
         subs['fits_image_url'] = js9.JS9_FITS_PREFIX_HTTP + self.fullpath
-        subs['fits2fits_options_rebin'] = "fits2fits:true,xcen:2048,ycen:2048,xdim:4096,ydim:4096,bin:'4a'"
-        subs['init_zoom_box'] = "'box(2048,2048,1024,1024,0)'"
 
         if "JS9" not in postscript:
             subs1 = subs.copy()
@@ -461,7 +459,7 @@ class FITSFile(radiopadre.file.FileBase):
                          js9_rebin_width = rebin_size)
             postscript["JS9"] = read_html_template("js9-dualwindow-inline-template.html", subs1) + \
                 """<script type='text/javascript'>
-                        JS9p._pd_{display_id} = new JS9p_PartneredDisplays('{display_id}')
+                        JS9p._pd_{display_id} = new JS9pPartneredDisplays('{display_id}', {settings.FITS.MAX_JS9_SLICE})
                     </script>
                 """.format(**subs1)
 
@@ -475,13 +473,10 @@ class FITSFile(radiopadre.file.FileBase):
 
         xsize, ysize = self.shape[:2]
         bin = "'4a'"
-        zoombox = "'box({},{},{},{},0)'".format(xsize//2, ysize//2, min(xsize, settings.FITS.MAX_JS9_SLICE),
-                                                                  min(ysize, settings.FITS.MAX_JS9_SLICE))
-
         subs.update(**locals())
 
         code = """
-            <button onclick="JS9p._pd_{display_id}.loadImage('{fits_image_url}', {xsize}, {ysize}, {zoombox}, {bin})">&#8595;JS9</button>
+            <button onclick="JS9p._pd_{display_id}.loadImage('{fits_image_url}', {xsize}, {ysize}, {bin})">&#8595;JS9</button>
             <button onclick="window.open('{js9.JS9_SCRIPT_PREFIX_HTTP}{js9_target1}', '_blank')">&#8663;JS9</button> 
             <button onclick="window.open('{js9.JS9_SCRIPT_PREFIX_HTTP}{js9_target2}', '_blank')">&#8663;JS9 full</button> 
             <button onclick="window.open('{js9.JS9_SCRIPT_PREFIX_HTTP}{js9_target3}', '_blank')">&#8663;JS9 dual</button>

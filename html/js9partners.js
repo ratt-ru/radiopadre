@@ -3,12 +3,43 @@
 
 /*global JS9 */
 
-function JS9p_PartneredDisplays(display_id)
+function JS9pTuple(x,y)
+{
+    this.x = x
+    this.y = y
+}
+
+function JS9pImageProps(displays, xsz, ysz, xzoom, yzoom)
+{
+    this.partnered_displays = displays
+    this.size = new JS9pTuple(xsz, ysz)
+    this.zoomsize = new JS9pTuple(Math.min(xzoom,xsz), Math.min(yzoom,ysz))
+    dx = this.zoomsize.x/2>>0
+    dy = this.zoomsize.y/2>>0
+    this.zoom_min = new JS9pTuple(dx, dy)
+    this.zoom_max = new JS9pTuple(xsz-dx, ysz-dy)
+    this.zoombox = { shape:"box", x:0, y:0, width:this.zoomsize.x, height:this.zoomsize.y, tags:"zoombox",
+                     color:'red',data:'zoom_region',rotatable:false,removable:false,tags:"zoombox" }
+}
+
+JS9pImageProps.prototype.updateZoom = function(x,y)
+{
+    x = Math.max(Math.min(x>>0, this.zoom_max.x), this.zoom_min.x)
+    y = Math.max(Math.min(y>>0, this.zoom_max.y), this.zoom_min.y)
+    this.zoombox.x = x
+    this.zoombox.y = y
+    this.zoombox_str = `box(${x},${y},${this.zoombox.width},${this.zoombox.height},0)`
+    return this.zoombox
+}
+
+
+function JS9pPartneredDisplays(display_id, zoomsize)
 {
     this.outer = document.getElementById('outer-' + display_id)
     this.disp_rebin = 'rebin-' + display_id + '-JS9'
     this.disp_zoom  = 'zoom-'  + display_id + '-JS9'
     this.status = document.getElementById('status-' + display_id)
+    this.zoomsize = zoomsize
 
     JS9p.display_props[this.disp_rebin] = {partnership:this, partner_display: this.disp_zoom}
     JS9p.display_props[this.disp_zoom]  = {partnership:this, partner_display: this.disp_rebin}
@@ -16,63 +47,73 @@ function JS9p_PartneredDisplays(display_id)
     JS9.AddDivs(this.disp_rebin, this.disp_zoom)
 }
 
-JS9p_PartneredDisplays.prototype.setStatus = function(status)
+JS9pPartneredDisplays.prototype.setStatus = function(status)
 {
     if( JS9p.debug ) {
-        console.log('JS9p_PartneredDisplays status:', status);
+        console.log('JS9pPartneredDisplays status:', status);
     }
     this.status.innerHTML = status
 }
 
-JS9p_PartneredDisplays.prototype.loadImage = function(path,xsz,ysz,zoombox,bin)
+JS9pPartneredDisplays.prototype.loadImage = function(path, xsz, ysz, bin)
 {
-    this.setStatus("Loading "+path+" preview, please wait...")
+    this.setStatus(`Loading ${path} preview image, please wait...`)
     JS9.Load(path, {fits2fits:true, xcen:(xsz/2>>0), ycen:(ysz/2>>0), xdim:xsz, ydim:ysz, bin:bin,
-                    onload: im => this.onLoadRebin(im, zoombox),
+                    onload: im => this.onLoadRebin(im, xsz, ysz),
                     zoom:'T'},
                    {display:this.disp_rebin});
     // document.getElementById('outer-{display_id}').style.height = '60vw'
     this.outer.style.display = 'block'
 }
 
-JS9p_PartneredDisplays.prototype.onLoadRebin = function(im, zoombox)
+JS9pPartneredDisplays.prototype.onLoadRebin = function(im, xsz, ysz)
 {
     if( JS9p.debug ) {
-            console.log('loaded image', im, 'into rebinned view');
+            console.log('loaded image', im, 'into rebinned view', this);
         }
-    JS9.AddRegions(zoombox,
-                   {color:'red',data:'zoom_region',rotatable:false,removable:false},
-                   {display:this.disp_rebin})
-    im._js9p_partnered_displays = this
     this.setStatus(`Loaded preview image for ${im.id}`)
+    im._js9p = new JS9pImageProps(this, xsz, ysz, this.zoomsize, this.zoomsize)
+    zoombox = im._js9p.updateZoom(xsz/2, ysz/2)
+    console.log("setting zoombox", zoombox)
+    // JS9.AddRegions(zoombox, {}, {display:this.disp_rebin})
+    JS9.AddRegions(im._js9p.zoombox_str, zoombox, {display:this.disp_rebin})
 }
 
-JS9p_PartneredDisplays.prototype.onLoadZoom = function(im)
+JS9pPartneredDisplays.prototype.onLoadZoom = function(im)
 {
+    console.log(this)
     JS9p.reset_scale_colormap(im)
-    this.setStatus(`Loaded ${im.id} (slice ${xreg.lcs.width}x${xreg.lcs.height}@${xreg.lcs.x},${xreg.lcs.y})`)
+    this.setStatus(`Loaded ${im.id} (${imp.zoomsize.x}x${imp.zoomsize.y} slice at ${imp.zoombox.x},${imp.zoombox.y})`)
 }
 
-JS9p_PartneredDisplays.prototype.check_zoom_region = function(im, xreg)
+JS9pPartneredDisplays.prototype.checkZoomRegion = function(im, xreg)
 {
-    if( im.display == this.disp_rebin && xreg.data === "zoom_region" ) {
+    if( im.display.id == this.disp_rebin && xreg.tags.indexOf("zoombox")>-1 && !this._in_checkzoom) {
+        this._in_checkzoom = true
         if( JS9p.debug ){
             // eslint-disable-next-line no-console
             console.log("zoom-syncing", im, xreg);
         }
+        imp = im._js9p
+        // make sure region is within bounds
+        zoombox = imp.updateZoom(xreg.lcs.x, xreg.lcs.y)
+        console.log(zoombox)
         JS9.CloseImage({clear:false},{display: this.disp_zoom});
-        this.setStatus(`Loading ${im.id} (slice ${xreg.lcs.width}x${xreg.lcs.height}@${xreg.lcs.x},${xreg.lcs.y}), please wait...`)
-
+        this.setStatus(`Loading ${im.id} (${imp.zoomsize.x}x${imp.zoomsize.y} slice at ${imp.zoombox.x},${imp.zoombox.y}), please wait...`)
         JS9.Load(im.id, {fits2fits:true,
-                             xcen:xreg.lcs.x,
-                             ycen:xreg.lcs.y,
-                             xdim:xreg.lcs.width,
-                             ydim:xreg.lcs.height,
+                             xcen: imp.zoombox.x,
+                             ycen: imp.zoombox.y,
+                             xdim: imp.zoomsize.x,
+                             ydim: imp.zoomsize.y,
                              bin:1,
                              zoom:'T',
-                             onload: this.onLoadZoom
+                             onload: im => this.onLoadZoom(im)
                          },
                  {display: this.disp_zoom});
+//        JS9.RemoveRegions("all", {display:this.disp_rebin})
+//        JS9.AddRegions(im._js9p.zoombox_str, zoombox, {display:this.disp_rebin})
+        JS9.ChangeRegions("all", zoombox, {display:this.disp_rebin})
+        this._in_checkzoom = false
     }
 }
 
@@ -188,10 +229,8 @@ var JS9p = {
     },
     check_zoom_region: function(im, xreg)
     {
-        console.log(im, im._js9p_partnered_displays, xreg)
-        partners = im._js9p_partnered_displays
-        if( partners )
-            partners.check_zoom_region(im, xreg)
+        if( im._js9p && im._js9p.partnered_displays )
+            im._js9p.partnered_displays.checkZoomRegion(im, xreg)
     }
 };
 
