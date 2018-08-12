@@ -478,11 +478,11 @@ class FITSFile(radiopadre.file.FileBase):
         js9_target3 = self._make_js9_dual_window_script(subs1)
 
         xsize, ysize = self.shape[:2]
-        bin = "'4a'"
+        bin = 4
         subs.update(**locals())
 
         code = """
-            <button onclick="JS9p._pd_{display_id}.loadImage('{fits_image_url}', {xsize}, {ysize}, {bin})">&#8595;JS9</button>
+            <button onclick="JS9p._pd_{display_id}.loadImage('{self.fullpath}', {xsize}, {ysize}, {bin}, true)">&#8595;JS9</button>
             <button onclick="window.open('{js9.JS9_SCRIPT_PREFIX_HTTP}{js9_target3}', '_blank')">&#8663;JS9</button>
         """.format(**subs)
         return code

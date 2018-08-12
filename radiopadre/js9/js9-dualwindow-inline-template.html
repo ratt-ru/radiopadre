@@ -6,7 +6,7 @@
 .outer-{display_id}-row {{ display: table-row; width: 100%; height: auto; clear: both; }}
     .zoom-{display_id}-cell {{ display: table-cell; width: 66%; height: auto; }}
         .zoom-{display_id}-cell-column {{ display: table; width: 100%; height: 100%; }}
-            .zoom-{display_id}-menubar {{ display: table-row; height: 36px; }}
+            .zoom-{display_id}-menubar {{ display: table-row; height: 36px; margin-right: 8px;}}
             .zoom-{display_id}-display {{ display: table-row; width: 100%; }}
             .zoom-{display_id}-colorbar {{ display: table-row; height: 40px; margin-top: 2px; }}
     .rebin-{display_id}-cell {{ display: table-cell; height: auto; }}
@@ -29,7 +29,7 @@
             <div class="zoom-{display_id}-cell">
                 <div class="zoom-{display_id}-cell-column">
                     <div class="zoom-{display_id}-menubar">
-                        <div class="JS9Menubar" id="zoom-{display_id}-JS9_Menubar" data-height="36px" data-width="100%"></div>
+                        <div class="JS9Menubar" id="zoom-{display_id}-JS9_Menubar" data-height="36px" data-width="{js9_zoom_width}px"></div>
                     </div>
                     <div class="zoom-{display_id}-display">
                         <div class="JS9" data-width="{js9_zoom_width}px" data-height="{js9_zoom_height}px" id="zoom-{display_id}-JS9"></div>

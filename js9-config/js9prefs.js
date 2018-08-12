@@ -18,6 +18,7 @@ var JS9Prefs = {
 		 "analysisPlugins":  "./analysis-plugins",
 		 "analysisWrappers": "./analysis-wrappers",
 		 "requireHelper":    true,
+		 "requireFits2Fits": true,
 		 "intensivePlugins": true,
 		 "htimeout": 10000,
 		 "lhtimeout": 10000
