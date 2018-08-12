@@ -460,15 +460,21 @@ class FITSFile(radiopadre.file.FileBase):
             postscript["JS9"] = read_html_template("js9-dualwindow-inline-template.html", subs1) + \
                 """<script type='text/javascript'>
                         JS9p._pd_{display_id} = new JS9pPartneredDisplays('{display_id}', {settings.FITS.MAX_JS9_SLICE})
-                    </script>
                 """.format(**subs1)
+            if settings.FITS.VMIN:
+                postscript["JS9"] += "JS9p._pd_{display_id}.default_vmin = {settings.FITS.VMIN}\n".format(**subs1)
+            if settings.FITS.VMAX:
+                postscript["JS9"] += "JS9p._pd_{display_id}.default_vmax = {settings.FITS.VMAX}\n".format(**subs1)
+            if settings.FITS.COLORMAP:
+                postscript["JS9"] += "JS9p._pd_{display_id}.default_colormap = '{settings.FITS.COLORMAP}'\n".format(**subs1)
+            if settings.FITS.SCALE:
+                postscript["JS9"] += "JS9p._pd_{display_id}.default_scale = '{settings.FITS.SCALE}'\n".format(**subs1)
+            postscript["JS9"] += "</script>"
 
         # use empty display ID for scripts in separate documents
         subs1 = subs.copy()
         subs1['init_style'] = ''
         subs1['display_id'] = ''
-        js9_target1 = self._make_js9_window_script(subs1, subset=True)
-        js9_target2 = self._make_js9_window_script(subs1, subset=False)
         js9_target3 = self._make_js9_dual_window_script(subs1)
 
         xsize, ysize = self.shape[:2]
@@ -477,8 +483,6 @@ class FITSFile(radiopadre.file.FileBase):
 
         code = """
             <button onclick="JS9p._pd_{display_id}.loadImage('{fits_image_url}', {xsize}, {ysize}, {bin})">&#8595;JS9</button>
-            <button onclick="window.open('{js9.JS9_SCRIPT_PREFIX_HTTP}{js9_target1}', '_blank')">&#8663;JS9</button> 
-            <button onclick="window.open('{js9.JS9_SCRIPT_PREFIX_HTTP}{js9_target2}', '_blank')">&#8663;JS9 full</button> 
-            <button onclick="window.open('{js9.JS9_SCRIPT_PREFIX_HTTP}{js9_target3}', '_blank')">&#8663;JS9 dual</button>
+            <button onclick="window.open('{js9.JS9_SCRIPT_PREFIX_HTTP}{js9_target3}', '_blank')">&#8663;JS9</button>
         """.format(**subs)
         return code

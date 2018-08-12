@@ -18,7 +18,7 @@ function JS9pImageProps(displays, xsz, ysz, xzoom, yzoom)
     dy = this.zoomsize.y/2>>0
     this.zoom_min = new JS9pTuple(dx, dy)
     this.zoom_max = new JS9pTuple(xsz-dx, ysz-dy)
-    this.zoombox = { shape:"box", x:0, y:0, width:this.zoomsize.x, height:this.zoomsize.y, tags:"zoombox",
+    this.zoombox = { shape:"box", px:0, py:0, width:this.zoomsize.x, height:this.zoomsize.y,
                      color:'red',data:'zoom_region',rotatable:false,removable:false,tags:"zoombox" }
 }
 
@@ -26,8 +26,8 @@ JS9pImageProps.prototype.updateZoom = function(x,y)
 {
     x = Math.max(Math.min(x>>0, this.zoom_max.x), this.zoom_min.x)
     y = Math.max(Math.min(y>>0, this.zoom_max.y), this.zoom_min.y)
-    this.zoombox.x = x
-    this.zoombox.y = y
+    this.zoombox.px = x
+    this.zoombox.py = y
     this.zoombox_str = `box(${x},${y},${this.zoombox.width},${this.zoombox.height},0)`
     return this.zoombox
 }
@@ -49,45 +49,76 @@ function JS9pPartneredDisplays(display_id, zoomsize)
 
 JS9pPartneredDisplays.prototype.setStatus = function(status)
 {
-    if( JS9p.debug ) {
-        console.log('JS9pPartneredDisplays status:', status);
-    }
+    JS9p.log('JS9pPartneredDisplays status:', status);
     this.status.innerHTML = status
 }
 
-JS9pPartneredDisplays.prototype.loadImage = function(path, xsz, ysz, bin)
+JS9pPartneredDisplays.prototype.setDefaultImageOpts = function(opts)
+{
+    if( this.default_scale != null )
+        opts.scale = this.default_scale
+    if( this.default_colormap != null )
+        opts.colormap = this.default_colormap
+    if( this.default_vmin != null )
+        opts.scalemin = this.default_vmin
+    if( this.default_vmax != null )
+        opts.scalemax = this.default_vmax
+}
+
+JS9pPartneredDisplays.prototype.loadImage = function(path, xsz, ysz, bin, average)
 {
     this.setStatus(`Loading ${path} preview image, please wait...`)
-    JS9.Load(path, {fits2fits:true, xcen:(xsz/2>>0), ycen:(ysz/2>>0), xdim:xsz, ydim:ysz, bin:bin,
-                    onload: im => this.onLoadRebin(im, xsz, ysz),
-                    zoom:'T'},
-                   {display:this.disp_rebin});
+    opts = {fits2fits:true, xcen:(xsz/2>>0), ycen:(ysz/2>>0), xdim:xsz, ydim:ysz, bin:bin,
+            onload: im => this.onLoadRebin(im, xsz, ysz),
+            zoom:'T'}
+    this.setDefaultImageOpts(opts)
+    JS9p.log("Loading", path, "with options", opts)
+    JS9.Load(path, opts, {display:this.disp_rebin});
     // document.getElementById('outer-{display_id}').style.height = '60vw'
     this.outer.style.display = 'block'
 }
 
 JS9pPartneredDisplays.prototype.onLoadRebin = function(im, xsz, ysz)
 {
-    if( JS9p.debug ) {
-            console.log('loaded image', im, 'into rebinned view', this);
-        }
+    JS9p.log('loaded image', im, 'into rebinned view', this);
+
     this.setStatus(`Loaded preview image for ${im.id}`)
     im._js9p = new JS9pImageProps(this, xsz, ysz, this.zoomsize, this.zoomsize)
     zoombox = im._js9p.updateZoom(xsz/2, ysz/2)
     console.log("setting zoombox", zoombox)
-    // JS9.AddRegions(zoombox, {}, {display:this.disp_rebin})
-    JS9.AddRegions(im._js9p.zoombox_str, zoombox, {display:this.disp_rebin})
+    JS9.AddRegions(zoombox, {}, {display:this.disp_rebin})
+    //JS9.AddRegions(im._js9p.zoombox_str, zoombox, {display:this.disp_rebin})
 }
 
 JS9pPartneredDisplays.prototype.onLoadZoom = function(im)
 {
-    console.log(this)
     JS9p.reset_scale_colormap(im)
+    JS9.ChangeRegions("all", this.zoombox, {display:this.disp_rebin})
     this.setStatus(`Loaded ${im.id} (${imp.zoomsize.x}x${imp.zoomsize.y} slice at ${imp.zoombox.x},${imp.zoombox.y})`)
 }
 
+JS9pPartneredDisplays.prototype.resetScaleColormap = function(im)
+{
+    if( this.colormap ) {
+        JS9p.log("resetting colormap", this.colormap);
+        JS9.SetColormap(this.colormap.colormap,
+                        this.colormap.contrast,
+                        this.colormap.bias,
+                        {display: im});
+    }
+    if( this.scale ) {
+        JS9p.log("resetting scale", this.scale);
+        JS9.SetScale(this.scale.scale,
+                     this.scale.scalemin,
+                     this.scale.scalemax,
+                     {display: im});
+    }
+}
+
+
 JS9pPartneredDisplays.prototype.checkZoomRegion = function(im, xreg)
 {
+    console.log("czr", im);
     if( im.display.id == this.disp_rebin && xreg.tags.indexOf("zoombox")>-1 && !this._in_checkzoom) {
         this._in_checkzoom = true
         if( JS9p.debug ){
@@ -97,27 +128,32 @@ JS9pPartneredDisplays.prototype.checkZoomRegion = function(im, xreg)
         imp = im._js9p
         // make sure region is within bounds
         zoombox = imp.updateZoom(xreg.lcs.x, xreg.lcs.y)
-        console.log(zoombox)
         JS9.CloseImage({clear:false},{display: this.disp_zoom});
         this.setStatus(`Loading ${im.id} (${imp.zoomsize.x}x${imp.zoomsize.y} slice at ${imp.zoombox.x},${imp.zoombox.y}), please wait...`)
-        JS9.Load(im.id, {fits2fits:true,
-                             xcen: imp.zoombox.x,
-                             ycen: imp.zoombox.y,
-                             xdim: imp.zoomsize.x,
-                             ydim: imp.zoomsize.y,
-                             bin:1,
-                             zoom:'T',
-                             onload: im => this.onLoadZoom(im)
-                         },
-                 {display: this.disp_zoom});
+        opts = { fits2fits:true,
+                 xcen: imp.zoombox.x,
+                 ycen: imp.zoombox.y,
+                 xdim: imp.zoomsize.x,
+                 ydim: imp.zoomsize.y,
+                 bin:1,
+                 zoom:'T',
+                 onload: im => this.onLoadZoom(im)
+             }
+        this.setDefaultImageOpts(opts)
+        JS9.Load(im.id, opts, {display: this.disp_zoom});
 //        JS9.RemoveRegions("all", {display:this.disp_rebin})
 //        JS9.AddRegions(im._js9p.zoombox_str, zoombox, {display:this.disp_rebin})
-        JS9.ChangeRegions("all", zoombox, {display:this.disp_rebin})
+//        JS9.ChangeRegions("all", zoombox, {display:this.disp_rebin})
         this._in_checkzoom = false
     }
 }
 
 var JS9p = {
+    log: function(...args) {
+        if( JS9p.debug ){
+            console.log(...args)
+        }
+    },
     debug: true,
     display_props: {},
     // checks if the given display has a colormap and scale saved -- resets if if so
@@ -231,6 +267,10 @@ var JS9p = {
     {
         if( im._js9p && im._js9p.partnered_displays )
             im._js9p.partnered_displays.checkZoomRegion(im, xreg)
+    },
+    move_zoom_region: function(im, xreg)
+    {
+        console.log("mzr", im, xreg)
     }
 };
 
@@ -246,5 +286,6 @@ $(document).ready(function() {
                         onsetcolormap:  JS9p.sync_partner_colormaps,
                         onsetscale: JS9p.sync_partner_scales,
                         onregionschange: JS9p.check_zoom_region,
+                        onregionsmove: JS9p.move_zoom_region,
                         winDims: [0, 0]});
 })

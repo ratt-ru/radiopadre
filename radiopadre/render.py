@@ -45,6 +45,7 @@ def render_status_message(msg):
 
 def render_table(data, labels, html=set(), ncol=1, links=None,
                  header=True, numbering=True,
+                 styles={},
                  actions=None,
                  preamble=OrderedDict(), postscript=OrderedDict(), div_id=None
                  ):
@@ -68,19 +69,23 @@ def render_table(data, labels, html=set(), ncol=1, links=None,
     # configuring the table rows, row by row
     nrow = int(math.ceil(len(data) / float(ncol)))
     for irow in range(nrow):
-        txt += """<tr style="border: 0px; text-align: left">\n"""
+        txt += """<tr style="border: 0px; text-align: left; {}">\n""".format(styles.get(irow, ''))
         for icol, idatum in enumerate(range(irow, len(data), nrow)):
             datum = data[idatum]    
             # data is a list containing (name,extension,size and modification date) for files
             # or (name,number,...) for directories
             if numbering:
-                txt += """<td style="border: 0px">%d</td>""" % idatum   #adds the item number on the ouput list. datum, avariable with all data ie()
+                txt += """<td style="border: 0px; {}; {}">{}</td>""".format(
+                    styles.get("#", ""),
+                    styles.get((irow, "#"), ""),
+                    idatum)
             for i, col in enumerate(datum):
                 if not str(col).upper().startswith("<HTML>") and not i in html and not labels[i] in html:
                     col = cgi.escape(str(col))
                 txt += """<td style="border: 0px; text-align: left; """
                 if ncol > 1 and icol < ncol - 1 and i == len(datum) - 1:
                     txt += "border-right: 1px double; padding-right: 10px"
+                txt += "{}; {};".format(styles.get(labels[i], ""), styles.get((irow, labels[i]), ""))
                 link = links and links[idatum][i]
                 if link:
                     txt += """"><A HREF=%s target='_blank'>%s</A></td>""" % (link, col)
