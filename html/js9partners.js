@@ -87,7 +87,7 @@ JS9pPartneredDisplays.prototype.setDefaultImageOpts = function(opts)
         opts.colormap = this.default_colormap
 }
 
-JS9pPartneredDisplays.prototype.loadImage = function(path, xsz, ysz, bin, average)
+JS9pPartneredDisplays.prototype.loadImage = function(path, xsz, ysz, bin, average, preload)
 {
     this.setStatus(`Loading ${path} (downsampled preview), please wait...`)
     this.setStatusRebin("Loading preview...")
@@ -98,7 +98,10 @@ JS9pPartneredDisplays.prototype.loadImage = function(path, xsz, ysz, bin, averag
                 zoom: 'T', valpos: false}
     this.setDefaultImageOpts(opts)
     JS9p.log("Loading", path, "with options", opts)
-    JS9.Load(path, opts, {display:this.disp_rebin});
+    if( preload )
+        JS9.Preload(path, opts, {display:this.disp_rebin});
+    else
+        JS9.Load(path, opts, {display:this.disp_rebin});
     // document.getElementById('outer-{display_id}').style.height = '60vw'
     this.outer.style.display = 'block'
 }

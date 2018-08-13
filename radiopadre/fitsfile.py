@@ -319,31 +319,6 @@ class FITSFile(radiopadre.file.FileBase):
                 plt.ylim(*ylim)
         return status
 
-    def _make_js9_window_script(self, subs, subset=False):
-        # creates an HTML script per each image, by replacing various arguments in a templated bit of html
-        cachedir = radiopadre.get_cache_dir(self.fullpath, "js9-launch")
-        symlink = "{}/{}".format(cachedir, self.name)
-        if not os.path.exists(symlink):
-            os.symlink(os.path.abspath(self.fullpath), symlink)
-        js9_target = "{}/{}.{}.{}".format(cachedir, self.basename, "sub" if subset else "full", js9.JS9_SCRIPT_SUFFIX)
-
-        # make dict of substitutions for HTML scripts
-        subs['fits_image_path'] = self.fullpath
-        subs['fits_image_url'] = js9.JS9_FITS_PREFIX_HTTP + self.fullpath
-
-        # fits2fits_opts
-        if subset:
-            subs['fits2fits_options'] = "{fits2fits:true,xcen:2048,ycen:2048,xdim:1024,ydim:1024,bin:1}"
-        else:
-            subs['fits2fits_options'] = "{fits2fits:false}"
-
-        with open(js9_target, 'w') as outp:
-            outp.write(read_html_template("js9-window-head-template.html", subs))
-            outp.write(read_html_template("js9-singlewindow-body-template.html", subs))
-            outp.write(read_html_template("js9-singlewindow-tail-template.html", subs))
-
-        return js9_target
-
     def _make_js9_dual_window_script(self, subs):
         # creates an HTML script per each image, by replacing various arguments in a templated bit of html
         cachedir = radiopadre.get_cache_dir(self.fullpath, "js9-launch")
@@ -355,12 +330,14 @@ class FITSFile(radiopadre.file.FileBase):
         # make dict of substitutions for HTML scripts
         subs['fits_image_path'] = self.fullpath
         subs['fits_image_url'] = js9.JS9_FITS_PREFIX_HTTP + self.fullpath
-        subs['fits2fits_options_rebin'] = "fits2fits:true,xcen:2048,ycen:2048,xdim:4096,ydim:4096,bin:'4a'"
-        subs['init_zoom_box'] = "'box(2048,2048,1024,1024,0)'"
         # subs['lib_scripts'] = open(os.path.join(js9.DIRNAME, "js9-radiopadre.js")).read()
+        subs['xsize'], subs['ysize'] = self.shape[:2]
+        subs['bin'] = 4
+        subs.update(**locals())
 
         with open(js9_target, 'w') as outp:
             outp.write(read_html_template("js9-window-head-template.html", subs))
+            outp.write(read_html_template("js9-dualwindow-geometry-template.html", subs))
             outp.write(read_html_template("js9-dualwindow-body-template.html", subs))
             outp.write(read_html_template("js9-dualwindow-tail-template.html", subs))
 
@@ -373,7 +350,7 @@ class FITSFile(radiopadre.file.FileBase):
     #        <iframe src="{}{}" width=1100 height=780></iframe>
     #        '''.format(js9.JS9_SCRIPT_PREFIX_HTTP, js9_target)))
 
-    def js9_dual(self):
+    def js9_external(self):
         display_id = uuid.uuid4().hex
         # print('Display id = {}'.format(display_id))
 
@@ -450,17 +427,10 @@ class FITSFile(radiopadre.file.FileBase):
             subs1 = subs.copy()
             # work out layout geometry
             total_width = 900       # TODO: work this out auto-magically from JS one day
-            horizontal_padding = 0
-            zoom_vertical_padding = 40 + 36 + 24   # colorbar plus menu plus status row
-            rebin_vertical_padding = 10 + 18  # two pads of 5 pixels, plus title
-            js9_rebin_size = plugin_size = (total_width - horizontal_padding + zoom_vertical_padding - rebin_vertical_padding)//4
-            js9_zoom_size = total_width - horizontal_padding - js9_rebin_size
             subs1.update(init_style= "display:none",
-                         total_width = total_width,
-                         plugin_size = plugin_size,
-                         js9_zoom_size = js9_zoom_size,
-                         js9_rebin_size = js9_rebin_size)
-            postscript["JS9"] = read_html_template("js9-dualwindow-inline-template.html", subs1) + \
+                         total_width = total_width)
+            postscript["JS9"] = read_html_template("js9-dualwindow-inline-geometry-template.html", subs1) + \
+                                read_html_template("js9-dualwindow-body-template.html", subs1) + \
                 """<script type='text/javascript'>
                         JS9p._pd_{display_id} = new JS9pPartneredDisplays('{display_id}', {settings.FITS.MAX_JS9_SLICE})
                 """.format(**subs1)
@@ -485,7 +455,7 @@ class FITSFile(radiopadre.file.FileBase):
         subs.update(**locals())
 
         code = """
-            <button onclick="JS9p._pd_{display_id}.loadImage('{self.fullpath}', {xsize}, {ysize}, {bin}, true)">&#8595;JS9</button>
+            <button onclick="JS9p._pd_{display_id}.loadImage('{self.fullpath}', {xsize}, {ysize}, {bin}, true, false)">&#8595;JS9</button>
             <button onclick="window.open('{js9.JS9_SCRIPT_PREFIX_HTTP}{js9_target3}', '_blank')">&#8663;JS9</button>
         """.format(**subs)
         return code

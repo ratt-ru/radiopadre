@@ -1,23 +1,23 @@
 <style type="text/css">
-.outer-{display_id}-table {{ display:table; width:100%; height:100%; }}
-
-.outer-{display_id}-row {{ display: table-row; width: 100%; height: 100%; clear: both; }}
-    .zoom-{display_id}-cell {{ display: table-cell; width: 70%; height: auto; }}
+.outer-{display_id}-row {{ display: table-row; width: 100%; height: auto; clear: both; }}
+    .zoom-{display_id}-cell {{ display: table-cell; width: var(--js9-zoom-width); height: auto; }}
         .zoom-{display_id}-cell-column {{ display: table; width: 100%; height: 100%; }}
-            .zoom-{display_id}-menubar {{ display: table-row; height: 36px; }}
+            .status-{display_id}-1 {{ display: table-row; width: 100%; height: var(--statusbar-height); background: #909090 }}
+                .status-{display_id} {{ display: table-cell; width: 100%; text-align: center;
+                                        max-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap }}
+            .zoom-{display_id}-menubar {{ display: table-row; height: var(--menubar-height); margin-right: 8px;}}
             .zoom-{display_id}-display {{ display: table-row; width: 100%; }}
-            .zoom-{display_id}-colorbar {{ display: table-row; height: 40px; margin-top: 2px; }}
-    .rebin-{display_id}-cell {{ display: table-cell; height: auto; }}
+            .zoom-{display_id}-colorbar {{ display: table-row; height: var(--colorbar-height); margin-top: 2px; }}
+    .rebin-{display_id}-cell {{ display: table-cell; width: var(--js9-rebin-size); height: auto; }}
         .rebin-{display_id}-cell-column {{ display: table; width: 100%; height: 100%; }}
-            .rebin-{display_id}-menubar {{ display: table-row; height: 36px; }}
-            .rebin-{display_id}-display {{ display: table-row; width: 100%; }}
-            .-{display_id}-tools      {{ display: table-row; height: 200px; margin-top: 2px; }}
-                .-{display_id}-tools1 {{ display: table }}
-                    .-{display_id}-tools2 {{ display: table-row; }}
-                        .-{display_id}-tools3 {{ display: table-cell; }}
-                        .-{display_id}-tools-pad {{ display: table-cell; width: 10px; }}
-
-
+            .rebin-{display_id}-title1   {{ display: table-row; width: 100%; height: var(--statusbar-height); background: #909090 }}
+                .rebin-{display_id}-title   {{ display: table-cell; height: 100%; text-align: center;
+                                               max-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap }}
+            .rebin-{display_id}-display1 {{ display: table-row; height: var(--js9-rebin-size); width: 100%; background: #909090 }}
+                .rebin-{display_id}-display {{ display: table-cell; width: 100%;  margin-left: 8px }}
+            .rebin-{display_id}-tools        {{ display: table-row;  height: var(--plugin-size); ; }}
+            .rebin-{display_id}-tools-pad    {{ display: table-row; height: var(--tools-padding); }}
+            .rebin-{display_id}-tools-fill   {{ display: table-row; }}
 </style>
 
 <div class="outer-{display_id}" id="outer-{display_id}" style="{init_style}">
@@ -25,39 +25,39 @@
         <div class="outer-{display_id}-row">
             <div class="zoom-{display_id}-cell">
                 <div class="zoom-{display_id}-cell-column">
+                    <div class="status-{display_id}-1"">
+                        <div class="status-{display_id}" id="status-{display_id}"></div>
+                    </div>
                     <div class="zoom-{display_id}-menubar">
-                        <div class="JS9Menubar" id="zoom-{display_id}-JS9_Menubar" data-height="36px" data-width="100%"></div>
+                        <div class="JS9Menubar" id="zoom-{display_id}-JS9_Menubar" data-height="var(--menubar-height)" data-width="var(--js9-zoom-width)"></div>
                     </div>
                     <div class="zoom-{display_id}-display">
-                        <div class="JS9" data-width="100%" data-height="100%" id="zoom-{display_id}-JS9"></div>
+                        <div class="JS9" data-width="var(--js9-zoom-width)" data-height="var(--js9-zoom-height)" id="zoom-{display_id}-JS9"></div>
                     </div>
                     <div class="zoom-{display_id}-colorbar">
-                        <div class="JS9Colorbar" id="zoom-{display_id}-JS9_Colorbar" data-height="40px" data-width="100%"></div>
+                        <div class="JS9Colorbar" id="zoom-{display_id}-JS9_Colorbar" data-height="var(--colorbar-height)" data-width="var(--js9-zoom-width)"></div>
                     </div>
                 </div>
             </div>
             <div class="rebin-{display_id}-cell">
                 <div class="rebin-{display_id}-cell-column">
-                    <div class="rebin-{display_id}-menubar">
-                        <div class="JS9Menubar" id="rebin-{display_id}-JS9_Menubar" data-height="36px" data-width="100%"></div>
+                    <div class="rebin-{display_id}-title1">
+                        <div class="rebin-{display_id}-title" id="status-{display_id}-rebin">Active region</div>
                     </div>
-                    <div class="rebin-{display_id}-display">
-                        <div class="JS9" data-width="100%" data-height="100%" id="rebin-{display_id}-JS9"></div>
-                    </div>
-                    <div class="-{display_id}-tools">
-                        <div class="-{display_id}-tools1">
-                            <div class="-{display_id}-tools2">
-                                <div class="-{display_id}-tools-pad"></div>
-                                <div class="-{display_id}-tools3">
-                                    <div class="JS9Panner" data-width="200" data-height="200" id="zoom-{display_id}-JS9_Panner"></div>
-                                </div>
-                                <div class="-{display_id}-tools-pad"></div>
-                                <div class="-{display_id}-tools3">
-                                    <div class="JS9Magnifier" data-width="200" data-height="200" id="zoom-{display_id}-JS9_Magnifier"></div>
-                                </div>
-                            </div>
+                    <div class="rebin-{display_id}-display1">
+                        <div class="rebin-{display_id}-display">
+                            <div class="JS9" data-width="var(--js9-rebin-size)" data-height="var(--js9-rebin-size)" id="rebin-{display_id}-JS9"></div>
                         </div>
                     </div>
+                    <div class="rebin-{display_id}-tools-pad"></div>
+                    <div class="rebin-{display_id}-tools">
+                        <div class="JS9Magnifier" data-width="var(--plugin-size)" data-height="var(--plugin-size)" id="zoom-{display_id}-JS9_Magnifier"></div>
+                    </div>
+                    <div class="rebin-{display_id}-tools-pad"></div>
+                    <div class="rebin-{display_id}-tools">
+                        <div class="JS9Panner" data-width="var(--plugin-size)" data-height="var(--plugin-size)" id="zoom-{display_id}-JS9_Panner"></div>
+                    </div>
+                    <div class="rebin-{display_id}-tools-fill"></div>
                 </div>
             </div>
         </div>

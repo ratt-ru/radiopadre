@@ -1,25 +1,14 @@
 <script type="text/javascript">
-    // register partner displays
-    JS9p.register_partners('rebin-{display_id}-JS9', 'zoom-{display_id}-JS9');
-
     $(document).ready(function()
     {{
         $('#{display_id}-top').draggable({{
         handle: "#rebin-{display_id}-JS9_Menubar",
         opacity: 0.35
         }});
+        JS9p._pd_{display_id} = new JS9pPartneredDisplays('{display_id}', {settings.FITS.MAX_JS9_SLICE})
 
-        // preload the image
-        JS9.Preload("{fits_image_path}",
-                     {{ {fits2fits_options_rebin},
-                        onload: function(im){{
-                            console.log("loaded image is", im);
-                            JS9.AddRegions({init_zoom_box},
-                                           {{color:"red",data:"zoom_region",rotatable:false,removable:false}},
-                                           {{display:"rebin-{display_id}-JS9"}});
-                        }},
-                        zoom:'T'}},
-                     {{display:"rebin-{display_id}-JS9"}});
+        JS9p._pd_{display_id}.loadImage('{self.fullpath}', {xsize}, {ysize}, {bin}, true, true)
+
     }});
 </script>
 </body>
