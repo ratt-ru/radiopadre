@@ -448,15 +448,18 @@ class FITSFile(radiopadre.file.FileBase):
 
         if "JS9" not in postscript:
             subs1 = subs.copy()
-            zoom_size = 700
-            rebin_size = zoom_size/3
-            plugin_size = zoom_size/3 - 20
+            # work out layout geometry
+            total_width = 900       # TODO: work this out auto-magically from JS one day
+            horizontal_padding = 0
+            zoom_vertical_padding = 40 + 36 + 24   # colorbar plus menu plus status row
+            rebin_vertical_padding = 10 + 18  # two pads of 5 pixels, plus title
+            js9_rebin_size = plugin_size = (total_width - horizontal_padding + zoom_vertical_padding - rebin_vertical_padding)//4
+            js9_zoom_size = total_width - horizontal_padding - js9_rebin_size
             subs1.update(init_style= "display:none",
+                         total_width = total_width,
                          plugin_size = plugin_size,
-                         js9_zoom_height = zoom_size - 36 - 40 - 2,
-                         js9_zoom_width = zoom_size,
-                         js9_rebin_height = rebin_size,
-                         js9_rebin_width = rebin_size)
+                         js9_zoom_size = js9_zoom_size,
+                         js9_rebin_size = js9_rebin_size)
             postscript["JS9"] = read_html_template("js9-dualwindow-inline-template.html", subs1) + \
                 """<script type='text/javascript'>
                         JS9p._pd_{display_id} = new JS9pPartneredDisplays('{display_id}', {settings.FITS.MAX_JS9_SLICE})

@@ -1,48 +1,55 @@
 <style type="text/css">
-.outer-{display_id}-table {{ display:table; width:100%; height:100%; }}
+.outer-{display_id}-table {{ display:table; width: {total_width}; height: auto; }}
 
-.outer-{display_id}-statrow {{ display: table-row; width: 100%; height: 24px; clear: both; }}
-    .status-{display_id} {{ display: table-cell; width: 100%; height: auto; }}
 .outer-{display_id}-row {{ display: table-row; width: 100%; height: auto; clear: both; }}
-    .zoom-{display_id}-cell {{ display: table-cell; width: 66%; height: auto; }}
+    .zoom-{display_id}-cell {{ display: table-cell; width: {js9_zoom_size}px; height: auto; }}
         .zoom-{display_id}-cell-column {{ display: table; width: 100%; height: 100%; }}
+            .status-{display_id}-1 {{ display: table-row; width: 100%; height: 24px; }}
+                .status-{display_id} {{ display: table-cell; width: 100%; text-align: center;
+                                        max-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap }}
             .zoom-{display_id}-menubar {{ display: table-row; height: 36px; margin-right: 8px;}}
             .zoom-{display_id}-display {{ display: table-row; width: 100%; }}
             .zoom-{display_id}-colorbar {{ display: table-row; height: 40px; margin-top: 2px; }}
-    .rebin-{display_id}-cell {{ display: table-cell; height: auto; }}
+    .rebin-{display_id}-cell {{ display: table-cell; width: {js9_rebin_size}px; height: auto; }}
         .rebin-{display_id}-cell-column {{ display: table; width: 100%; height: 100%; }}
-            .rebin-{display_id}-menubar {{ display: table-row; height: 36px; }}
-            .rebin-{display_id}-display {{ display: table-row; width: 100%; }}
-            .rebin-{display_id}-tools        {{ display: table-row; height: 200px; }}
-            .rebin-{display_id}-tools-pad    {{ display: table-row; height: 10px; }}
+            .rebin-{display_id}-title1   {{ display: table-row; width: 100%; height: 18px; background: #909090 }}
+                .rebin-{display_id}-title   {{ display: table-cell; height: 18px; text-align: center;
+                                               max-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap }}
+            .rebin-{display_id}-display1 {{ display: table-row; height: {js9_rebin_size}px; width: 100%; background: #909090 }}
+                .rebin-{display_id}-display {{ display: table-cell; width: 100%;  margin-left: 8px }}
+            .rebin-{display_id}-tools        {{ display: table-row;  height: {plugin_size}px; ; }}
+            .rebin-{display_id}-tools-pad    {{ display: table-row; height: 5px; }}
             .rebin-{display_id}-tools-fill   {{ display: table-row; }}
-
-
 </style>
 
 <div class="outer-{display_id}" id="outer-{display_id}" style="{init_style}">
     <div class="outer-{display_id}-table">
-        <div class="oute-{display_id}-statrow">
-            <div class="status-{display_id}" id="status-{display_id}"></div>
-        </div>
         <div class="outer-{display_id}-row">
             <div class="zoom-{display_id}-cell">
                 <div class="zoom-{display_id}-cell-column">
+                    <div class="status-{display_id}-1"">
+                        <div class="status-{display_id}" id="status-{display_id}"></div>
+                    </div>
                     <div class="zoom-{display_id}-menubar">
-                        <div class="JS9Menubar" id="zoom-{display_id}-JS9_Menubar" data-height="36px" data-width="{js9_zoom_width}px"></div>
+                        <div class="JS9Menubar" id="zoom-{display_id}-JS9_Menubar" data-height="36px" data-width="{js9_zoom_size}px"></div>
                     </div>
                     <div class="zoom-{display_id}-display">
-                        <div class="JS9" data-width="{js9_zoom_width}px" data-height="{js9_zoom_height}px" id="zoom-{display_id}-JS9"></div>
+                        <div class="JS9" data-width="{js9_zoom_size}px" data-height="{js9_zoom_size}px" id="zoom-{display_id}-JS9"></div>
                     </div>
                     <div class="zoom-{display_id}-colorbar">
-                        <div class="JS9Colorbar" id="zoom-{display_id}-JS9_Colorbar" data-height="40px" data-width="{js9_zoom_width}px"></div>
+                        <div class="JS9Colorbar" id="zoom-{display_id}-JS9_Colorbar" data-height="40px" data-width="{js9_zoom_size}px"></div>
                     </div>
                 </div>
             </div>
             <div class="rebin-{display_id}-cell">
                 <div class="rebin-{display_id}-cell-column">
-                    <div class="rebin-{display_id}-display">
-                        <div class="JS9" data-width="{js9_rebin_width}px" data-height="{js9_rebin_height}px" id="rebin-{display_id}-JS9"></div>
+                    <div class="rebin-{display_id}-title1">
+                        <div class="rebin-{display_id}-title" id="status-{display_id}-rebin">Active region</div>
+                    </div>
+                    <div class="rebin-{display_id}-display1">
+                        <div class="rebin-{display_id}-display">
+                            <div class="JS9" data-width="{js9_rebin_size}px" data-height="{js9_rebin_size}px" id="rebin-{display_id}-JS9"></div>
+                        </div>
                     </div>
                     <div class="rebin-{display_id}-tools-pad"></div>
                     <div class="rebin-{display_id}-tools">

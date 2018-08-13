@@ -27,16 +27,25 @@ function JS9pImageProps(displays, xsz, ysz, bin, xzoom, yzoom)
                      color:'red',data:'zoom_region',rotatable:false,removable:false,tags:"zoombox" }
 }
 
-JS9pImageProps.prototype.updateZoom = function(x,y)
+JS9pImageProps.prototype.restrictZoombox = function(x,y)
 {
     var x = Math.max(Math.min(x>>0, this.zoom_max.x), this.zoom_min.x)
     var y = Math.max(Math.min(y>>0, this.zoom_max.y), this.zoom_min.y)
     this.zoombox.x = x
     this.zoombox.y = y
-    this.zoom_cen.x = x*this.bin
-    this.zoom_cen.y = y*this.bin
-    // this.zoombox_str = `box(${x},${y},${this.zoombox.width},${this.zoombox.height},0)`
-    return this.zoombox
+}
+
+JS9pImageProps.prototype.updateZoombox = function(x,y)
+{
+    this.restrictZoombox(x,y)
+    var x1 = this.zoombox.x*this.bin
+    var y1 = this.zoombox.y*this.bin
+    if( x1 != this.zoom_cen.x || y1 != this.zoom_cen.y ) {
+        this.zoom_cen.x = x1
+        this.zoom_cen.y = y1
+        return true
+    }
+    return false
 }
 
 
@@ -46,6 +55,8 @@ function JS9pPartneredDisplays(display_id, zoomsize)
     this.disp_rebin = 'rebin-' + display_id + '-JS9'
     this.disp_zoom  = 'zoom-'  + display_id + '-JS9'
     this.status = document.getElementById('status-' + display_id)
+    this.status_rebin = document.getElementById('status-' + display_id + '-rebin')
+
     this.zoomsize = zoomsize
 
     JS9p.display_props[this.disp_rebin] = {partnership:this, partner_display: this.disp_zoom}
@@ -57,7 +68,15 @@ function JS9pPartneredDisplays(display_id, zoomsize)
 JS9pPartneredDisplays.prototype.setStatus = function(status)
 {
     JS9p.log('JS9pPartneredDisplays status:', status);
-    this.status.innerHTML = status
+    if( this.status )
+        this.status.innerHTML = status
+}
+
+JS9pPartneredDisplays.prototype.setStatusRebin = function(status)
+{
+    JS9p.log('JS9pPartneredDisplays rebin status:', status);
+    if( this.status_rebin )
+        this.status_rebin.innerHTML = status
 }
 
 JS9pPartneredDisplays.prototype.setDefaultImageOpts = function(opts)
@@ -70,12 +89,13 @@ JS9pPartneredDisplays.prototype.setDefaultImageOpts = function(opts)
 
 JS9pPartneredDisplays.prototype.loadImage = function(path, xsz, ysz, bin, average)
 {
-    this.setStatus(`Loading ${path} preview image, please wait...`)
+    this.setStatus(`Loading ${path} (downsampled preview), please wait...`)
+    this.setStatusRebin("Loading preview...")
     this.bin = bin
     var binopt = average ? `${bin}a` : `${bin}`
     var opts = {fits2fits:true, xcen:(xsz/2>>0), ycen:(ysz/2>>0), xdim:xsz, ydim:ysz, bin:binopt,
                 onload: im => this.onLoadRebin(im, xsz, ysz, bin),
-                zoom:'T'}
+                zoom: 'T', valpos: false}
     this.setDefaultImageOpts(opts)
     JS9p.log("Loading", path, "with options", opts)
     JS9.Load(path, opts, {display:this.disp_rebin});
@@ -88,10 +108,11 @@ JS9pPartneredDisplays.prototype.onLoadRebin = function(im, xsz, ysz, bin)
     im._js9p = new JS9pImageProps(this, xsz, ysz, bin, this.zoomsize, this.zoomsize)
     this.resetScaleColormap(im)
     this.setStatus(`Loaded preview image for ${im.id}`)
-    var zoombox = im._js9p.updateZoom(xsz/bin/2, ysz/bin/2)
-    JS9p.log("setting zoombox", zoombox)
-    JS9.AddRegions(zoombox, {}, {display:this.disp_rebin})
-    //JS9.AddRegions(im._js9p.zoombox_str, zoombox, {display:this.disp_rebin})
+    this.setStatusRebin("Drag region to load")
+    im._js9p.updateZoombox(xsz/bin/2, ysz/bin/2)
+    JS9p.log("setting zoombox", im._js9p.zoombox)
+    im._js9p.zoom_cen.x = null // to force an update
+    JS9.AddRegions(im._js9p.zoombox, {}, {display:this.disp_rebin})
 }
 
 JS9pPartneredDisplays.prototype.onLoadZoom = function(im, imp)
@@ -99,7 +120,8 @@ JS9pPartneredDisplays.prototype.onLoadZoom = function(im, imp)
     im._js9p = imp
     this.resetScaleColormap(im)
     JS9.ChangeRegions("all", imp.zoombox, {display:this.disp_rebin})
-    this.setStatus(`Loaded ${im.id} (${imp.zoomsize.x}x${imp.zoomsize.y} slice at ${imp.zoom_cen.x},${imp.zoom_cen.y})`)
+    this.setStatus(`${im.id} (${imp.zoomsize.x}x${imp.zoomsize.y} region at ${imp.zoom_cen.x},${imp.zoom_cen.y})`)
+    this.setStatusRebin("Drag region to load")
     delete this._disable_checkzoom
 }
 
@@ -182,21 +204,26 @@ JS9pPartneredDisplays.prototype.checkZoomRegion = function(im, xreg)
         }
         var imp = im._js9p
         // make sure region is within bounds
-        var zoombox = imp.updateZoom(xreg.x, xreg.y)
+        var updated = imp.updateZoombox(xreg.x, xreg.y)
         JS9.ChangeRegions("all", imp.zoombox, {display:this.disp_rebin})
-        JS9.CloseImage({clear:false},{display: this.disp_zoom});
-        this.setStatus(`Loading ${im.id} (${imp.zoomsize.x}x${imp.zoomsize.y} slice at ${imp.zoom_cen.x},${imp.zoom_cen.y}), please wait...`)
-        opts = { fits2fits:true,
-                 xcen: imp.zoom_cen.x,
-                 ycen: imp.zoom_cen.y,
-                 xdim: imp.zoomsize.x,
-                 ydim: imp.zoomsize.y,
-                 bin:1,
-                 zoom:'T',
-                 onload: im => this.onLoadZoom(im, imp, zoombox)
-             }
-        this.setDefaultImageOpts(opts)
-        JS9.Load(im.id, opts, {display: this.disp_zoom});
+        if( updated ) {
+            JS9.CloseImage({clear:false},{display: this.disp_zoom});
+            this.setStatus(`Loading ${im.id} (${imp.zoomsize.x}x${imp.zoomsize.y} region at ${imp.zoom_cen.x},${imp.zoom_cen.y}), please wait...`)
+            this.setStatusRebin("Loading region...")
+            opts = { fits2fits:true,
+                     xcen: imp.zoom_cen.x,
+                     ycen: imp.zoom_cen.y,
+                     xdim: imp.zoomsize.x,
+                     ydim: imp.zoomsize.y,
+                     bin:1,
+                     zoom:'T',
+                     onload: im => this.onLoadZoom(im, imp, imp.zoombox)
+                 }
+            this.setDefaultImageOpts(opts)
+            JS9.Load(im.id, opts, {display: this.disp_zoom});
+        }
+        else
+            delete this._disable_checkzoom
         // this will be done in the callback, ignore region events until then: delete this._disable_checkzoom
     }
 }
@@ -206,9 +233,9 @@ JS9pPartneredDisplays.prototype.moveZoomRegion = function(im, xreg)
     if( im.display.id == this.disp_rebin && xreg.tags.indexOf("zoombox")>-1 ) {
         var imp = im._js9p
         // make sure region is within bounds
-        var zoombox = imp.updateZoom(xreg.x, xreg.y)
-        xreg.x = zoombox.x
-        xreg.y = zoombox.y
+        imp.restrictZoombox(xreg.x, xreg.y)
+        xreg.x = imp.zoombox.x
+        xreg.y = imp.zoombox.y
         JS9p.log("moveZoomRegion enforcing",xreg.x,xreg.y)
     }
 }
