@@ -113,33 +113,37 @@ class RadiopadreSettingsManager(SettingsManager):
 
         D = DocString
 
-        GEN = self.add_section("GEN", "general radiopadre settings")  # generic settings
+        gen = self.add_section("gen", "general radiopadre settings")  # generic settings
 
-        GEN.TWOCOLUMN_LIST_WIDTH = 20, D("file lists will default to dual-column if all names are within this length")
+        gen.twocolumn_list_width = 20, D("file lists will default to dual-column if all names are within this length")
 
-        GEN.TIMEFORMAT = "%H:%M:%S %b %d", D("time format")
+        gen.timeformat = "%H:%M:%S %b %d", D("time format")
 
+        display = self.add_section("display", "display settings, should be set up auto-magically")  # generic settings
 
+        display.cell_width = 800, D("width of Jupyter cell output, in pixels")
+        display.window_width = 1024, D("width of browser window")
+        display.window_height = 768, D("height of browser window")
 
-
-        PLOT = self.add_section("PLOT", "settings for rendering of plots")
+        plot = self.add_section("plot", "settings for rendering of plots")
 
         # globally fix a plot width (in inches)
-        PLOT.WIDTH = None, D("fix a display plot width (in inches)")
-        PLOT.SCREEN_DPI = 80, D("plot DPI")
+        plot.width = None, D("fix a display plot width (in inches)")
+        plot.screen_dpi = 80, D("plot DPI")
 
 
-        THUMB = self.add_section("THUMB", "settings for rendering of thumbnails")
+        thumb = self.add_section("thumb", "settings for rendering of thumbnails")
 
-        THUMB.MINCOL = 2, D("minimum number of columns to display in thumbnail view")
-        THUMB.MAXCOL = 4, D("maximum number of columns to display in thumbnail view")
+        thumb.mincol = 2, D("minimum number of columns to display in thumbnail view")
+        thumb.maxcol = 4, D("maximum number of columns to display in thumbnail view")
 
 
-        FITS = self.add_section("FITS", "settings for rendering of FITS files")
+        fits = self.add_section("fits", "settings for rendering of FITS files")
 
-        FITS.COLORMAP = 'cubehelix', D("default FITS colormap")
-        FITS.SCALE = 'linear', D("default FITS scaling")
-        FITS.VMIN = None, D("sets lower value for FITS scale")
-        FITS.VMAX = None, D("sets upper value for FITS scale")
+        fits.colormap = 'cubehelix', D("default FITS colormap")
+        fits.scale = 'linear', D("default FITS scaling")
+        fits.vmin = None, D("sets lower value for FITS scale")
+        fits.vmax = None, D("sets upper value for FITS scale")
 
-        FITS.MAX_JS9_SLICE = 2048, D("maximum slice size for JS9 displays")
+        fits.max_js9_slice = 2048, D("size of active slice for JS9 display of large images")
+        fits.js9_preview_size = 1024, D("size of preview for JS9 display of large images")

@@ -5,6 +5,7 @@ from IPython.display import HTML, display, Javascript
 import matplotlib.pyplot as plt
 import matplotlib.colors
 import uuid
+import math
 from collections import OrderedDict
 
 import radiopadre
@@ -18,6 +19,24 @@ def read_html_template(filename, subs):
     with open(js9_source) as inp:
         return inp.read().format(**subs)
 
+
+def dict_to_js(dd):
+    """Converts a dict object to Javascript source"""
+    js = "{"
+    for name, value in dd.items():
+        if value is None:
+            value = "null"
+        elif type(value) is bool:
+            value = "true" if value else "false"
+        elif type(value) is int or type(value) is float:
+            value = str(value)
+        elif type(value) is str:
+            value = "'{}'".format(value)
+        else:
+            raise TypeError,"can't convert value of type {} to Javascript".format(type(value))
+        js += "{}: {},".format(name, value)
+    js += "}"
+    return js
 
 
 class FITSFile(radiopadre.file.FileBase):
@@ -139,7 +158,7 @@ class FITSFile(radiopadre.file.FileBase):
                                                                    ncol, mincol,
                                                                    maxcol, width,
                                                                    maxwidth)
-        plt.figure(figsize=(width * ncol, width * nrow), dpi=settings.PLOT.SCREEN_DPI)
+        plt.figure(figsize=(width * ncol, width * nrow), dpi=settings.plot.screen_dpi)
         for iplot, ff in enumerate(fits_files):
             ax = plt.subplot(nrow, ncol, iplot + 1)
             ax.tick_params(labelsize=kw.get('fs_axis', fs))
@@ -281,7 +300,7 @@ class FITSFile(radiopadre.file.FileBase):
         if unroll is None:
             # show single image
             fig = make_figure and plt.figure(figsize=(width, width),
-                                             dpi=settings.PLOT.SCREEN_DPI)
+                                             dpi=settings.plot.screen_dpi)
             if fig:
                 plt.suptitle(self.basename)
             plt.imshow(data[tuple(baseslice)].T, vmin=vmin, vmax=vmax, cmap=cmap, norm=norm)
@@ -300,7 +319,7 @@ class FITSFile(radiopadre.file.FileBase):
                                                                        ncol, mincol,
                                                                        maxcol, width,
                                                                        maxwidth)
-            plt.figure(figsize=(width * ncol, width * nrow), dpi=settings.PLOT.SCREEN_DPI)
+            plt.figure(figsize=(width * ncol, width * nrow), dpi=settings.plot.screen_dpi)
             plt.suptitle(self.basename)
             for iplot in range(dims[unroll]):
                 ax = plt.subplot(nrow, ncol, iplot + 1)
@@ -332,7 +351,10 @@ class FITSFile(radiopadre.file.FileBase):
         subs['fits_image_url'] = js9.JS9_FITS_PREFIX_HTTP + self.fullpath
         # subs['lib_scripts'] = open(os.path.join(js9.DIRNAME, "js9-radiopadre.js")).read()
         subs['xsize'], subs['ysize'] = self.shape[:2]
-        subs['bin'] = 4
+        subs['bin'] = math.ceil(max(self.shape[:2])/float(settings.fits.js9_preview_size))
+        subs['xzoom'] = int(settings.fits.max_js9_slice * settings.display.window_width/float(settings.display.window_height))
+        subs['yzoom'] = settings.fits.max_js9_slice
+        subs['defaults'] = dict_to_js(settings.fits)
         subs.update(**locals())
 
         with open(js9_target, 'w') as outp:
@@ -343,15 +365,44 @@ class FITSFile(radiopadre.file.FileBase):
 
         return js9_target
 
-    # def js9_iframe(self):
-    #     js9_target = self._make_js9_window_script(subset=True)
-    #
-    #     return display(HTML('''
-    #        <iframe src="{}{}" width=1100 height=780></iframe>
-    #        '''.format(js9.JS9_SCRIPT_PREFIX_HTTP, js9_target)))
-
-    def js9_external(self):
+    def js9ext(self, **kw):
+        """Opens new window with JS9 display for image"""
         display_id = uuid.uuid4().hex
+        """Renders JS9 buttons for image
+        """
+        subs = globals().copy()
+        subs.update(display_id=div_id, **locals())
+        subs['fits_image_url'] = js9.JS9_FITS_PREFIX_HTTP + self.fullpath
+
+        if "JS9" not in postscript:
+            subs1 = subs.copy()
+            subs1.update(init_style= "display:none",
+                         total_width = settings.display.cell_width-16,  # subtract 16 to avoid horizontal scrollbar
+                         defaults = dict_to_js(settings.fits))
+
+            postscript["JS9"] = read_html_template("js9-dualwindow-inline-geometry-template.html", subs1) + \
+                                read_html_template("js9-dualwindow-body-template.html", subs1) + \
+                """<script type='text/javascript'>
+                        JS9p._pd_{display_id} = new JS9pPartneredDisplays('{display_id}', {settings.fits.max_js9_slice}, {settings.fits.max_js9_slice})
+                        JS9p._pd_{display_id}.defaults = {defaults}
+                   </script>
+                """.format(**subs1)
+
+        # use empty display ID for scripts in separate documents
+        subs1 = subs.copy()
+        subs1['init_style'] = ''
+        subs1['display_id'] = ''
+        js9_target3 = self._make_js9_dual_window_script(subs1)
+
+        xsize, ysize = self.shape[:2]
+        bin = math.ceil(max(xsize, ysize)/float(settings.fits.js9_preview_size))
+        subs.update(**locals())
+
+        code = """
+            <button onclick="JS9p._pd_{display_id}.loadImage('{self.fullpath}', {xsize}, {ysize}, {bin}, true)">&#8595;JS9</button>
+            <button onclick="window.open('{js9.JS9_SCRIPT_PREFIX_HTTP}{js9_target3}', '_blank')">&#8663;JS9</button>
+        """.format(**subs)
+        return code
         # print('Display id = {}'.format(display_id))
 
         # make dict of substitutions for HTML scripts
@@ -388,32 +439,32 @@ class FITSFile(radiopadre.file.FileBase):
         # print code
         display(HTML(code))
 
-    def js9(self):
-        display_id = uuid.uuid4().hex
-        # print('Display id = {}'.format(display_id))
-
-        # make dict of substitutions for HTML scripts
+    def js9(self, **kw):
+        """Displays FITS image in inline window"""
         subs = globals().copy()
         subs.update(**locals())
-        subs['fits_image_url'] = js9.JS9_FITS_PREFIX_JUP + self.fullpath
-        subs['fits2fits_options'] = "{fits2fits:false}"
 
-        code = """
-            <link type='text/css' rel='stylesheet' href='{js9.JS9_INSTALL_PREFIX_JUP}/js9support.css'>
-            <link type='text/css' rel='stylesheet' href='{js9.JS9_INSTALL_PREFIX_JUP}/js9.css'>
-        """.format(**subs)
+        subs['display_id'] = uuid.uuid4().hex
+        subs['total_width'] = settings.display.cell_width-16  # subtract 16 to avoid horizontal scrollbar
 
-        code += read_html_template("js9-singlewindow-body-template.html", subs)
+        defaults = dict(**settings.fits)
+        for key in defaults.keys():
+            if key in kw:
+                defaults[key] = kw[key]
 
-        code += """
-            <script type="text/javascript">
-            JS9.AddDivs("{display_id}-JS9");
-            JS9.Load("{fits_image_url}", {fits2fits_options},
-                     {{display:"{display_id}-JS9"}});
-            </script>
-        """.format(**subs)
+        subs['init_style'] = 'block'
+        subs['defaults']    = dict_to_js(defaults)
+        subs['xsize'], subs['ysize'] = self.shape[:2]
+        subs['bin'] = math.ceil(max(self.shape[:2])/float(settings.fits.js9_preview_size))
 
-        # print code
+        code = read_html_template("js9-dualwindow-inline-geometry-template.html", subs) + \
+                            read_html_template("js9-dualwindow-body-template.html", subs) + \
+            """<script type='text/javascript'>
+                    JS9p._pd_{display_id} = new JS9pPartneredDisplays('{display_id}', {settings.fits.max_js9_slice}, {settings.fits.max_js9_slice})
+                    JS9p._pd_{display_id}.defaults = {defaults}
+                    JS9p._pd_{display_id}.loadImage('{self.fullpath}', {xsize}, {ysize}, {bin}, true)
+            </script>""".format(**subs)
+
         display(HTML(code))
 
     def _action_buttons_(self, preamble=OrderedDict(), postscript=OrderedDict(), div_id=""):
@@ -425,24 +476,17 @@ class FITSFile(radiopadre.file.FileBase):
 
         if "JS9" not in postscript:
             subs1 = subs.copy()
-            # work out layout geometry
-            total_width = 900       # TODO: work this out auto-magically from JS one day
             subs1.update(init_style= "display:none",
-                         total_width = total_width)
+                         total_width = settings.display.cell_width-16,  # subtract 16 to avoid horizontal scrollbar
+                         defaults = dict_to_js(settings.fits))
+
             postscript["JS9"] = read_html_template("js9-dualwindow-inline-geometry-template.html", subs1) + \
                                 read_html_template("js9-dualwindow-body-template.html", subs1) + \
                 """<script type='text/javascript'>
-                        JS9p._pd_{display_id} = new JS9pPartneredDisplays('{display_id}', {settings.FITS.MAX_JS9_SLICE})
+                        JS9p._pd_{display_id} = new JS9pPartneredDisplays('{display_id}', {settings.fits.max_js9_slice}, {settings.fits.max_js9_slice})
+                        JS9p._pd_{display_id}.defaults = {defaults}
+                   </script>
                 """.format(**subs1)
-            if settings.FITS.VMIN:
-                postscript["JS9"] += "JS9p._pd_{display_id}.default_vmin = {settings.FITS.VMIN}\n".format(**subs1)
-            if settings.FITS.VMAX:
-                postscript["JS9"] += "JS9p._pd_{display_id}.default_vmax = {settings.FITS.VMAX}\n".format(**subs1)
-            if settings.FITS.COLORMAP:
-                postscript["JS9"] += "JS9p._pd_{display_id}.default_colormap = '{settings.FITS.COLORMAP}'\n".format(**subs1)
-            if settings.FITS.SCALE:
-                postscript["JS9"] += "JS9p._pd_{display_id}.default_scale = '{settings.FITS.SCALE}'\n".format(**subs1)
-            postscript["JS9"] += "</script>"
 
         # use empty display ID for scripts in separate documents
         subs1 = subs.copy()
@@ -451,11 +495,11 @@ class FITSFile(radiopadre.file.FileBase):
         js9_target3 = self._make_js9_dual_window_script(subs1)
 
         xsize, ysize = self.shape[:2]
-        bin = 4
+        bin = math.ceil(max(xsize, ysize)/float(settings.fits.js9_preview_size))
         subs.update(**locals())
 
         code = """
-            <button onclick="JS9p._pd_{display_id}.loadImage('{self.fullpath}', {xsize}, {ysize}, {bin}, true, false)">&#8595;JS9</button>
+            <button onclick="JS9p._pd_{display_id}.loadImage('{self.fullpath}', {xsize}, {ysize}, {bin}, true)">&#8595;JS9</button>
             <button onclick="window.open('{js9.JS9_SCRIPT_PREFIX_HTTP}{js9_target3}', '_blank')">&#8663;JS9</button>
         """.format(**subs)
         return code

@@ -39,7 +39,7 @@ class ImageFile(radiopadre.file.FileBase):
             return None
         nrow, ncol, width = radiopadre.file.compute_thumb_geometry(
             len(images), ncol, mincol, maxcol, width, maxwidth)
-        npix = int(settings.PLOT.SCREEN_DPI * width)
+        npix = int(settings.plot.screen_dpi * width)
 
         # make list of basename, filename  tuples
         filelist = sorted(

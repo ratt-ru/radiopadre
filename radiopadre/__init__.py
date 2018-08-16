@@ -31,6 +31,10 @@ astropy.log.setLevel('ERROR')
 
 ROOTDIR = os.getcwd()
 
+def set_window_sizes(cell_width,window_width,window_height):
+    settings.display.cell_width, settings.display.window_width, settings.display.window_height = cell_width, window_width, window_height
+
+
 def get_cache_dir(path, subdir=None):
     """Creates directory .radiopadre/subdir in directory of object given by path, and returns path to it.
     If write permissions not available, returns None
@@ -60,7 +64,19 @@ def _init_js_side():
     # load radiopadre/js/init.js and init controls
     #initjs = os.path.join(os.path.dirname(__file__), "html", "init-radiopadre-components.js")
     #display(Javascript(open(initjs).read()))
-    display(Javascript("document.radiopadre.register_user('%s')" % os.environ['USER']))
+    display(Javascript("""document.radiopadre.register_user('{}');""".format(os.environ['USER'])))
+
+    def reset():
+        display(Javascript("""
+            var width = $(".rendered_html")[0].clientWidth;
+            Jupyter.notebook.kernel.execute(`import radiopadre; radiopadre.set_window_sizes(
+                                                    ${{width}}, 
+                                                    ${{window.innerWidth}}, ${{window.innerHeight}})`);
+            """.format()))
+
+    reset()
+    settings.display.reset = reset, radiopadre.settings_manager.DocString("call this to reset sizes after e.g. a browser resize")
+
     # init JS9 components
     #import js9
     #display(Javascript(js9.get_init_js()))

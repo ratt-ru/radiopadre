@@ -46,7 +46,7 @@ class FileList(list):
         # auto-set 1 or 2 columns based on filename length
         if ncol is None:
             max_ = max([len(df.basename) for df in self])
-            ncol = 2 if max_ <= settings.GEN.TWOCOLUMN_LIST_WIDTH else 1
+            ncol = 2 if max_ <= settings.gen.twocolumn_list_width else 1
         if self._extcol:
             labels = "name", "ext", "size", "modified"
             data = [((df.basepath if self._showpath else df.basename), df.ext,

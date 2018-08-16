@@ -86,7 +86,7 @@ class FileBase(object):
         """Updates mtime and mtime_str attributes according to current file mtime,
         returns mtime_str"""
         self.mtime = os.path.getmtime(self.fullpath)
-        self.mtime_str = time.strftime(settings.GEN.TIMEFORMAT,
+        self.mtime_str = time.strftime(settings.gen.timeformat,
                                        time.localtime(self.mtime))
         return self.mtime_str
 
@@ -161,11 +161,11 @@ def compute_thumb_geometry(N, ncol, mincol, maxcol, width, maxwidth):
     """
     # figure out number of columns
     if not ncol:
-        mincol = mincol or settings.THUMB.MINCOL or 0
-        maxcol = maxcol or settings.THUMB.MAXCOL or 8
+        mincol = mincol or settings.thumb.mincol or 0
+        maxcol = maxcol or settings.thumb.maxcol or 8
         ncol = max(mincol, min(maxcol, N))
     # number of rows
     nrow = int(math.ceil(N / float(ncol)))
     # individual thumbnail width
-    width = width or ((maxwidth or settings.PLOT.WIDTH or 16) / float(ncol))
+    width = width or ((maxwidth or settings.plot.width or 16) / float(ncol))
     return nrow, ncol, width

@@ -5,9 +5,11 @@
         handle: "#rebin-{display_id}-JS9_Menubar",
         opacity: 0.35
         }});
-        JS9p._pd_{display_id} = new JS9pPartneredDisplays('{display_id}', {settings.FITS.MAX_JS9_SLICE})
+        JS9p._pd_{display_id} = new JS9pPartneredDisplays('{display_id}', {xzoom}, {yzoom})
 
-        JS9p._pd_{display_id}.loadImage('{self.fullpath}', {xsize}, {ysize}, {bin}, true, true)
+        JS9p._pd_{display_id}.defaults = {defaults}
+
+        JS9p._pd_{display_id}.loadImage('{self.fullpath}', {xsize}, {ysize}, {bin}, true)
 
     }});
 </script>
