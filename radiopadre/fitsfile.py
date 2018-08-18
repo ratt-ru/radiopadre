@@ -338,7 +338,7 @@ class FITSFile(radiopadre.file.FileBase):
                 plt.ylim(*ylim)
         return status
 
-    def _make_js9_dual_window_script(self, subs):
+    def _make_js9_dual_window_script(self, subs, **kw):
         # creates an HTML script per each image, by replacing various arguments in a templated bit of html
         cachedir = radiopadre.get_cache_dir(self.fullpath, "js9-launch")
         symlink = "{}/{}".format(cachedir, self.name)
@@ -354,7 +354,11 @@ class FITSFile(radiopadre.file.FileBase):
         subs['bin'] = math.ceil(max(self.shape[:2])/float(settings.fits.js9_preview_size))
         subs['xzoom'] = int(settings.fits.max_js9_slice * settings.display.window_width/float(settings.display.window_height))
         subs['yzoom'] = settings.fits.max_js9_slice
-        subs['defaults'] = dict_to_js(settings.fits)
+        defaults = dict(**settings.fits)
+        for key in defaults.keys():
+            if key in kw:
+                defaults[key] = kw[key]
+        subs['defaults'] = dict_to_js(defaults)
         subs.update(**locals())
 
         with open(js9_target, 'w') as outp:
@@ -367,77 +371,15 @@ class FITSFile(radiopadre.file.FileBase):
 
     def js9ext(self, **kw):
         """Opens new window with JS9 display for image"""
-        display_id = uuid.uuid4().hex
-        """Renders JS9 buttons for image
-        """
         subs = globals().copy()
-        subs.update(display_id=div_id, **locals())
         subs['fits_image_url'] = js9.JS9_FITS_PREFIX_HTTP + self.fullpath
 
-        if "JS9" not in postscript:
-            subs1 = subs.copy()
-            subs1.update(init_style= "display:none",
-                         total_width = settings.display.cell_width-16,  # subtract 16 to avoid horizontal scrollbar
-                         defaults = dict_to_js(settings.fits))
+        subs['init_style'] = ''
+        subs['display_id'] = ''
+        subs['js9_target'] = self._make_js9_dual_window_script(subs, **kw)
 
-            postscript["JS9"] = read_html_template("js9-dualwindow-inline-geometry-template.html", subs1) + \
-                                read_html_template("js9-dualwindow-body-template.html", subs1) + \
-                """<script type='text/javascript'>
-                        JS9p._pd_{display_id} = new JS9pPartneredDisplays('{display_id}', {settings.fits.max_js9_slice}, {settings.fits.max_js9_slice})
-                        JS9p._pd_{display_id}.defaults = {defaults}
-                   </script>
-                """.format(**subs1)
-
-        # use empty display ID for scripts in separate documents
-        subs1 = subs.copy()
-        subs1['init_style'] = ''
-        subs1['display_id'] = ''
-        js9_target3 = self._make_js9_dual_window_script(subs1)
-
-        xsize, ysize = self.shape[:2]
-        bin = math.ceil(max(xsize, ysize)/float(settings.fits.js9_preview_size))
-        subs.update(**locals())
-
-        code = """
-            <button onclick="JS9p._pd_{display_id}.loadImage('{self.fullpath}', {xsize}, {ysize}, {bin}, true)">&#8595;JS9</button>
-            <button onclick="window.open('{js9.JS9_SCRIPT_PREFIX_HTTP}{js9_target3}', '_blank')">&#8663;JS9</button>
-        """.format(**subs)
-        return code
-        # print('Display id = {}'.format(display_id))
-
-        # make dict of substitutions for HTML scripts
-        subs = globals().copy()
-        subs.update(**locals())
-        subs['fits_image_path'] = self.fullpath
-        subs['fits_image_url'] = js9.JS9_FITS_PREFIX_JUP + self.fullpath
-        subs['fits2fits_options_rebin'] = "fits2fits:true,xcen:2048,ycen:2048,xdim:4096,ydim:4096,bin:'4a'"
-
-        code = read_html_template("js9-dualwindow-body-template.html", subs)
-
-        code += """
-            <link type='text/css' rel='stylesheet' href='{js9.JS9_INSTALL_PREFIX_JUP}/js9support.css'>
-            <link type='text/css' rel='stylesheet' href='{js9.JS9_INSTALL_PREFIX_JUP}/js9.css'>
-            
-            <script type="text/javascript">
-            // register partner displays
-            JS9p.register_partners('rebin-{display_id}-JS9', 'zoom-{display_id}-JS9');
-        
-            // preload the image
-            JS9.Load("{fits_image_path}",
-                     {{ {fits2fits_options_rebin},
-                        onload: function(im){{
-                            console.log("loaded image is", im);
-                            JS9.AddRegions({init_zoom_box},
-                                           {{color:"red",data:"zoom_region",rotatable:false,removable:false}},
-                                           {{display:"rebin-{display_id}-JS9"}});
-                        }},
-                        zoom:'T'}},
-                     {{display:"rebin-{display_id}-JS9"}});
-            </script>
-        """
-
-        # print code
-        display(HTML(code))
+        code = """window.open('{js9.JS9_SCRIPT_PREFIX_HTTP}{js9_target}', '_blank')""".format(**subs)
+        display(Javascript(code))
 
     def js9(self, **kw):
         """Displays FITS image in inline window"""
@@ -492,14 +434,24 @@ class FITSFile(radiopadre.file.FileBase):
         subs1 = subs.copy()
         subs1['init_style'] = ''
         subs1['display_id'] = ''
-        js9_target3 = self._make_js9_dual_window_script(subs1)
+        js9_target = self._make_js9_dual_window_script(subs1)
 
         xsize, ysize = self.shape[:2]
         bin = math.ceil(max(xsize, ysize)/float(settings.fits.js9_preview_size))
+        image_id = id(self)
         subs.update(**locals())
+        subs['image_id'] = id(self)
+        subs['element_id'] = element_id = "{}_{}".format(div_id, id(self))
+
+        postscript[element_id] = """<script type='text/javascript'>
+            JS9p._pd_{element_id}_load = function () {{
+                JS9p._pd_{display_id}.loadImage('{self.fullpath}', {xsize}, {ysize}, {bin}, true)
+                document.getElementById("JS9load-{element_id}").innerHTML = "&#x21A1;JS9"
+            }}
+        </script>""".format(**subs)
 
         code = """
-            <button onclick="JS9p._pd_{display_id}.loadImage('{self.fullpath}', {xsize}, {ysize}, {bin}, true)">&#8595;JS9</button>
-            <button onclick="window.open('{js9.JS9_SCRIPT_PREFIX_HTTP}{js9_target3}', '_blank')">&#8663;JS9</button>
+            <button id="JS9load-{element_id}" onclick="JS9p._pd_{element_id}_load()">&#8595;JS9</button>
+            <button id="" onclick="window.open('{js9.JS9_SCRIPT_PREFIX_HTTP}{js9_target}', '_blank')">&#8663;JS9</button>
         """.format(**subs)
         return code

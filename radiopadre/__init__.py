@@ -64,22 +64,23 @@ def _init_js_side():
     # load radiopadre/js/init.js and init controls
     #initjs = os.path.join(os.path.dirname(__file__), "html", "init-radiopadre-components.js")
     #display(Javascript(open(initjs).read()))
-    display(Javascript("""document.radiopadre.register_user('{}');""".format(os.environ['USER'])))
+
+    reset_code = """
+        var width = $(".rendered_html")[0].clientWidth;
+        Jupyter.notebook.kernel.execute(`import radiopadre; radiopadre.set_window_sizes(
+                                                ${width}, 
+                                                ${window.innerWidth}, ${window.innerHeight})`);
+    """
 
     def reset():
-        display(Javascript("""
-            var width = $(".rendered_html")[0].clientWidth;
-            Jupyter.notebook.kernel.execute(`import radiopadre; radiopadre.set_window_sizes(
-                                                    ${{width}}, 
-                                                    ${{window.innerWidth}}, ${{window.innerHeight}})`);
-            """.format()))
-
-    reset()
+        display(Javascript(reset_code))
     settings.display.reset = reset, radiopadre.settings_manager.DocString("call this to reset sizes after e.g. a browser resize")
 
-    # init JS9 components
-    #import js9
-    #display(Javascript(js9.get_init_js()))
+    display(HTML("""<script type='text/javascript'>
+            document.radiopadre.register_user('{}');
+            {}
+        </script>
+        """.format(os.environ['USER'], reset_code, __version__)))
 
 def protect(author=None):
     """Makes current notebook protected with the given author name. Protected notebooks won't be saved
