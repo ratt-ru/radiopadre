@@ -56,20 +56,3 @@ if JS9_ERROR:
     JS9_INIT_HTML_JUP = JS9_INIT_HTML_HTTP = "<p>Error initializing JS9: {}</p>".format(JS9_ERROR)
 
 
-def get_init_js():
-    """Returns Javascript code for JS9 initialization."""
-
-    # we only want to load JS9 once per a document's lifetime, otherwise chaos ensues
-    return """
-        if( !document.radiopadre.js9_init_code )
-        {{
-            console.log("loading JS9...");
-            document.radiopadre.js9_init_code = "{0}";
-            element.append(document.radiopadre.js9_init_code);
-        }}
-        else
-        {{
-            console.log("JS9 already loaded, skipping");
-        }}
-        {1}
-        """.format(JS9_INIT_HTML_JUP.replace("\n",""), open(DIRNAME+"/js9-radiopadre.js").read())

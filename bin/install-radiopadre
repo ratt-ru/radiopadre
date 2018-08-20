@@ -118,6 +118,9 @@ if options.command in ["install", "reinstall", "reqs"]:
     message("making link from {notebook_padre_www} to {padre_www}")
     if not os.path.exists(notebook_padre_www):
         os.symlink(padre_www, notebook_padre_www)
+    colormap_js = notebook_dir + "/notebook/static/js9colormaps.js"
+    message("creating colormap definitions in {colormap_js}")
+    shell("{PADRE_PATH}/bin/install-js9-colormaps {colormap_js}")
 
 if options.command in ["install", "reinstall", "js9"] and not options.no_js9:
     # install JS9 inside venv

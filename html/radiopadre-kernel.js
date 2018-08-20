@@ -215,6 +215,7 @@ if (appname === 'NotebookApp')
       <script type='text/javascript'> console.log('loaded JS9 components') </script>\
       <script type='text/javascript' src='/static/radiopadre-www/js9partners.js'></script>\
       <script type='text/javascript'> console.log('loaded JS9 partner plugin') </script>\
+      <script type='text/javascript' src='/static/js9colormaps.js'></script>\
     "
     Jupyter.toolbar.element.append(wrapper);
 

@@ -102,7 +102,20 @@ function JS9pPartneredDisplays(display_id, xzoom, yzoom)
     this.disp_rebin = 'rebin-' + display_id + '-JS9'
     this.disp_zoom  = 'zoom-'  + display_id + '-JS9'
     this.status = document.getElementById('status-' + display_id)
-    this.status_rebin = document.getElementById('status-' + display_id + '-rebin')
+    this.status_rebin = document.getElementById(`status-${display_id}-rebin`)
+    this.w_reset_scale = document.getElementById(`zoom-${display_id}-fullscale`)
+    if( this.w_reset_scale )
+        this.w_reset_scale.onclick = ev => this.resetScaleColormap()
+    this.w_lock_scale = document.getElementById(`zoom-${display_id}-lockscale`)
+    if( this.w_lock_scale )
+        this.w_lock_scale.onclick = ev => this.toggleScaleColormapLock()
+
+    // toggle to false
+    this.lock_scale = true
+    this.toggleScaleColormapLock()
+    // toggle to true
+    this.lock_pan_zoom = false
+    this.togglePanZoomLock()
 
     this.zoomsize = new JS9pTuple(xzoom, yzoom)
 
@@ -113,7 +126,7 @@ function JS9pPartneredDisplays(display_id, xzoom, yzoom)
     this.defaults = {}
 
     // keeps track of which image is displayed on top, when using multiple images
-    this.current_image = null
+    this.current_image = {}
     this._current_zoompan = null
 
     // keeps track of loaded images
@@ -121,9 +134,6 @@ function JS9pPartneredDisplays(display_id, xzoom, yzoom)
 
     // queue of images to be loaded
     this._loading_queue = []
-
-    JS9p.display_props[this.disp_rebin] = {partnership:this, partner_display: this.disp_zoom}
-    JS9p.display_props[this.disp_zoom]  = {partnership:this, partner_display: this.disp_rebin}
 
     JS9.AddDivs(this.disp_rebin, this.disp_zoom)
 }
@@ -148,9 +158,9 @@ JS9pPartneredDisplays.prototype.loadImage = function(path, xsz, ysz, bin, averag
     if( imp ) {
         this._current_zoompan = null
         JS9.DisplayImage({display:imp._zoomed_image})
-        this.resetZoomPan(imp._zoomed_image)
     }
     else {
+        this._block_callbacks = true
         this._loading = path
         this.imps[path] = imp = new JS9pImageProps(this, xsz, ysz, bin, this.zoomsize.x, this.zoomsize.y)
         if( imp.zoomable ) {
@@ -244,15 +254,18 @@ JS9pPartneredDisplays.prototype.setDefaultImageOpts = function(opts)
 //
 JS9pPartneredDisplays.prototype.onLoadRebin = function(im, imp)
 {
+    JS9p.log("onLoadRebin", im.id, im)
+    this.setStatus(`Loaded preview image for ${im.id}`)
     im._js9p = imp
     im._rebinned = true
     imp._rebinned_image = im
-    this.setStatus(`Loaded preview image for ${im.id}`)
-    this.resetScaleColormap(im)
-    this.resetZoomPan(im)
+    this.current_image[this.disp_rebin] = im
+    this.applyScaleColormap(im, imp, true)
+    this.applyZoomPan(im, imp)
     this.setStatusRebin("Drag to load new active region")
     imp.updateZoomboxRel(this.zoom_rel)
     imp.zoom_cen.x = null // to force an update
+    delete this._block_callbacks
     JS9p.log("setting zoombox", imp.zoombox)
     JS9.AddRegions(imp.zoombox, {}, {display:this.disp_rebin})
 }
@@ -263,17 +276,20 @@ JS9pPartneredDisplays.prototype.onLoadRebin = function(im, imp)
 //
 JS9pPartneredDisplays.prototype.onLoadZoom = function(im, imp)
 {
+    JS9p.log("onLoadZoom", im.id, im)
     im._js9p = imp
     im._zoomed = true
+    im._partner_image = imp._rebinned_image
+    imp._rebinned_image._partner_image = im
     imp._zoomed_image = im
-    this.current_image = im.id
-    this.resetScaleColormap(im)
-    this.resetZoomPan(im)
+    this.current_image[this.disp_zoom] = im
+    this.applyScaleColormap(im, imp, true)
+    this.applyZoomPan(im, imp)
     this.zoom_rel = imp.zoom_rel
     JS9.ChangeRegions("all", imp.zoombox, {display:this.disp_rebin})
     this.setStatus(`${im.id} (${imp.zoomsize.x}x${imp.zoomsize.y} region at ${imp.zoom_cen.x},${imp.zoom_cen.y})`)
     this.setStatusRebin("Drag to load new active region")
-    delete this._disable_checkzoom
+    delete this._block_callbacks
     this._finishLoad()
 }
 
@@ -283,51 +299,130 @@ JS9pPartneredDisplays.prototype.onLoadZoom = function(im, imp)
 //
 JS9pPartneredDisplays.prototype.onLoadNonzoomable = function(im, imp)
 {
+    JS9p.log("onLoadNonzoomable", im.id, im)
     im._js9p = imp
     im._nonzoom = true
     imp._zoomed_image = im
-    this.resetScaleColormap(im)
+    this.current_image[this.disp_zoom] = im
+    this.applyScaleColormap(im, imp, true)
     this.setStatus(`${im.id} (${imp.size.x}x${imp.size.y})`)
+    delete this._block_callbacks
     this._finishLoad()
 }
 
-// resetZoomPan(im)
-//      Resets the zoom/pan settings of the current image
+// applyZoomPan(im, imp)
+//      Resets the zoom/pan settings of the current image to previously saved ones, if sizes match
 //
-JS9pPartneredDisplays.prototype.resetZoomPan = function(im)
+JS9pPartneredDisplays.prototype.applyZoomPan = function(im, imp)
 {
-    if( this._current_zoompan ) {
-        JS9.SetZoom(this._current_zoompan.zoom, {display:im})
-        JS9.SetPan(this._current_zoompan.x, this._current_zoompan.y, {display:im})
+    if( this._current_zoompan && !im._rebinned ) {
+        if( this._current_zoompan.imp.size.x == imp.size.x && this._current_zoompan.imp.size.y == imp.size.y ) {
+            JS9p.log("applying saved zoom-pan (sizes match)")
+            JS9.SetZoom(this._current_zoompan.zoom, {display:im})
+            JS9.SetPan(this._current_zoompan.x, this._current_zoompan.y, {display:im})
+        } else {
+            JS9p.log("not applying saved zoom-pan (sizes mismatch)")
+            this._current_zoompan = null
+        }
     }
 }
 
-// resetScaleColormap(im)
-//      Sets the scale and colormap of a loaded image. Ensures that either defaults or previous user settings
-//      for scales and colormaps are applied. Called internally from the onLoadXXX() callbacks.
-//
-JS9pPartneredDisplays.prototype.resetScaleColormap = function(im)
+
+// toggleScaleColormapLock()
+//      Toggles the scale-lock property
+JS9pPartneredDisplays.prototype.toggleScaleColormapLock = function()
 {
-    this._setting_scales_colormaps = true
-    if( this.user_colormap != null ) {
-        JS9p.log("setting user-defined colormap", this.user_colormap);
-        JS9.SetColormap(this.user_colormap.colormap,
-                        this.user_colormap.contrast,
-                        this.user_colormap.bias,
-                        {display: im})
+    this.lock_scale = !this.lock_scale
+    JS9p.log("toggleScaleColormapLock to", this.lock_scale)
+    if( this.w_lock_scale )
+        if( this.lock_scale )
+            this.w_lock_scale.innerHTML = "&#x2612; lock"
+        else
+            this.w_lock_scale.innerHTML = "&#x2610; lock"
+}
+
+// togglePanZoomLock()
+//      Toggles the pan-zoom-lock property
+JS9pPartneredDisplays.prototype.togglePanZoomLock = function()
+{
+    this.lock_pan_zoom = !this.lock_pan_zoom
+    JS9p.log("togglePanZoomLock to", this.lock_pan_zoom)
+    if( this.w_lock_scale )
+        if( this.lock_scale )
+            this.w_lock_scale.innerHTML = "&#x2612; lock"
+        else
+            this.w_lock_scale.innerHTML = "&#x2610; lock"
+}
+
+// resetScaleColormap(im)
+//    Resets the scale of the current image
+JS9pPartneredDisplays.prototype.resetScaleColormap = function()
+{
+    var im = this.current_image[this.disp_zoom]
+    JS9p.log("resetScaleColormap", im)
+    if( im == null )
+        return
+    var cmap = JS9.GetColormap({display: im})
+    JS9.SetColormap(cmap.colormap, 1, 0.5, {display: im})
+    var scale = JS9.GetScale({display: im})
+    JS9.SetScale(scale.scale, im.raw.dmin, im.raw.dmax, {display: im})
+}
+
+// checkScaleColormap(im)
+//      Checks current scale and colormap, and enables/disables the reset control appropriatelu
+JS9pPartneredDisplays.prototype.checkScaleColormap = function(im)
+{
+    if( this.w_reset_scale ) {
+        var cmap = JS9.GetColormap({display:im})
+        var scale = JS9.GetScale({display:im})
+        if(cmap.contrast == 1 && cmap.bias == 0.5 && scale.scalemin == im.raw.dmin && scale.scalemax == im.raw.dmax)
+        {
+            this.w_reset_scale.disabled = true
+            this.w_reset_scale.innerHTML = "&#x21e4;&#x21e5;"
+//            this.w_reset_scale.innerHTML = "&#x21ce;"
+        } else {
+            this.w_reset_scale.disabled = false
+            this.w_reset_scale.innerHTML = "&#x21a4;&#x21a6;"
+//            this.w_reset_scale.innerHTML = "&#x21d4;"
+        }
     }
-    else if( this.defaults.colormap != null ) {
-        JS9p.log("setting default colormap", this.defaults.colormap);
-        JS9.SetColormap(this.defaults.colormap, 1, 0.5, {display: im})
+}
+
+// setScaleColormap(im, scale, colormap)
+//      Sets the scale and colormap of an image.
+JS9pPartneredDisplays.prototype.setScaleColormap = function(im, scale, colormap)
+{
+    if( scale )
+        JS9.SetScale(scale.scale, scale.scalemin, scale.scalemax, {display: im})
+    if( colormap )
+        JS9.SetColormap(colormap.colormap, colormap.contrast, colormap.bias, {display: im})
+    this.checkScaleColormap(im)
+}
+
+
+// applyScaleColormap(im)
+//      Sets up the scale and colormap of a loaded image.
+//      Ensures that either (a) previous user settings for this image or (b) previous user settings for
+//      display overall (if scale-lock is on), or (c) default settings are applied.
+//      Called internally from the onLoadXXX() etc. callbacks.
+//
+JS9pPartneredDisplays.prototype.applyScaleColormap = function(im, imp, use_defaults)
+{
+    var colormap = imp._user_colormap
+    var scale = imp._user_scale
+    if( this.lock_scale && this.user_colormap != null ) {
+        JS9p.log("setting locked user-defined colormap", this.user_colormap)
+        colormap = this.user_colormap
     }
-    if( this.user_scale != null ) {
-        JS9p.log("setting user-defined scale", this.scale);
-        JS9.SetScale(this.user_scale.scale,
-                     this.user_scale.scalemin,
-                     this.user_scale.scalemax,
-                     {display: im})
+    else if( use_defaults && this.defaults.colormap != null ) {
+        JS9p.log("setting default colormap", this.defaults.colormap)
+        colormap = { colormap: this.defaults.colormap, contrast: 1, bias: 0.5 }
     }
-    else if( this.defaults.scale != null || this.defaults.vmin != null || this.defaults.vmax != null) {
+    if( this.lock_scale && this.user_scale != null ) {
+        JS9p.log("setting locked user-defined scale", this.scale)
+        scale = this.user_scale
+    }
+    else if( use_defaults && (this.defaults.scale != null || this.defaults.vmin != null || this.defaults.vmax != null)) {
         scale = JS9.GetScale({display: im})
         if( this.defaults.scale != null )
             scale.scale = this.defaults.scale
@@ -335,68 +430,55 @@ JS9pPartneredDisplays.prototype.resetScaleColormap = function(im)
             scale.scalemin = this.defaults.vmin
         if( this.defaults.vmax != null )
             scale.scalemax = this.defaults.vmax
-        JS9.SetScale(scale.scale,
-                     scale.scalemin,
-                     scale.scalemax,
-                     {display: im})
     }
-    delete this._setting_scales_colormaps
+    JS9p.log("applying", scale, colormap)
+    this.setScaleColormap(im, scale, colormap)
 }
 
 // syncColormap(im)
 //      Internal callback for when the colormap of an image is changed. Propagates changes to other display,
 //      and saves them for future images
-JS9pPartneredDisplays.prototype.syncColormap = function(im)
+JS9pPartneredDisplays.prototype.syncColormap = function(im, imp)
 {
-    if( this._setting_scales_colormaps )
-        return
-    this._setting_scales_colormaps = true
-    var partner = im.display.id == this.disp_rebin ? this.disp_zoom : this.disp_rebin
-    this.user_colormap = JS9.GetColormap({display:im})
-    JS9p.log(`syncing colormap from ${im} to display ${partner}`)
-    JS9.SetColormap(this.user_colormap.colormap,
-                    this.user_colormap.contrast,
-                    this.user_colormap.bias,
-                    {display: partner})
-    delete this._setting_scales_colormaps
+    this._block_callbacks = true
+    this.user_colormap = imp._user_colormap = JS9.GetColormap({display:im})
+    if( im._partner_image ) {
+        JS9p.log(`  syncing colormap from ${im} to display ${im._partner_image}`)
+        this.setScaleColormap(im._partner_image, null, imp._user_colormap)
+    }
+    delete this._block_callbacks
 }
 
 // syncScale(im)
 //      Internal callback for when the scale of an image is changed. Propagates changes to other display,
 //      and saves them for future images
-JS9pPartneredDisplays.prototype.syncScale = function(im)
+JS9pPartneredDisplays.prototype.syncScale = function(im, imp)
 {
-    if( this._setting_scales_colormaps )
-        return
-    this._setting_scales_colormaps = true
-    var partner = im.display.id == this.disp_rebin ? this.disp_zoom : this.disp_rebin
-    this.user_scale = JS9.GetScale({display:im});
-    JS9p.log(`syncing colormap from ${im} to display ${partner}`)
-    JS9.SetScale(this.user_scale.scale,
-                 this.user_scale.scalemin,
-                 this.user_scale.scalemax,
-                 {display: partner});
-    delete this._setting_scales_colormaps
+    this._block_callbacks = true
+    this.user_scale = imp._user_scale = JS9.GetScale({display:im})
+    if( im._partner_image ) {
+        JS9p.log(`  syncing scale from ${im} to display ${im._partner_image}`)
+        this.setScaleColormap(im._partner_image, imp._user_scale, null)
+    }
+    delete this._block_callbacks
 }
 
 // checkZoomRegion(im, xreg)
 //      Internal callback for when regions are changed. Checks if the region is the zoombox, and causes
 //      a new section of the zoomed image to be loaded if so
 //
-JS9pPartneredDisplays.prototype.checkZoomRegion = function(im, xreg)
+JS9pPartneredDisplays.prototype.checkZoomRegion = function(im, imp, xreg)
 {
-    JS9p.log("checkZoomRegion entry", this);
-    if( im.display.id == this.disp_rebin && xreg.tags.indexOf("zoombox")>-1 && !this._disable_checkzoom)
+    this._block_callbacks = true
+    if( im._rebinned && xreg.tags.indexOf("zoombox")>-1 )
     {
-        JS9p.log("zoom-syncing", im, xreg);
-        this._disable_checkzoom = true
-        var imp = im._js9p
+        JS9p.log("  zoom-syncing", im, xreg);
         // make sure region is within bounds
         var updated = imp.updateZoombox(xreg.x*imp.bin, xreg.y*imp.bin)
         JS9.ChangeRegions("all", imp.zoombox, {display:this.disp_rebin})
         if( updated ) {
             this._loading = im.id
-            this.current_image = null
+            this.current_image[this.disp_zoom] = null
             if( this._preserve_zoompan )
                 delete this._preserve_zoompan
             else
@@ -417,55 +499,54 @@ JS9pPartneredDisplays.prototype.checkZoomRegion = function(im, xreg)
                      onload: im => this.onLoadZoom(im, imp, imp.zoombox)
                  }
             this.setDefaultImageOpts(opts)
-            JS9p.log("preloading", opts)
+            JS9p.log("  preloading", opts)
             JS9.Preload(im.id, opts, {display: this.disp_zoom});
+            // wait for onload to clear _block_callbacks, ignore them until then
+            return
         }
-        else
-            delete this._disable_checkzoom
         // this will be done in the callback, ignore region events until then: delete this._disable_checkzoom
     }
+    delete this._block_callbacks
 }
 
 
-JS9pPartneredDisplays.prototype.onSetZoomPan = function(im)
+JS9pPartneredDisplays.prototype.onSetZoomPan = function(im, imp)
 {
-    JS9p.log("onSetZoomPan", im)
     if( im._zoomed || im._nonzoom ) {
         this._current_zoompan = JS9.GetPan({display:im})
         this._current_zoompan.zoom = JS9.GetZoom({display:im})
-        JS9p.log("onSetZoomPan", this._current_zoompan)
+        this._current_zoompan.imp = imp
     }
 }
 
-
-
-JS9pPartneredDisplays.prototype.onImageDisplay = function(im)
+JS9pPartneredDisplays.prototype.onImageDisplay = function(im, imp)
 {
-    imp = im._js9p
-    if( this._onimagedisplay )
+    if( this.current_image[im.display.id] === im )
+    {
+        JS9p.log("  onImageDisplay: image already displayed -- skipping")
         return
-    this._onimagedisplay = true
+    }
+    this._block_callbacks = true
+    this.current_image[im.display.id] = im
+    // reset scale/colors to locked values, if locked
+    this.applyScaleColormap(im, imp, false)
     // if displaying a rebinned image: if a different zoomed image is currently displayed,
     // display the correct one. Delete the guard, since we want the callback to be executed for the zoomed image.
     if( im._rebinned ) {
         zoomed_im = imp._zoomed_image
-        if( zoomed_im && this.current_image != null && this.current_image != zoomed_im.id ) {
-            delete this._onimagedisplay
-            JS9.DisplayImage({display:zoomed_im})
+        if( zoomed_im && !(this.current_image[this.disp_zoom] === zoomed_im) ) {
+            delete this._block_callbacks
+            JS9.DisplayImage(zoomed_im, {display:this.disp_zoom})
         }
     }
     // if displaying a zoomed image:
     else if( im._zoomed ) {
-        // current image not set, or already this one: ignore
-        if( this.current_image == null || this.current_image == im.id )
-        {
-            JS9p.log("onImageDisplay ignored", this.current_image, im.id)
-            delete this._onimagedisplay
-            return
-        }
-        JS9p.log("onImageDisplay zoomed", im)
+        JS9p.log("  onImageDisplay zoomed", im)
         this.showPreviewPanel(true)
-        JS9.DisplayImage({display:imp._rebinned_image})
+        if( !(this.current_image[this.disp_rebin] === imp._rebinned_image) ) {
+            this.applyScaleColormap(imp._rebinned_image, imp, false) // callback will be blocked, so apply it here
+            JS9.DisplayImage({display:imp._rebinned_image})
+        }
         // if relative section is different, do a ChangeRegions, causing an update above
         if( this.zoom_rel.x != imp.zoom_rel.x || this.zoom_rel.y != imp.zoom_rel.y )
         {
@@ -473,28 +554,27 @@ JS9pPartneredDisplays.prototype.onImageDisplay = function(im)
             imp.updateZoomboxRel(this.zoom_rel)
             imp.zoom_cen.x = null  // force an update
             this._preserve_zoompan = true
+            // delete guard -- we want the checkZoomRegion() callback to be invoked
+            delete this._block_callbacks
             JS9.ChangeRegions("all", imp.zoombox, {display:this.disp_rebin})
+            return
         }
         else
         {
-            JS9p.log("updating zoombox", imp.zoombox)
-        // if relative section is the same, do nothing, but update the region, disabling the callback above
-            this._disable_checkzoom = true
-            this.resetZoomPan(im)
+            JS9p.log("  updating zoombox", imp.zoombox)
+            // if relative section is the same, do nothing, but update the region (note that checkZoomRegion callback will be blocked)
+            this.applyZoomPan(im, imp)
             JS9.ChangeRegions("all", imp.zoombox, {display:this.disp_rebin})
-            delete this._disable_checkzoom
             this.setStatus(`${im.id} (${imp.zoomsize.x}x${imp.zoomsize.y} region at ${imp.zoom_cen.x},${imp.zoom_cen.y})`)
         }
-        this.current_image = im.id
     // non-zoomed image displayed: simply set the current image
     } else if( im._nonzoom ) {
-        JS9p.log("onImageDisplay nonzoomed", im)
+        JS9p.log("  onImageDisplay nonzoomed", im)
         this.showPreviewPanel(false)
-        this.current_image = im.id
         this.setStatus(`${im.id} (${imp.size.x}x${imp.size.y})`)
         this.setStatusRebin("---")
     }
-    delete this._onimagedisplay
+    delete this._block_callbacks
 }
 
 
@@ -503,9 +583,6 @@ JS9pPartneredDisplays.prototype.onImageDisplay = function(im)
 var JS9p = {
     // if True, various stuff is logged to console.log()
     debug: true,
-
-    // display properties, used by JS9pPartneredDisplays
-    display_props: {},
 
     // log(...)
     //      logs stuff to console (if debug==True), else does nothing
@@ -520,8 +597,15 @@ var JS9p = {
     //      invokes the given method of that object, with the remaining arguments.
     call_partner_method: function(method, im, ...args)
     {
-        if( im._js9p && im._js9p.partnered_displays )
-            im._js9p.partnered_displays[method](im, ...args)
+        var imp = im._js9p
+        if( imp ) {
+            if( imp.partnered_displays._block_callbacks ) {
+                JS9p.log(`--blocked ${method}`,im.id,im,args)
+            } else {
+                JS9p.log(`invoking ${method}`,im.id,im,args)
+                imp.partnered_displays[method](im,imp, ...args)
+            }
+        }
     }
 };
 
@@ -542,6 +626,14 @@ $(document).ready(function() {
                         onsetpan:               im => JS9p.call_partner_method("onSetZoomPan", im),
                         onimagedisplay:         im => JS9p.call_partner_method("onImageDisplay", im),
                         winDims: [0, 0]});
+
+    JS9p.log("registering colormaps")
+    if( JS9p_Colormaps )
+    {
+        for( var name in JS9p_Colormaps )
+            JS9.AddColormap(name, JS9p_Colormaps[name], {toplevel:false})
+    }
+    // JS9.LoadColormap("/static/js9colormaps.json")
 })
 
 // onsetpan, onsetzoom, onimagedisplay (im)

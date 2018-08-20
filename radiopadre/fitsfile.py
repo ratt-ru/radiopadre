@@ -454,4 +454,5 @@ class FITSFile(radiopadre.file.FileBase):
             <button id="JS9load-{element_id}" onclick="JS9p._pd_{element_id}_load()">&#8595;JS9</button>
             <button id="" onclick="window.open('{js9.JS9_SCRIPT_PREFIX_HTTP}{js9_target}', '_blank')">&#8663;JS9</button>
         """.format(**subs)
+        #             <!--> <input id="JS9loadExt-{element_id}" type="checkbox"></input> <
         return code
