@@ -7,6 +7,15 @@ function JS9pTuple(x,y)
     this.y = y
 }
 
+JS9pTuple.prototype.equals = function(x,y) {
+    if( x == null )
+        return false
+    if( y == null )
+        return this.x == x.x && this.y == x.y
+    return this.x == x && this.y == y
+}
+
+
 //
 // JS9pImageProps: image properties for a FITS image loaded into JS9pPartneredDisplays.
 //                 For each loaded JS9 image, a _js9p property will be created with this object in it.
@@ -29,22 +38,20 @@ function JS9pImageProps(displays, xsz, ysz, bin, xzoom, yzoom)
         this.zoomsize  = new JS9pTuple(Math.min(xzoom,xsz), Math.min(yzoom,ysz))       // zoomed section size (full res)
         // size of zoomed section, in rebinned pixels
         this.zoomsize1 = new JS9pTuple(this.zoomsize.x/bin, this.zoomsize.y/bin)       // zoomed section size (rebinned res)
-        // centre of zoomed section, in full-res pixel coordinates
-        this.zoom_cen  = new JS9pTuple(xsz/2>>0, ysz/2>>0)                             // zoomed section centre (full res)
         // centre of zoomed section, in full-res pixel coordinates, relative to image centre
         this.zoom_rel  = new JS9pTuple(0,0)
-        // limits for center of zoomed region, in rebinned pixel coordinates
+        // limits for center of zoomed region, in full-resolution pixels
         var dx = this.zoomsize.x/2>>0
         var dy = this.zoomsize.y/2>>0
         this.zoom_min = new JS9pTuple(dx, dy)
         this.zoom_max = new JS9pTuple(xsz-dx, ysz-dy)
-        // zoombox: this is a JS9 region object describing the zoomed region. x/y set in updateZoombox()
+        // zoombox: this is a JS9 region object describing the zoomed region in rebinned coordinates. x/y set in updateZoombox()
         this.zoombox = { shape:"box", x:0, y:0, width:this.zoomsize1.x, height:this.zoomsize1.y,
                          color:'red',data:'zoom_region',rotatable:false,removable:false,tags:"zoombox" }
     }
 }
 
-// Sets center of zoombox to x,y, applying the zoombox region limits
+// Sets center of zoombox based on x/y full-res coordinates, applying the zoom region limits
 JS9pImageProps.prototype.restrictZoombox = function(x,y)
 {
     var x = Math.max(Math.min(x>>0, this.zoom_max.x), this.zoom_min.x)
@@ -54,25 +61,22 @@ JS9pImageProps.prototype.restrictZoombox = function(x,y)
     return this.zoombox
 }
 
-// Sets center of zoombox to x,y, applying the zoombox region limits,
-// and also updates the zoom_cen property. Returns true if center has changed
+// Sets zoom centre based on x/y full-res coordinates, applying the zoom region limits.
+// Changes the zoombox object, and also sets the relative zoom centre.
+// Returns the new effective zoom centre, in full-res coordinates
 JS9pImageProps.prototype.updateZoombox = function(x, y)
 {
     this.restrictZoombox(x,y)
     var x1 = this.zoombox.x*this.bin>>0
     var y1 = this.zoombox.y*this.bin>>0
-    if( x1 != this.zoom_cen.x || y1 != this.zoom_cen.y ) {
-        this.zoom_cen.x = x1
-        this.zoom_cen.y = y1
-        this.zoom_rel   = new JS9pTuple(x1 - this.centre.x, y1 - this.centre.y)
-        return true
-    }
-    return false
+    this.zoom_rel.x = x1 - this.centre.x
+    this.zoom_rel.y = y1 - this.centre.y
+    return new JS9pTuple(x1, y1)
 }
 
-// Sets center of zoombox to x,y relative to full-res centre,
-// and also updates the zoom_cen property. Returns true if center has changed.
-JS9pImageProps.prototype.updateZoomboxRel = function(rel, force_update)
+// Sets center of zoombox to coordinates relative to centre (in full resolution)
+// Returns the zoom centre, in full-res coordinates
+JS9pImageProps.prototype.updateZoomboxRel = function(rel)
 {
     return this.updateZoombox(this.centre.x + rel.x, this.centre.y + rel.y)
 }
@@ -169,7 +173,7 @@ JS9pPartneredDisplays.prototype.loadImage = function(path, xsz, ysz, bin, averag
             var binopt = average ? `${bin}a` : `${bin}`
             var opts = {fits2fits:true, xcen:(xsz/2>>0), ycen:(ysz/2>>0), xdim:xsz, ydim:ysz, bin:binopt,
                         onload: im => this.onLoadRebin(im, imp),
-                        zoom: 'T',
+                        zoom: 'T', zooms: 0,
                         valpos: false}
             this.setDefaultImageOpts(opts)
             JS9.Preload(path, opts, {display:this.disp_rebin});
@@ -264,21 +268,22 @@ JS9pPartneredDisplays.prototype.onLoadRebin = function(im, imp)
     this.applyZoomPan(im, imp)
     this.setStatusRebin("Drag to load new active region")
     imp.updateZoomboxRel(this.zoom_rel)
-    imp.zoom_cen.x = null // to force an update
+    imp.zoom_cen = im._zoom_cen = null         // to force an update in checkZoomRegion() callback
     delete this._block_callbacks
     JS9p.log("setting zoombox", imp.zoombox)
-    JS9.AddRegions(imp.zoombox, {}, {display:this.disp_rebin})
+    JS9.AddRegions(imp.zoombox, {}, {display:this.disp_rebin})  // this will call checkZoomRegion() callback
 }
 
 // onLoadZoom(im, imp)
 //      Callback invoked when the zoomed image has been loaded.
 //      im is JS9 image (zoomed). imp is an JS9pImageProperties object.
 //
-JS9pPartneredDisplays.prototype.onLoadZoom = function(im, imp)
+JS9pPartneredDisplays.prototype.onLoadZoom = function(im, imp, zoom_cen)
 {
-    JS9p.log("onLoadZoom", im.id, im)
+    JS9p.log("onLoadZoom", im.id, im, zoom_cen)
     im._js9p = imp
     im._zoomed = true
+    im._zoom_cen = zoom_cen
     im._partner_image = imp._rebinned_image
     imp._rebinned_image._partner_image = im
     imp._zoomed_image = im
@@ -286,8 +291,8 @@ JS9pPartneredDisplays.prototype.onLoadZoom = function(im, imp)
     this.applyScaleColormap(im, imp, true)
     this.applyZoomPan(im, imp)
     this.zoom_rel = imp.zoom_rel
-    JS9.ChangeRegions("all", imp.zoombox, {display:this.disp_rebin})
-    this.setStatus(`${im.id} (${imp.zoomsize.x}x${imp.zoomsize.y} region at ${imp.zoom_cen.x},${imp.zoom_cen.y})`)
+    JS9.ChangeRegions("all", imp.zoombox, {display:imp._rebinned_image})
+    this.setStatus(`${im.id} (${imp.zoomsize.x}x${imp.zoomsize.y} region at ${zoom_cen.x},${zoom_cen.y})`)
     this.setStatusRebin("Drag to load new active region")
     delete this._block_callbacks
     this._finishLoad()
@@ -316,10 +321,13 @@ JS9pPartneredDisplays.prototype.onLoadNonzoomable = function(im, imp)
 JS9pPartneredDisplays.prototype.applyZoomPan = function(im, imp)
 {
     if( this._current_zoompan && !im._rebinned ) {
-        if( this._current_zoompan.imp.size.x == imp.size.x && this._current_zoompan.imp.size.y == imp.size.y ) {
+        if( this._current_zoompan.imp.size.equals(imp.size) ) {
             JS9p.log("applying saved zoom-pan (sizes match)")
-            JS9.SetZoom(this._current_zoompan.zoom, {display:im})
-            JS9.SetPan(this._current_zoompan.x, this._current_zoompan.y, {display:im})
+            if( this._current_zoompan.zoom != JS9.GetZoom({display:im}) )
+                JS9.SetZoom(this._current_zoompan.zoom, {display:im})
+            pan = JS9.GetPan({display:im})
+            if( this._current_zoompan.x != pan.x || this._current_zoompan.y != pan.y )
+                JS9.SetPan(this._current_zoompan.x, this._current_zoompan.y, {display:im})
         } else {
             JS9p.log("not applying saved zoom-pan (sizes mismatch)")
             this._current_zoompan = null
@@ -373,8 +381,8 @@ JS9pPartneredDisplays.prototype.resetScaleColormap = function()
 JS9pPartneredDisplays.prototype.checkScaleColormap = function(im)
 {
     if( this.w_reset_scale ) {
-        var cmap = JS9.GetColormap({display:im})
-        var scale = JS9.GetScale({display:im})
+        var cmap = im._colormap || JS9.GetColormap({display:im})
+        var scale = im._scale || JS9.GetScale({display:im})
         if(cmap.contrast == 1 && cmap.bias == 0.5 && scale.scalemin == im.raw.dmin && scale.scalemax == im.raw.dmax)
         {
             this.w_reset_scale.disabled = true
@@ -392,10 +400,16 @@ JS9pPartneredDisplays.prototype.checkScaleColormap = function(im)
 //      Sets the scale and colormap of an image.
 JS9pPartneredDisplays.prototype.setScaleColormap = function(im, scale, colormap)
 {
-    if( scale )
+    if( scale && !(im._scale === scale))
+    {
         JS9.SetScale(scale.scale, scale.scalemin, scale.scalemax, {display: im})
-    if( colormap )
+        im._scale = scale
+    }
+    if( colormap && !(im._colormap === colormap))
+    {
         JS9.SetColormap(colormap.colormap, colormap.contrast, colormap.bias, {display: im})
+        im._colormap = colormap
+    }
     this.checkScaleColormap(im)
 }
 
@@ -431,36 +445,65 @@ JS9pPartneredDisplays.prototype.applyScaleColormap = function(im, imp, use_defau
         if( this.defaults.vmax != null )
             scale.scalemax = this.defaults.vmax
     }
-    JS9p.log("applying", scale, colormap)
+    JS9p.log("applying scale", scale, "colormap", colormap)
     this.setScaleColormap(im, scale, colormap)
 }
 
 // syncColormap(im)
 //      Internal callback for when the colormap of an image is changed. Propagates changes to other display,
-//      and saves them for future images
+//      and saves them for future images.
 JS9pPartneredDisplays.prototype.syncColormap = function(im, imp)
 {
     this._block_callbacks = true
-    this.user_colormap = imp._user_colormap = JS9.GetColormap({display:im})
+    this.user_colormap = imp._user_colormap = im._colormap = JS9.GetColormap({display:im})
     if( im._partner_image ) {
         JS9p.log(`  syncing colormap from ${im} to display ${im._partner_image}`)
         this.setScaleColormap(im._partner_image, null, imp._user_colormap)
     }
+    else
+        this.checkScaleColormap(im)
     delete this._block_callbacks
 }
 
 // syncScale(im)
 //      Internal callback for when the scale of an image is changed. Propagates changes to other display,
-//      and saves them for future images
+//      and saves them for future images.
 JS9pPartneredDisplays.prototype.syncScale = function(im, imp)
 {
     this._block_callbacks = true
-    this.user_scale = imp._user_scale = JS9.GetScale({display:im})
+    this.user_scale = imp._user_scale = im._scale = JS9.GetScale({display:im})
     if( im._partner_image ) {
         JS9p.log(`  syncing scale from ${im} to display ${im._partner_image}`)
         this.setScaleColormap(im._partner_image, imp._user_scale, null)
     }
+    else
+        this.checkScaleColormap(im)
     delete this._block_callbacks
+}
+
+// helper function used by checkZoomRegion() and onImageDisplay() to load new zoomed section
+JS9pPartneredDisplays.prototype._updateZoomedSection = function(im, imp, zoom_cen)
+{
+    this._loading = im.id
+    this.current_image[this.disp_zoom] = null
+    if( imp._zoomed_image ) {
+        JS9.CloseImage({clear:true}, {display: imp._zoomed_image});
+        imp._zoomed_image = null
+    }
+    this.setStatus(`Loading ${im.id} (${imp.zoomsize.x}x${imp.zoomsize.y} region at ${zoom_cen.x},${zoom_cen.y}), please wait...`)
+    this.setStatusRebin("Loading region...")
+    opts = { fits2fits:true,
+             xcen: zoom_cen.x,
+             ycen: zoom_cen.y,
+             xdim: imp.zoomsize.x,
+             ydim: imp.zoomsize.y,
+             bin:1,
+             zoom:'T',
+             onload: im => this.onLoadZoom(im, imp, zoom_cen)
+         }
+    this.setDefaultImageOpts(opts)
+    JS9p.log("  preloading", opts)
+    JS9.Preload(im.id, opts, {display: this.disp_zoom});
 }
 
 // checkZoomRegion(im, xreg)
@@ -473,38 +516,16 @@ JS9pPartneredDisplays.prototype.checkZoomRegion = function(im, imp, xreg)
     if( im._rebinned && xreg.tags.indexOf("zoombox")>-1 )
     {
         JS9p.log("  zoom-syncing", im, xreg);
-        // make sure region is within bounds
-        var updated = imp.updateZoombox(xreg.x*imp.bin, xreg.y*imp.bin)
-        JS9.ChangeRegions("all", imp.zoombox, {display:this.disp_rebin})
-        if( updated ) {
-            this._loading = im.id
-            this.current_image[this.disp_zoom] = null
-            if( this._preserve_zoompan )
-                delete this._preserve_zoompan
-            else
-                this._current_zoompan = null
-            if( imp._zoomed_image ) {
-                JS9.CloseImage({clear:true}, {display: imp._zoomed_image});
-                imp._zoomed_image = null
-            }
-            this.setStatus(`Loading ${im.id} (${imp.zoomsize.x}x${imp.zoomsize.y} region at ${imp.zoom_cen.x},${imp.zoom_cen.y}), please wait...`)
-            this.setStatusRebin("Loading region...")
-            opts = { fits2fits:true,
-                     xcen: imp.zoom_cen.x,
-                     ycen: imp.zoom_cen.y,
-                     xdim: imp.zoomsize.x,
-                     ydim: imp.zoomsize.y,
-                     bin:1,
-                     zoom:'T',
-                     onload: im => this.onLoadZoom(im, imp, imp.zoombox)
-                 }
-            this.setDefaultImageOpts(opts)
-            JS9p.log("  preloading", opts)
-            JS9.Preload(im.id, opts, {display: this.disp_zoom});
-            // wait for onload to clear _block_callbacks, ignore them until then
+        // update the zoom centre
+        zoom_cen = imp.updateZoombox(xreg.x*imp.bin, xreg.y*imp.bin)
+        JS9.ChangeRegions("all", imp.zoombox, {display:im})
+        // check if zoomed image is showing the same centre, update if not
+        if( imp._zoomed_image == null || !zoom_cen.equals(imp._zoomed_image._zoom_cen) ) {
+            this._current_zoompan = null
+            this._updateZoomedSection(im, imp, zoom_cen)
+            // wait for onload to clear _block_callbacks, ignore callbacks until then
             return
         }
-        // this will be done in the callback, ignore region events until then: delete this._disable_checkzoom
     }
     delete this._block_callbacks
 }
@@ -523,7 +544,7 @@ JS9pPartneredDisplays.prototype.onImageDisplay = function(im, imp)
 {
     if( this.current_image[im.display.id] === im )
     {
-        JS9p.log("  onImageDisplay: image already displayed -- skipping")
+        JS9p.log(`  onImageDisplay: ${im.id} already displayed on ${im.display.id} -- skipping`)
         return
     }
     this._block_callbacks = true
@@ -544,28 +565,28 @@ JS9pPartneredDisplays.prototype.onImageDisplay = function(im, imp)
         JS9p.log("  onImageDisplay zoomed", im)
         this.showPreviewPanel(true)
         if( !(this.current_image[this.disp_rebin] === imp._rebinned_image) ) {
+            JS9p.log(`  updating rebinned image ${imp._rebinned_image}`)
+            this.current_image[this.disp_rebin] = imp._rebinned_image
             this.applyScaleColormap(imp._rebinned_image, imp, false) // callback will be blocked, so apply it here
             JS9.DisplayImage({display:imp._rebinned_image})
         }
-        // if relative section is different, do a ChangeRegions, causing an update above
-        if( this.zoom_rel.x != imp.zoom_rel.x || this.zoom_rel.y != imp.zoom_rel.y )
+        // set zoom centre of this image based on what we're displaying
+        zoom_cen = imp.updateZoomboxRel(this.zoom_rel)
+        // if the current section is different, update it
+        if( !zoom_cen.equals(im._zoom_cen) )
         {
-            JS9p.log("changing zoombox")
-            imp.updateZoomboxRel(this.zoom_rel)
-            imp.zoom_cen.x = null  // force an update
-            this._preserve_zoompan = true
-            // delete guard -- we want the checkZoomRegion() callback to be invoked
-            delete this._block_callbacks
-            JS9.ChangeRegions("all", imp.zoombox, {display:this.disp_rebin})
+            JS9.ChangeRegions("all", imp.zoombox, {display:imp._rebinned_image})
+            JS9p.log("  changing zoom section")
+            this._updateZoomedSection(im, imp, zoom_cen)
+            // do not delete _block_callbacks guard -- we'll wait for the onload() callback to do that
             return
         }
         else
         {
-            JS9p.log("  updating zoombox", imp.zoombox)
+            JS9p.log("  updated zoombox", imp.zoombox)
             // if relative section is the same, do nothing, but update the region (note that checkZoomRegion callback will be blocked)
             this.applyZoomPan(im, imp)
-            JS9.ChangeRegions("all", imp.zoombox, {display:this.disp_rebin})
-            this.setStatus(`${im.id} (${imp.zoomsize.x}x${imp.zoomsize.y} region at ${imp.zoom_cen.x},${imp.zoom_cen.y})`)
+            this.setStatus(`${im.id} (${imp.zoomsize.x}x${imp.zoomsize.y} region at ${zoom_cen.x},${zoom_cen.y})`)
         }
     // non-zoomed image displayed: simply set the current image
     } else if( im._nonzoom ) {
