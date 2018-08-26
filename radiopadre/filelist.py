@@ -30,13 +30,29 @@ class FileList(list):
         if sort:
             self.sort(sort)
 
+        # For every _show_xxx() method defined in the class object,
+        # create a corresponding self.xxx() method that maps to it
+        for method in dir(classobj):
+            if method.startswith("_show_"):
+                func = getattr(classobj, method)
+                setattr(self, method[6:], lambda func=func,**kw:self._call_collective_method(func, **kw))
+
+    def _call_collective_method(self, method, **kw):
+        display(HTML(render_refresh_button(full=self._parent and self._parent.is_updated())))
+        if not self:
+            display(HTML("<p>0 files</p>"))
+            return None
+        kw.setdefault('title', self._title + " (%d file%s)" % (len(self), "s" if len(self) > 1 else ""))
+        kw.setdefault('showpath', self._showpath)
+        method(self, **kw)
+
     def sort(self, opt="xnt"):
         return FileBase.sort_list(self, opt)
 
     def _repr_html_(self, ncol=None, **kw):
         html = render_preamble() + render_title(self._title) + \
                render_refresh_button(full=self._parent and self._parent.is_updated())
-        # if call object has a summary function, use that
+        # if class object has a summary function, use that
         html_summary = getattr(self._classobj, "_html_summary", None)
         if html_summary:
             return html + html_summary(self)
@@ -58,6 +74,7 @@ class FileList(list):
             data = [((df.basepath if self._showpath else df.basename),
                      df.size_str, df.mtime_str) for df in self]
             links = [(render_url(df.fullpath), None, None) for df in self]
+        # get "action buttons" associated with each file
         preamble = OrderedDict()
         postscript = OrderedDict()
         div_id = uuid.uuid4().hex
@@ -69,24 +86,11 @@ class FileList(list):
     def __str__(self):
         return FileList.list_to_string(self)
 
-    @property
     def show(self, ncol=None, **kw):
         return IPython.display.display(HTML(self._repr_html_(ncol=ncol, **kw)))
 
-    @property
     def list(self, ncol=None, **kw):
         return IPython.display.display(HTML(self._repr_html_(ncol=ncol, **kw)))
-
-    @property
-    def summary(self, **kw):
-        kw.setdefault('title', self._title)
-        kw.setdefault('showpath', self._showpath)
-        summary = getattr(self._classobj, "_show_summary", None)
-        if summary:
-            display(HTML(render_refresh_button(full=self._parent and self._parent.is_updated())))
-            return summary(self, **kw)
-        else:
-            return self.list(**kw)
 
     # def watch(self,*args,**kw):
     #     display(HTML(render_refresh_button()))
@@ -112,22 +116,23 @@ class FileList(list):
                         classobj=self._classobj,
                         title=os.path.join(self._title, ",".join(patterns)), parent=self._parent)
 
-    def thumbs(self, max=100, **kw):
-        display(HTML(render_refresh_button(full=self._parent and self._parent.is_updated())))
-        if not self:
-            display(HTML("<p>0 files</p>"))
-            return None
-        kw.setdefault('title', self._title + " (%d file%s)" % (len(self), "s" if len(self) > 1 else ""))
-        kw.setdefault('showpath', self._showpath)
-        thumbs = getattr(self._classobj, "_show_thumbs", None)
-        if thumbs:
-            return thumbs(self[:max], **kw)
-        display(HTML("<p>%d files. Don't know how to make thumbnails for this collection.</p>" % len(self)))
+    # def thumbs(self, max=100, **kw):
+    #     display(HTML(render_refresh_button(full=self._parent and self._parent.is_updated())))
+    #     if not self:
+    #         display(HTML("<p>0 files</p>"))
+    #         return None
+    #     kw.setdefault('title', self._title + " (%d file%s)" % (len(self), "s" if len(self) > 1 else ""))
+    #     kw.setdefault('showpath', self._showpath)
+    #     thumbs = getattr(self._classobj, "_show_thumbs", None)
+    #     if thumbs:
+    #         return thumbs(self[:max], **kw)
+    #     display(HTML("<p>%d files. Don't know how to make thumbnails for this collection.</p>" % len(self)))
 
     def __getslice__(self, *slc):
+        slice_str = ":".join([str(s) if s is not None and s < 2**31 else "" for s in slc])
         return FileList(list.__getslice__(self, *slc),
                         extcol=self._extcol, showpath=self._showpath,
                         classobj=self._classobj,
-                        title="%s[%s]" % (self._title, ":".join(map(str, slc))), parent=self._parent)
+                        title="%s[%s]" % (self._title, slice_str), parent=self._parent)
 
 

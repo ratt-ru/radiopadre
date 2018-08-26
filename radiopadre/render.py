@@ -54,7 +54,7 @@ def render_table(data, labels, html=set(), ncol=1, links=None,
     txt = "<div id='{}'>".format(div_id) if div_id else "<div>"
     for code in preamble.itervalues():
         txt += code+"\n"
-    txt += """<table style="border: 1px; text-align: left">"""
+    txt += """<table style="border: 1px; text-align: left; {}">""".format(styles.get("TABLE",""))
     if header:
         txt += """<tr style="border: 0px; border-bottom: 1px double; text-align: center">"""
         for icol in range(ncol):

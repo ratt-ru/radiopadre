@@ -10,10 +10,12 @@ JS9_ERROR = None
 _method = os.environ["RADIOPADRE_JS9_HTTP"]
 
 RADIOPADRE_INSTALL_PREFIX_JUP = "/static/radiopadre-www"           # URL used to access radiopadre code
+RADIOPADRE_LOCAL_PREFIX_JUP = "/files/.radiopadre"                 # URL used to access radiopadre aux dir
 JS9_INSTALL_PREFIX_JUP = "/static/js9-www"                         # URL used to access JS9 code
 JS9_FITS_PREFIX_JUP    = ""                             # URL used to access FITS files inside notebook
 
 RADIOPADRE_INSTALL_PREFIX_HTTP = _method+".radiopadre/radiopadre-www" # URL used to access radiopadre code
+RADIOPADRE_LOCAL_PREFIX_HTTP = _method+".radiopadre"               # URL used to access radiopadre aux dir
 JS9_INSTALL_PREFIX_HTTP = _method+".radiopadre/js9-www"  # URL used to access JS9 code
 JS9_FITS_PREFIX_HTTP    = _method                        # URL used to access FITS files inside scripts
 
@@ -42,9 +44,11 @@ if not JS9_ERROR:
             source = inp.read()
         JS9_INIT_HTML_JUP  = source.format(JS9_INSTALL_PREFIX=JS9_INSTALL_PREFIX_JUP,
                                            RADIOPADRE_INSTALL_PREFIX=RADIOPADRE_INSTALL_PREFIX_JUP,
+                                           RADIOPADRE_LOCAL_PREFIX=RADIOPADRE_LOCAL_PREFIX_JUP,
                                            **globals())
         JS9_INIT_HTML_HTTP = source.format(JS9_INSTALL_PREFIX=JS9_INSTALL_PREFIX_HTTP,
                                            RADIOPADRE_INSTALL_PREFIX=RADIOPADRE_INSTALL_PREFIX_HTTP,
+                                           RADIOPADRE_LOCAL_PREFIX=RADIOPADRE_LOCAL_PREFIX_HTTP,
                                            **globals())
 
     except Exception, exc:

@@ -72,13 +72,21 @@ else:
     print "Activating the radiopadre virtualenv"
     execfile(activation_script, dict(__file__=activation_script))
 
+# get jupyter path
+notebook_dir = subprocess.check_output("{PADRE_VENV}/bin/pip show jupyter| "
+                                       "grep Location:|cut -d ':' -f 2".format(**globals()), shell=True).strip()
+if not notebook_dir:
+    raise subprocess.CalledProcessError("jupyter installation path not found")
+
 # make radiopadre directory
 if not os.path.exists(".radiopadre"):
     os.mkdir(".radiopadre")
 
 # make link to JS9 install
-if not os.path.exists(".radiopadre/js9-www") and os.path.exists(PADRE_VENV + "/js9-www"):
+if not os.path.exists(".radiopadre/js9-www"):
     os.symlink(PADRE_VENV + "/js9-www", ".radiopadre/js9-www")
+if not os.path.exists(".radiopadre/js9colormaps.js"):
+    os.symlink(notebook_dir + "/notebook/static/js9colormaps.js", ".radiopadre/js9colormaps.js")
 if not os.path.exists(".radiopadre/radiopadre-www"):
     os.symlink(PADRE_PATH + "/html", ".radiopadre/radiopadre-www")
 

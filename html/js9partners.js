@@ -111,8 +111,10 @@ function JS9pPartneredDisplays(display_id, xzoom, yzoom)
     if( this.w_reset_scale )
         this.w_reset_scale.onclick = ev => this.resetScaleColormap()
     this.w_lock_scale = document.getElementById(`zoom-${display_id}-lockscale`)
-    if( this.w_lock_scale )
+    if( this.w_lock_scale ) {
+        this.w_lock_scale.style.visibility = "hidden"
         this.w_lock_scale.onclick = ev => this.toggleScaleColormapLock()
+    }
 
     // toggle to false
     this.lock_scale = true
@@ -135,6 +137,7 @@ function JS9pPartneredDisplays(display_id, xzoom, yzoom)
 
     // keeps track of loaded images
     this.imps = {}
+    this._num_images = 0
 
     // queue of images to be loaded
     this._loading_queue = []
@@ -157,6 +160,10 @@ JS9pPartneredDisplays.prototype.loadImage = function(path, xsz, ysz, bin, averag
         this._loading_queue.push({path:path, xsz:xsz, ysz:ysz, bin:bin, average: average})
         return
     }
+    // show the scale lock button, if multiple images loaded
+    this._num_images++
+    if( this._num_images > 1 && this.w_lock_scale )
+        this.w_lock_scale.style.visibility = "visible"
     // check if image is already loaded -- display if so
     imp = this.imps[path]
     if( imp ) {
@@ -355,11 +362,11 @@ JS9pPartneredDisplays.prototype.togglePanZoomLock = function()
 {
     this.lock_pan_zoom = !this.lock_pan_zoom
     JS9p.log("togglePanZoomLock to", this.lock_pan_zoom)
-    if( this.w_lock_scale )
-        if( this.lock_scale )
-            this.w_lock_scale.innerHTML = "&#x2612; lock"
+    if( this.w_lock_pan_zoom )
+        if( this.lock_pan_zoom )
+            this.w_lock_pan_zoom.innerHTML = "&#x2612; lock"
         else
-            this.w_lock_scale.innerHTML = "&#x2610; lock"
+            this.w_lock_pan_zoom.innerHTML = "&#x2610; lock"
 }
 
 // resetScaleColormap(im)
@@ -387,10 +394,12 @@ JS9pPartneredDisplays.prototype.checkScaleColormap = function(im)
         {
             this.w_reset_scale.disabled = true
             this.w_reset_scale.innerHTML = "&#x21e4;&#x21e5;"
+            this.w_reset_scale.title = "The scale limits are currently set to the image min/max values"
 //            this.w_reset_scale.innerHTML = "&#x21ce;"
         } else {
             this.w_reset_scale.disabled = false
             this.w_reset_scale.innerHTML = "&#x21a4;&#x21a6;"
+            this.w_reset_scale.title = "Click to reset the scale limits to the image min/max values"
 //            this.w_reset_scale.innerHTML = "&#x21d4;"
         }
     }

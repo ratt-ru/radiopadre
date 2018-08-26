@@ -19,7 +19,7 @@ var JS9Prefs = {
 		 "analysisWrappers": "./analysis-wrappers",
 		 "requireHelper":    true,
 		 "requireFits2Fits": true,
-		 "intensivePlugins": true,
+		 "intensivePlugins": false,
 		 "htimeout": 10000,
 		 "lhtimeout": 10000
 		 },

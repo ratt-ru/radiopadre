@@ -65,6 +65,7 @@ class Section(_BASE):
         data = []
         styles = {}
         self._repr_table(data, styles)
+        styles["TABLE"] = "width: 100%"
         return render.render_table(data, ("name", "value", "description"), html=set(["name","description"]),
                                    styles=styles, header=False, numbering=False)
 
@@ -142,8 +143,14 @@ class RadiopadreSettingsManager(SettingsManager):
 
         fits.colormap = 'cubehelix', D("default FITS colormap")
         fits.scale = 'linear', D("default FITS scaling")
-        fits.vmin = None, D("sets lower value for FITS scale")
-        fits.vmax = None, D("sets upper value for FITS scale")
+        fits.vmin = None, D("lower clip value")
+        fits.vmax = None, D("upper clip value")
 
-        fits.max_js9_slice = 2048, D("size of active slice for JS9 display of large images")
-        fits.js9_preview_size = 1024, D("size of preview for JS9 display of large images")
+        fits.max_js9_slice = 2048, D("size of active segment for JS9 display of large images")
+        fits.js9_preview_size = 1024, D("size of preview image for JS9 display of large images")
+
+        text = self.add_section("text", "settings for rendering of text files")
+
+        text.head = 10, D("default number of lines to show from head of file")
+        text.tail = 10, D("default number of lines to show from tail of file")
+        text.fs   = 0.8, D("font size for text display")
