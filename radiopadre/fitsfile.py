@@ -58,7 +58,7 @@ class FITSFile(radiopadre.file.FileBase):
         return self._ff
 
     @property
-    def header(self,xxx=None):
+    def header(self):
         return self.fitsobj[0].header
 
     @property

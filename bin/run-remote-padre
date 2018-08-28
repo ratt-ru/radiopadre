@@ -88,7 +88,7 @@ else:
 DEVZERO = open("/dev/zero")
 DEVNULL = open("/dev/null", "w")
 
-SSH_MUX_OPTS = "-o ControlMaster=auto -o ControlPersist=1h -o ControlPath=/tmp/ssh_mux_%C".split()
+SSH_MUX_OPTS = [] # "-o ControlMaster=auto -o ControlPersist=1h -o ControlPath=/tmp/ssh_mux_%C".split()
 
 SCP_OPTS = ["scp"] + SSH_MUX_OPTS
 SSH_OPTS = ["ssh","-tt"] + SSH_MUX_OPTS + [host]
@@ -309,7 +309,7 @@ while True:
                         print "radiopadre: remote port %s, selecting local port %s\r" % (remoteport, localport)
                         ssh2_args += [ "-L", "localhost:%s:localhost:%s" % (localport, remoteport) ]
                     # start second ssh process to forward the port
-                    ssh2_args.append("cat >/dev/null")
+                    ssh2_args.append("sleep 100000d")
                     ssh2 = subprocess.Popen(ssh2_args, stdin=DEVZERO, stdout=DEVNULL, stderr=DEVNULL)
 
                     # tell first ssh process the ports we have selected

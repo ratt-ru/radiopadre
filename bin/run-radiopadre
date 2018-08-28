@@ -8,7 +8,7 @@ import glob
 import socket
 
 # get radiopadre install directory. __file__ is RADIOPADRE/bin/run-radiopadre, so take the dirname twice
-PADRE_PATH = os.path.dirname(os.path.dirname(__file__))
+PADRE_PATH = os.path.abspath(os.path.dirname(os.path.dirname(__file__)))
 DIR = os.getcwd()
 
 JUPYTER_OPTS = [
@@ -101,22 +101,26 @@ message("Welcome to Radiopadre!")
 message("  Using radiopadre install at {PADRE_PATH}")
 message("  Running in {DIR}")
 
+browser = False
 if os.environ.get("SSH_CLIENT"):
     message("You appear to have logged in via ssh")
     if options.browser:
         message("--browser is set so I will open a browser anyway")
-        JUPYTER_OPTS.append(" --no-browser")
+        browser = True
     else:
         message("You're logged in via ssh, so I'm not opening a web browser for you.")
         message("Please manually browse to the URL printed by Jupyter below. You will probably want to employ ssh")
         message("port forwarding if you want to browse this notebook from your own machine.")
+        browser = False
 else:
     message("You appear to have a local session")
     if options.no_browser:
-        message("--no-browser is set, jupyter notebook will not invoked a browser.")
+        message("--no-browser is set, jupyter notebook will not invoke a browser.")
+        message("Please manually browse to the URL printed by Jupyter below.")
+        browser = False
     else:
         message("Allowing jupyter notebook to open a web browser. Use --no-browser to disable this.")
-        message("Please manually browse to the URL printed by Jupyter below.")
+        browser = True
 
 message("Available notebooks: " + " ".join(glob.glob("*.ipynb")))
 
@@ -155,7 +159,7 @@ os.environ['RADIOPADRE_JS9_HTTP'] = "http://localhost:{}/".format(forwarded_http
 open(".radiopadre/js9prefs.js", "w").write("JS9Prefs.globalOpts.helperPort = {};\n".format(forwarded_helper_port));
 
 JUPYTER_OPTS.append("--port={}".format(jupyter_port))
-if options.no_browser or not options.browser:
+if not browser:
     JUPYTER_OPTS.append("--no-browser")
 JUPYTER_OPTS += list(options.args)
 

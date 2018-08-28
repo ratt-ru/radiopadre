@@ -47,7 +47,7 @@ function JS9pImageProps(displays, xsz, ysz, bin, xzoom, yzoom)
         this.zoom_max = new JS9pTuple(xsz-dx, ysz-dy)
         // zoombox: this is a JS9 region object describing the zoomed region in rebinned coordinates. x/y set in updateZoombox()
         this.zoombox = { shape:"box", x:0, y:0, width:this.zoomsize1.x, height:this.zoomsize1.y,
-                         color:'red',data:'zoom_region',rotatable:false,removable:false,tags:"zoombox" }
+                         color:'red',data:'zoom_region',movable:true,rotatable:false,removable:false,tags:"zoombox" }
     }
 }
 
@@ -273,6 +273,8 @@ JS9pPartneredDisplays.prototype.onLoadRebin = function(im, imp)
     this.current_image[this.disp_rebin] = im
     this.applyScaleColormap(im, imp, true)
     this.applyZoomPan(im, imp)
+    imp._user_scale = JS9.GetScale({display:im})
+    imp._user_colormap = JS9.GetColormap({display:im})
     this.setStatusRebin("Drag to load new active region")
     imp.updateZoomboxRel(this.zoom_rel)
     imp.zoom_cen = im._zoom_cen = null         // to force an update in checkZoomRegion() callback
@@ -295,7 +297,7 @@ JS9pPartneredDisplays.prototype.onLoadZoom = function(im, imp, zoom_cen)
     imp._rebinned_image._partner_image = im
     imp._zoomed_image = im
     this.current_image[this.disp_zoom] = im
-    this.applyScaleColormap(im, imp, true)
+    this.applyScaleColormap(im, imp, false)
     this.applyZoomPan(im, imp)
     this.zoom_rel = imp.zoom_rel
     JS9.ChangeRegions("all", imp.zoombox, {display:imp._rebinned_image})
@@ -446,6 +448,7 @@ JS9pPartneredDisplays.prototype.applyScaleColormap = function(im, imp, use_defau
         scale = this.user_scale
     }
     else if( use_defaults && (this.defaults.scale != null || this.defaults.vmin != null || this.defaults.vmax != null)) {
+        JS9p.log("setting default scale", this.scale)
         scale = JS9.GetScale({display: im})
         if( this.defaults.scale != null )
             scale.scale = this.defaults.scale
@@ -493,6 +496,7 @@ JS9pPartneredDisplays.prototype.syncScale = function(im, imp)
 // helper function used by checkZoomRegion() and onImageDisplay() to load new zoomed section
 JS9pPartneredDisplays.prototype._updateZoomedSection = function(im, imp, zoom_cen)
 {
+    JS9.ChangeRegions("all", {movable: false}, {display:imp._rebinned_image})
     this._loading = im.id
     this.current_image[this.disp_zoom] = null
     if( imp._zoomed_image ) {
