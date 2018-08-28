@@ -67,7 +67,7 @@ class TextFile(radiopadre.file.FileBase):
         return txt
 
     def show(self, tail=None, head=None, full=False, refresh=None, **kw):
-        IPython.display.display(HTML(self.html(head=head, tail=tail, full=full, fs=fs)))
+        IPython.display.display(HTML(self.html(head=head, tail=tail, full=full, **kw)))
 
     def grep(self, regex, **kw):
         """shortcut for show(grep=regex)"""

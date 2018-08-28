@@ -155,6 +155,8 @@ os.environ['RADIOPADRE_JS9_HTTP'] = "http://localhost:{}/".format(forwarded_http
 open(".radiopadre/js9prefs.js", "w").write("JS9Prefs.globalOpts.helperPort = {};\n".format(forwarded_helper_port));
 
 JUPYTER_OPTS.append("--port={}".format(jupyter_port))
+if options.no_browser or not options.browser:
+    JUPYTER_OPTS.append("--no-browser")
 JUPYTER_OPTS += list(options.args)
 
 child_processes = []
