@@ -65,8 +65,8 @@ def plot(cmdargs):
 
 
 	#configuring the plot dimensions
-	PLOT_WIDTH = 700
-	PLOT_HEIGHT = 600
+	PLOT_WIDTH = 1700
+	PLOT_HEIGHT = 1600
 
 
 	def make_plots(source, ax1 , ax2, color = 'purple', y1_err=None, y2_err=None):
@@ -208,8 +208,10 @@ def plot(cmdargs):
 
 	#creating bokeh figures for plots	
 	TOOLS = dict(tools= 'box_select, box_zoom, reset, pan, save, wheel_zoom,lasso_select')
-	ax1 = figure(plot_width=PLOT_WIDTH, plot_height=PLOT_HEIGHT, **TOOLS)
-	ax2 = figure(plot_width=PLOT_WIDTH, plot_height=PLOT_HEIGHT, x_range=ax1.x_range, **TOOLS)
+	ax1 = figure( sizing_mode = 'scale_width', **TOOLS)
+	ax2 = figure( sizing_mode = 'scale_width', x_range=ax1.x_range, **TOOLS)
+	#ax1 = figure(plot_width=PLOT_WIDTH, plot_height=PLOT_HEIGHT, **TOOLS)
+	#ax2 = figure(plot_width=PLOT_WIDTH, plot_height=PLOT_HEIGHT, x_range=ax1.x_range, **TOOLS)
 
 	#setting up tooltips
 	hover=HoverTool(tooltips=[("(chans,y1)","($x,$y)")],mode='mouse')
@@ -375,9 +377,10 @@ def plot(cmdargs):
 
 
 	#LEGEND CONFIGURATIONS
+	BATCH_SIZE = 16
 
 	#determining the number of legend objects required to be created for each plot
-	num_legend_objs =  int( np.ceil( len(plotants) / float(16) ) )
+	num_legend_objs =  int( np.ceil( len(plotants) / float(BATCH_SIZE) ) )
 
 
 	#Automating creating batches of 16 each unless otherwise
@@ -396,12 +399,12 @@ def plot(cmdargs):
 	        batches_ax1_err.extend( [ legend_items_err_ax1[j:] ] )
 	        batches_ax2_err.extend( [ legend_items_err_ax2[j:] ] )
 	    else:
-	    	batches_ax1.extend( [ legend_items_ax1[j:j+16] ] )
-	        batches_ax2.extend( [ legend_items_ax2[j:j+16] ] )
-	        batches_ax1_err.extend( [ legend_items_err_ax1[j:j+16] ] )
-	        batches_ax2_err.extend( [ legend_items_err_ax2[j:j+16] ] )
+	    	batches_ax1.extend( [ legend_items_ax1[j:j+BATCH_SIZE] ] )
+	        batches_ax2.extend( [ legend_items_ax2[j:j+BATCH_SIZE] ] )
+	        batches_ax1_err.extend( [ legend_items_err_ax1[j:j+BATCH_SIZE] ] )
+	        batches_ax2_err.extend( [ legend_items_err_ax2[j:j+BATCH_SIZE] ] )
 
-	    j+= 16
+	    j+= BATCH_SIZE
 
 
 	#creating legend objects using items from the previous batches dictionary
@@ -450,7 +453,15 @@ def plot(cmdargs):
 	toggle_err = Toggle(label='Show All Error bars', button_type='warning', width=200)
 
 	#Creating and configuring checkboxes
-	ant_labs = ["Ant 00 - 15", "Ant 16 - 31","Ant 32 - 47","Ant 48 - 63"]
+	#Autogenerating checkbox labels
+	ant_labs = []
+	s= 0
+	e= BATCH_SIZE-1
+	for i in range(num_legend_objs):
+	    ant_labs.append("A%s - A%s"%(s,e))
+	    s = s + BATCH_SIZE
+	    e = e + BATCH_SIZE
+
 	batch_select = CheckboxGroup( labels = ant_labs, active = [])
 
 	#Dropdown to hide and show legends
@@ -530,18 +541,57 @@ def plot(cmdargs):
 		j=0
 		i=0
 
-		while j < bax1.length
-			if j in this.active
-				while i < bax1[j].length
-					bax1[j][i][1][0].visible = true
-					bax2[j][i][1][0].visible = true
-					i++
-			else
-				while i < bax1[0].length
-					bax1[j][i][1][0].visible = false
-					bax2[j][i][1][0].visible = false
-					i++
-			j++
+		if 0 in this.active
+			i=0
+			while i < bax1[j].length
+				bax1[0][i][1][0].visible = true
+				bax2[0][i][1][0].visible = true
+				i++
+		else
+			i=0
+			while i < bax1[0].length
+				bax1[0][i][1][0].visible = false
+				bax2[0][i][1][0].visible = false
+				i++
+
+		if 1 in this.active
+			i=0
+			while i < bax1[j].length
+				bax1[1][i][1][0].visible = true
+				bax2[1][i][1][0].visible = true
+				i++
+		else
+			i=0
+			while i < bax1[0].length
+				bax1[1][i][1][0].visible = false
+				bax2[1][i][1][0].visible = false
+				i++
+		
+		if 2 in this.active
+			i=0
+			while i < bax1[j].length
+				bax1[2][i][1][0].visible = true
+				bax2[2][i][1][0].visible = true
+				i++
+		else
+			i=0
+			while i < bax1[0].length
+				bax1[2][i][1][0].visible = false
+				bax2[2][i][1][0].visible = false
+				i++
+		
+		if 3 in this.active
+			i=0
+			while i < bax1[j].length
+				bax1[3][i][1][0].visible = true
+				bax2[3][i][1][0].visible = true
+				i++
+		else
+			i=0
+			while i < bax1[0].length
+				bax1[3][i][1][0].visible = false
+				bax2[3][i][1][0].visible = false
+				i++
 
 
 
@@ -590,11 +640,11 @@ def plot(cmdargs):
 	export_svgs([ax2], filename=pngname+".svg")
 	'''
 
-	plot_widgets = widgetbox([ant_select, batch_select, toggle_err, legend_toggle])
+	plot_widgets = widgetbox([ant_select, batch_select, toggle_err, legend_toggle], sizing_mode = 'fixed')
 	#figures   = column(ax1,ant_select, toggle_err)
 	#figures_b = column(ax2)
 
-	layout = gridplot([[plot_widgets, ax1, ax2]], plot_width=700, plot_height=600)
+	layout = gridplot([[plot_widgets, ax1, ax2]], sizing_mode = 'scale_width')
 	show(layout)
 	print 'Rendered: '+pngname
 	return
