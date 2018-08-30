@@ -11,9 +11,9 @@ import socket
 import fnmatch
 
 REPO = "git@github.com:ratt-ru/radiopadre-devel.git"
-BRANCH = "devel-lexy"
+BRANCH = "custom-js"
 
-LAUNCH = "run-radiopadre.sh"
+LAUNCH = "run-radiopadre"
 
 DEFAULT_NOTEBOOK_SOURCE = os.path.join(os.path.dirname(__file__), "notebooks/example.ipynb")
 DEFAULT_NOTEBOOK_TARGET = "default-padre-view.ipynb"
@@ -46,6 +46,8 @@ parser.add_option("-i","--init",action="store_true",
 parser.add_option("-p","--remote-path",type="str",
                   help="directory in which remote radiopadre is installed. Default is to try ~/radiopadre first, "+
                   "and PATH second.")
+parser.add_option("-u","--update",action="store_true",
+                  help="update remote radiopadre installation using git pull")
 parser.add_option("-b","--browser",type="string",default=default_browser,
                   help="browser command to run. Default is %default, or set PADRE_BROWSER.")
 parser.add_option("-n","--no-browser",action="store_true",
@@ -81,12 +83,12 @@ print "radiopadre: Will start remote radiopadre in {}:{}, notebook(s) {}".format
 if options.remote_path:
     padre_execs = [ os.path.join(options.remote_path,LAUNCH) ]
 else:
-    padre_execs = [ os.path.join("~/radiopadre",LAUNCH), LAUNCH ]
+    padre_execs = [ os.path.join("~/radiopadre/bin",LAUNCH), LAUNCH ]
 
 DEVZERO = open("/dev/zero")
 DEVNULL = open("/dev/null", "w")
 
-SSH_MUX_OPTS = "-o ControlMaster=auto -o ControlPersist=1h -o ControlPath=/tmp/ssh_mux_%C".split()
+SSH_MUX_OPTS = [] # "-o ControlMaster=auto -o ControlPersist=1h -o ControlPath=/tmp/ssh_mux_%C".split()
 
 SCP_OPTS = ["scp"] + SSH_MUX_OPTS
 SSH_OPTS = ["ssh","-tt"] + SSH_MUX_OPTS + [host]
@@ -162,6 +164,10 @@ bootstrap = False
 for padre_exec in padre_execs:
     if check_remote_file(padre_exec):
         print "radiopadre: Found remote radiopadre launch script at {}:{}".format(host, padre_exec)
+        if options.update:
+            padre_dir = os.path.dirname(padre_exec)
+            print "radiopadre: --update specified, will try a git pull in {}".format(padre_dir)
+            ssh_remote("cd {} ; git pull".format(padre_dir))
         break
 else:
     print "radiopadre: No radiopadre launch script ({}) found on {}".format(LAUNCH, host)
@@ -222,6 +228,8 @@ else:
 if bootstrap:
     padre_exec += " --bootstrap"
 
+padre_exec += "  --remote"
+
 # check for remote notebooks
 if not check_remote_file("{}/{}".format(path, notebook), "-f") and os.path.exists(DEFAULT_NOTEBOOK_SOURCE):
     print "radiopadre: Notebook {}:{}/{} does not exist".format(host, path, notebook)
@@ -239,7 +247,7 @@ else:
     args += [ padre_exec ]
     
 
-ssh = subprocess.Popen(args, stdin=DEVZERO, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+ssh = subprocess.Popen(args, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 
 # poll stdout/stderr
 poller = select.poll()
@@ -255,10 +263,7 @@ register_process(ssh,"ssh")
 
 ssh2 = None
 auto_notebooks = []
-remote_jupyter_port = remote_http_port = None
-
-# this is fied for now, but needs to be made dynamic
-remote_js9helper_port = 2718
+remote_ports = notebook_path = None
 
 while True:
     try:
@@ -275,8 +280,8 @@ while True:
             print "\r%s: %s\r" % (label,line)
             if not line:
                 continue
-            # if support ssh process not started yet, check output
-            if not ssh2:
+            # if remote is not yet started, check output
+            if notebook_path is None:
                 # check for available notebooks
                 match = re.match(".*Available notebooks: (.*)$",line)
                 if match:
@@ -285,36 +290,35 @@ while True:
                 # check for notebook port, and launch second ssh when we have it
                 match = re.match("^http://(localhost|127.0.0.1):([0-9]+)/(.*)$",line)
                 if match:
-                    remote_jupyter_port = match.group(2)
                     notebook_path = match.group(3)
-                    print "radiopadre: Detected remote Jupyter port %s\r" % remote_jupyter_port
+                    print "radiopadre: Received notebook URL from remote"
 
-                match = re.match(".*Serving HTTP on 0.0.0.0 port (\d+)[^\d]", line)
+                match = re.match(".*Selected ports: ([\d]+):([\d]+):([\d]+)[\s]*$",line)
                 if match:
-                    remote_http_port = match.group(1)
-                    print "radiopadre: Detected remote HTTP port %s\r" % remote_http_port
+                    remote_jupyter_port, remote_js9helper_port, remote_http_port = remote_ports = match.groups()
+                    print "radiopadre: Detected remote ports %s:%s:%s\r" % tuple(remote_ports)
 
-                ports = [ remote_jupyter_port, remote_http_port, remote_js9helper_port ]
-                if not all([ x is not None for x in ports]):
+                    ssh2_args = list(SSH_OPTS)
+                    local_ports = []
+                    starting_local_port = 10000+os.getuid()
+                    for remoteport in remote_ports:
+                        # find unused local port
+                        localport = find_unused_port(starting_local_port)
+                        local_ports.append(localport)
+                        starting_local_port = localport+1
+                        print "radiopadre: remote port %s, selecting local port %s\r" % (remoteport, localport)
+                        ssh2_args += [ "-L", "localhost:%s:localhost:%s" % (localport, remoteport) ]
+                    # start second ssh process to forward the port
+                    ssh2_args.append("sleep 100000d")
+                    ssh2 = subprocess.Popen(ssh2_args, stdin=DEVZERO, stdout=DEVNULL, stderr=DEVNULL)
+
+                    # tell first ssh process the ports we have selected
+                    print "radiopadre: Passing local port assignments to remote end"
+                    ssh.stdin.write("{} {}\n".format(*local_ports[1:]))
+
+                if notebook_path is None:
                     continue
 
-                ssh2_args = list(SSH_OPTS)
-                local_ports = []
-                starting_local_port = 10000+os.getuid()
-                for remoteport in ports:
-                    # find unused local port
-                    localport = find_unused_port(starting_local_port)
-                    local_ports.append(localport)
-                    starting_local_port = localport+1
-                    print "radiopadre: remote port %s, selecting local port %s\r" % (remoteport, localport)
-                    ssh2_args += [ "-L", "localhost:%s:localhost:%s" % (localport, remoteport) ]
-                # start second ssh process to forward the port
-                # this also indicates the local ports selected to the remote process
-                ssh2_args.append("cd {} && echo {} >.radiopadre/http_port && echo {} >.radiopadre/helper_port && "
-                    "cat >/dev/null".format(path, local_ports[1], local_ports[2]))
-                ssh2 = subprocess.Popen(ssh2_args, stdin=DEVZERO, stdout=DEVNULL, stderr=DEVNULL)
-                #ssh2 = subprocess.Popen(ssh2_args, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-                #register_process(ssh2, "sshpf")
                 # open browser if needed
                 nb_root_path = "http://localhost:%s/%s" % (local_ports[0], notebook_path)
                 if not options.no_browser:

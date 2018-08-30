@@ -7,7 +7,7 @@ import sys
 import shutil
 
 # get radiopadre install directory
-PADRE_PATH = os.path.dirname(__file__)
+PADRE_PATH = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 JS9_REPO = "https://github.com/ericmandel/js9.git"
 JS9_DIR = PADRE_PATH + "/js9"
@@ -34,7 +34,7 @@ options = parser.parse_args()
 
 PADRE_VENV = os.path.expanduser("~/.radiopadre-venv")
 
-def message(x, prefix='install_radiopadre: '):
+def message(x, prefix='install-radiopadre: '):
     print(prefix + x.format(**globals()))
 
 def bye(x, code=1):
@@ -57,6 +57,7 @@ if os.path.exists(activation_script):
     message("Found existing radiopadre virtualenv in {PADRE_VENV}")
     if options.command == "reinstall":
         message("reinstall: burning it down and starting over")
+        shutil.rmtree(PADRE_VENV)
     elif options.command == "install":
         if os.path.exists(complete_cookie):
             bye("Nothing to be installed. Re-run with 'reinstall' to reinstall everything from scratch instead.", 0)
@@ -84,9 +85,42 @@ if options.command in ["install", "reinstall", "reqs"]:
     if shell("{PADRE_VENV}/bin/pip install -r {PADRE_PATH}/requirements.txt"):
         bye("Dependencies failed to install, see log above")
 
-    message("All dependencies installed in virtual environment. Creating ipython kernel")
+    # install this venv as a custom kernel
+    message("All dependencies installed in virtual environment. Creating radiopadre ipython kernel")
     if shell("{PADRE_VENV}/bin/ipython kernel install --user --name=radiopadre"):
         bye("ipython kernel failed to install, see log above")
+
+    # get path to it because we want to install our own kernel.js
+    try:
+        out = subprocess.check_output("jupyter kernelspec list", shell=True)
+    except subprocess.CalledProcessError:
+        bye("jupyter kernelspec list failed, see log above")
+    for line in out.split("\n"):
+        columns = line.strip().split()
+        if columns[0] == "radiopadre":
+            kerneldir = columns[1]
+            break
+    else:
+        bye("jupyter kernelspec list did not return the radiopadre kernel. This is a bug?")
+    message("Linking kernel.js to {kerneldir}")
+    os.symlink(PADRE_PATH + "/html/radiopadre-kernel.js", kerneldir + "/kernel.js")
+
+# get jupyter path
+notebook_dir = subprocess.check_output("{PADRE_VENV}/bin/pip show jupyter| "
+                                       "grep Location:|cut -d ':' -f 2".format(**globals()), shell=True).strip()
+if not notebook_dir:
+    raise subprocess.CalledProcessError("jupyter installation path not found")
+
+# add link to radiopadre web components in notebook static dir
+if options.command in ["install", "reinstall", "reqs"]:
+    notebook_padre_www = notebook_dir + "/notebook/static/radiopadre-www"
+    padre_www = PADRE_PATH + "/html"
+    message("making link from {notebook_padre_www} to {padre_www}")
+    if not os.path.exists(notebook_padre_www):
+        os.symlink(padre_www, notebook_padre_www)
+    colormap_js = notebook_dir + "/notebook/static/js9colormaps.js"
+    message("creating colormap definitions in {colormap_js}")
+    shell("{PADRE_PATH}/bin/install-js9-colormaps {colormap_js}")
 
 if options.command in ["install", "reinstall", "js9"] and not options.no_js9:
     # install JS9 inside venv
@@ -111,13 +145,21 @@ if options.command in ["install", "reinstall", "js9"] and not options.no_js9:
         js9_git = JS9_REPO
         message("{JS9_DIR} not found. Will clone JS9 from default location ({JS9_REPO})")
 
-    # First, check if we have a JS9 distribution inside radiopadre
+    # Run git clone if needed
     if js9_git:
-        import tempfile
-        js9_dir = js9_temp = tempfile.mkdtemp(prefix="js9")
+        if os.access(PADRE_PATH, os.W_OK) and not os.path.exists(JS9_DIR):
+            js9_dir = JS9_DIR
+        else:
+            import tempfile
+            js9_dir = js9_temp = tempfile.mkdtemp(prefix="js9")
         message("Cloning {js9_git} into {js9_dir}")
         if shell("git clone {js9_git} {js9_dir}") != 0:
             bye("Failed to clone JS9 repo, see log above")
+    else:
+        if js9_dir == JS9_DIR and os.access(JS9_DIR, os.W_OK) and os.path.exists(JS9_DIR + "/.git"):
+            message("Will do a git pull in {js9_dir}")
+            if shell("git -C {js9_dir} pull") != 0:
+                bye("Failed to git pull in JS9 directory, see log above")
 
     # Configure and install
     js9_www = PADRE_VENV + "/js9-www"
@@ -137,14 +179,16 @@ if options.command in ["install", "reinstall", "js9"] and not options.no_js9:
 
     # Make symlink to js9 install dir in notebook dir
     try:
-        notebook_dir = subprocess.check_output("{PADRE_VENV}/bin/pip show jupyter| "
-                    "grep Location:|cut -d ':' -f 2".format(**globals()), shell=True).strip()
-        if not notebook_dir:
-            raise subprocess.CalledProcessError("no notebook path")
         notebook_js9_www = notebook_dir + "/notebook/static/js9-www"
         message("making link from {notebook_js9_www} to {js9_www}")
         if not os.path.exists(notebook_js9_www):
             os.symlink(js9_www, notebook_js9_www)
+
+        notebook_socket_io = notebook_dir + "/notebook/static/socket.io.js"
+        js9_socket_io = js9_www + "/node_modules/socket.io-client/dist/socket.io.js"
+        message("making link from {notebook_socket_io} to {js9_socket_io}")
+        if not os.path.exists(notebook_socket_io):
+            os.symlink(js9_socket_io, notebook_socket_io)
     except subprocess.CalledProcessError:
         bye("Failed to determine jupyter notebook path")
 

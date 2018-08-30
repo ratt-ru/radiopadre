@@ -9,9 +9,13 @@ JS9_ERROR = None
 # these globals define the access method for JS9
 _method = os.environ["RADIOPADRE_JS9_HTTP"]
 
-JS9_INSTALL_PREFIX_JUP = "/static/js9-www"           # URL used to access JS9 code
-JS9_FITS_PREFIX_JUP    = "/files/"                   # URL used to access FITS files inside scripts
+RADIOPADRE_INSTALL_PREFIX_JUP = "/static/radiopadre-www"           # URL used to access radiopadre code
+RADIOPADRE_LOCAL_PREFIX_JUP = "/files/.radiopadre"                 # URL used to access radiopadre aux dir
+JS9_INSTALL_PREFIX_JUP = "/static/js9-www"                         # URL used to access JS9 code
+JS9_FITS_PREFIX_JUP    = ""                             # URL used to access FITS files inside notebook
 
+RADIOPADRE_INSTALL_PREFIX_HTTP = _method+".radiopadre/radiopadre-www" # URL used to access radiopadre code
+RADIOPADRE_LOCAL_PREFIX_HTTP = _method+".radiopadre"               # URL used to access radiopadre aux dir
 JS9_INSTALL_PREFIX_HTTP = _method+".radiopadre/js9-www"  # URL used to access JS9 code
 JS9_FITS_PREFIX_HTTP    = _method                        # URL used to access FITS files inside scripts
 
@@ -38,8 +42,14 @@ if not JS9_ERROR:
     try:
         with open(os.path.join(DIRNAME, "js9-init-template.html")) as inp:
             source = inp.read()
-        JS9_INIT_HTML_JUP  = source.format(JS9_INSTALL_PREFIX=JS9_INSTALL_PREFIX_JUP, **globals())
-        JS9_INIT_HTML_HTTP = source.format(JS9_INSTALL_PREFIX=JS9_INSTALL_PREFIX_HTTP, **globals())
+        JS9_INIT_HTML_JUP  = source.format(JS9_INSTALL_PREFIX=JS9_INSTALL_PREFIX_JUP,
+                                           RADIOPADRE_INSTALL_PREFIX=RADIOPADRE_INSTALL_PREFIX_JUP,
+                                           RADIOPADRE_LOCAL_PREFIX=RADIOPADRE_LOCAL_PREFIX_JUP,
+                                           **globals())
+        JS9_INIT_HTML_HTTP = source.format(JS9_INSTALL_PREFIX=JS9_INSTALL_PREFIX_HTTP,
+                                           RADIOPADRE_INSTALL_PREFIX=RADIOPADRE_INSTALL_PREFIX_HTTP,
+                                           RADIOPADRE_LOCAL_PREFIX=RADIOPADRE_LOCAL_PREFIX_HTTP,
+                                           **globals())
 
     except Exception, exc:
         traceback.print_exc()
@@ -50,20 +60,3 @@ if JS9_ERROR:
     JS9_INIT_HTML_JUP = JS9_INIT_HTML_HTTP = "<p>Error initializing JS9: {}</p>".format(JS9_ERROR)
 
 
-def get_init_js():
-    """Returns Javascript code for JS9 initialization."""
-
-    # we only want to load JS9 once per a document's lifetime, otherwise chaos ensues
-    return """
-        if( !document.radiopadre.js9_init_code )
-        {{
-            console.log("loading JS9...");
-            document.radiopadre.js9_init_code = "{0}";
-            element.append(document.radiopadre.js9_init_code);
-        }}
-        else
-        {{
-            console.log("JS9 already loaded, skipping");
-        }}
-        {1}
-        """.format(JS9_INIT_HTML_JUP.replace("\n",""), open(DIRNAME+"/js9-radiopadre.js").read())

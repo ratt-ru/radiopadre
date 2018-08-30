@@ -1,0 +1,30 @@
+    <!--
+    Calculates layout based on total width: column of 3 square tool windows on the right, with a height
+            matching the main window. Main window plus column of tool windows must equal the total width.
+
+    The two substitutions are {{display_id}}, and {{total_width}}, in pixels.
+    -->
+
+<style type="text/css">
+.outer-{display_id}-table {{
+    --total-width: {total_width}px;
+    --statusbar-height: 18px;
+    --colorbar-height:  40px;
+    --menubar-height:   36px;
+    --statusbar-rebin-height: 18px;
+    --tools-padding:    5px;
+    --horizontal-padding: 5px;
+    --zoom-vertical-padding: calc(var(--statusbar-height) + var(--colorbar-height) + var(--menubar-height));
+    --rebin-vertical-padding: calc(2*var(--tools-padding) + var(--statusbar-rebin-height));
+    --js9-rebin-size: calc((var(--total-width) - var(--horizontal-padding) + var(--zoom-vertical-padding) - var(--rebin-vertical-padding))/4);
+    --js9-zoom-width: calc(var(--total-width) - var(--horizontal-padding) - var(--js9-rebin-size));
+    --js9-zoom-height: var(--js9-zoom-width);
+    --plugin-size: var(--js9-rebin-size);
+
+    font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
+    font-size: 12px;
+    display: table;
+    width: var(--total-width);
+    height: auto;
+}}
+</style>

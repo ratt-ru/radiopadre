@@ -4,12 +4,13 @@ import os
 import fnmatch
 from collections import OrderedDict
 import uuid
+import itertools
 
 
-from .file import data_file, FileBase
+from .file import FileBase
 from .render import render_table, render_preamble, render_refresh_button, render_status_message, render_url, render_title
 
-import radiopadre
+from radiopadre import settings
 
 class FileList(list):
     @staticmethod
@@ -29,18 +30,39 @@ class FileList(list):
         if sort:
             self.sort(sort)
 
+        # For every _show_xxx() method defined in the class object,
+        # create a corresponding self.xxx() method that maps to it
+        for method in dir(classobj):
+            if method.startswith("_show_"):
+                func = getattr(classobj, method)
+                setattr(self, method[6:], lambda func=func,**kw:self._call_collective_method(func, **kw))
+
+    def _call_collective_method(self, method, **kw):
+        display(HTML(render_refresh_button(full=self._parent and self._parent.is_updated())))
+        if not self:
+            display(HTML("<p>0 files</p>"))
+            return None
+        kw.setdefault('title', self._title + " (%d file%s)" % (len(self), "s" if len(self) > 1 else ""))
+        kw.setdefault('showpath', self._showpath)
+        method(self, **kw)
+
     def sort(self, opt="xnt"):
         return FileBase.sort_list(self, opt)
 
     def _repr_html_(self, ncol=None, **kw):
         html = render_preamble() + render_title(self._title) + \
-               render_refresh_button(full=self._parent and self._parent.is_updated());
+               render_refresh_button(full=self._parent and self._parent.is_updated())
+        # if class object has a summary function, use that
+        html_summary = getattr(self._classobj, "_html_summary", None)
+        if html_summary:
+            return html + html_summary(self)
+        # else fall back to normal filelist
         if not self:
             return html + ": 0 files"
         # auto-set 1 or 2 columns based on filename length
         if ncol is None:
             max_ = max([len(df.basename) for df in self])
-            ncol = 2 if max_ <= radiopadre.TWOCOLUMN_LIST_WIDTH else 1
+            ncol = 2 if max_ <= settings.gen.twocolumn_list_width else 1
         if self._extcol:
             labels = "name", "ext", "size", "modified"
             data = [((df.basepath if self._showpath else df.basename), df.ext,
@@ -52,6 +74,7 @@ class FileList(list):
             data = [((df.basepath if self._showpath else df.basename),
                      df.size_str, df.mtime_str) for df in self]
             links = [(render_url(df.fullpath), None, None) for df in self]
+        # get "action buttons" associated with each file
         preamble = OrderedDict()
         postscript = OrderedDict()
         div_id = uuid.uuid4().hex
@@ -60,24 +83,14 @@ class FileList(list):
                              preamble=preamble, postscript=postscript, div_id=div_id)
         return html
 
+    def __str__(self):
+        return FileList.list_to_string(self)
+
     def show(self, ncol=None, **kw):
         return IPython.display.display(HTML(self._repr_html_(ncol=ncol, **kw)))
 
     def list(self, ncol=None, **kw):
         return IPython.display.display(HTML(self._repr_html_(ncol=ncol, **kw)))
-
-    def __str__(self):
-        return FileList.list_to_string(self)
-
-    def summary(self, **kw):
-        kw.setdefault('title', self._title)
-        kw.setdefault('showpath', self._showpath)
-        summary = getattr(self._classobj, "_show_summary", None)
-        if summary:
-            display(HTML(render_refresh_button(full=self._parent and self._parent.is_updated())))
-            return summary(self, **kw)
-        else:
-            return self.list(**kw)
 
     # def watch(self,*args,**kw):
     #     display(HTML(render_refresh_button()))
@@ -90,10 +103,10 @@ class FileList(list):
         for f in self:
             f.show(*args, **kw)
 
-    def __call__(self, pattern):
+    def __call__(self, *patterns):
         """Returns a FileList os files from this list that match a pattern. Use !pattern to invert the meaning."""
         files = []
-        for patt in pattern.split():
+        for patt in itertools.chain(*[x.split() for x in patterns]):
             if patt[0] == '!':
                 files += [f for f in self if not fnmatch.fnmatch((f.path if self._showpath else f.name), patt[1:])]
             else:
@@ -101,24 +114,25 @@ class FileList(list):
         return FileList(files,
                         extcol=self._extcol, showpath=self._showpath,
                         classobj=self._classobj,
-                        title=os.path.join(self._title, pattern), parent=self._parent)
+                        title=os.path.join(self._title, ",".join(patterns)), parent=self._parent)
 
-    def thumbs(self, max=100, **kw):
-        display(HTML(render_refresh_button(full=self._parent and self._parent.is_updated())))
-        if not self:
-            display(HTML("<p>0 files</p>"))
-            return None
-        kw.setdefault('title', self._title + " (%d file%s)" % (len(self), "s" if len(self) > 1 else ""))
-        kw.setdefault('showpath', self._showpath)
-        thumbs = getattr(self._classobj, "_show_thumbs", None)
-        if thumbs:
-            return thumbs(self[:max], **kw)
-        display(HTML("<p>%d files. Don't know how to make thumbnails for this collection.</p>" % len(self)))
+    # def thumbs(self, max=100, **kw):
+    #     display(HTML(render_refresh_button(full=self._parent and self._parent.is_updated())))
+    #     if not self:
+    #         display(HTML("<p>0 files</p>"))
+    #         return None
+    #     kw.setdefault('title', self._title + " (%d file%s)" % (len(self), "s" if len(self) > 1 else ""))
+    #     kw.setdefault('showpath', self._showpath)
+    #     thumbs = getattr(self._classobj, "_show_thumbs", None)
+    #     if thumbs:
+    #         return thumbs(self[:max], **kw)
+    #     display(HTML("<p>%d files. Don't know how to make thumbnails for this collection.</p>" % len(self)))
 
     def __getslice__(self, *slc):
+        slice_str = ":".join([str(s) if s is not None and s < 2**31 else "" for s in slc])
         return FileList(list.__getslice__(self, *slc),
                         extcol=self._extcol, showpath=self._showpath,
                         classobj=self._classobj,
-                        title="%s[%s]" % (self._title, ":".join(map(str, slc))), parent=self._parent)
+                        title="%s[%s]" % (self._title, slice_str), parent=self._parent)
 
 

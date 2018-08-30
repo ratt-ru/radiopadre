@@ -10,6 +10,10 @@ from IPython.display import display, HTML, Javascript
 from radiopadre.notebook_utils import _notebook_save_hook
 from radiopadre.notebook_utils import scrub_cell
 
+import radiopadre.settings_manager
+
+settings = radiopadre.settings_manager.RadiopadreSettingsManager()
+
 from .file import data_file, FileBase
 from .dirlist import DataDir, DirList
 from .filelist import FileList
@@ -22,29 +26,14 @@ try:
 except pkg_resources.DistributionNotFound:
     __version__ = "development"
 
-# when running inside a docker containers, these are used to tell radiopadre
-# where the results directory is mounted, and what its original path on
-# the host is. Note that rendered paths will display the _host_ path rather
-# than the internal container path (to avoid confusing the user),
-# hence the need to know ORIGINAL_RESULTDIR
-RESULTDIR = os.environ.get('PADRE_DATA_DIR', None)
-ORIGINAL_RESULTDIR = os.environ.get('PADRE_ORIGINAL_DIR', None)
-
-WIDTH = None  # globally fix a plot width (inches)
-MINCOL = 2  # default min # of columns to display in thumbnail view
-MAXCOL = 4  # default max # of columns to display in thumbnail view
-MAXWIDTH = 16  # default width of thumbnail view (inches)
-DPI = 80  # screen DPI
-
-TWOCOLUMN_LIST_WIDTH = 20  # if all filenames in a list are <= this in length,
-# use two columns by default
-
-TIMEFORMAT = "%H:%M:%S %b %d"
-
 ## various notebook-related init
 astropy.log.setLevel('ERROR')
 
 ROOTDIR = os.getcwd()
+
+def set_window_sizes(cell_width,window_width,window_height):
+    settings.display.cell_width, settings.display.window_width, settings.display.window_height = cell_width, window_width, window_height
+
 
 def get_cache_dir(path, subdir=None):
     """Creates directory .radiopadre/subdir in directory of object given by path, and returns path to it.
@@ -66,19 +55,32 @@ def get_cache_dir(path, subdir=None):
     return cache if os.access(cache, os.W_OK) else None
 
 def _init_js_side():
-    """Checks that Javascript components of radiopadre are initialized"""
+    """Checks that Javascript components of radiopadre are initialized, does various other init"""
     try:
         get_ipython
     except:
         return None
     get_ipython().magic("matplotlib inline")
     # load radiopadre/js/init.js and init controls
-    initjs = os.path.join(os.path.dirname(__file__), "html", "init-radiopadre-components.js")
-    display(Javascript(open(initjs).read()))
-    display(Javascript("document.radiopadre.init_controls('%s')" % os.environ['USER']))
-    # init JS9 components
-    import js9
-    display(Javascript(js9.get_init_js()))
+    #initjs = os.path.join(os.path.dirname(__file__), "html", "init-radiopadre-components.js")
+    #display(Javascript(open(initjs).read()))
+
+    reset_code = """
+        var width = $(".rendered_html")[0].clientWidth;
+        Jupyter.notebook.kernel.execute(`import radiopadre; radiopadre.set_window_sizes(
+                                                ${width}, 
+                                                ${window.innerWidth}, ${window.innerHeight})`);
+    """
+
+    def reset():
+        display(Javascript(reset_code))
+    settings.display.reset = reset, radiopadre.settings_manager.DocString("call this to reset sizes after e.g. a browser resize")
+
+    display(HTML("""<script type='text/javascript'>
+            document.radiopadre.register_user('{}');
+            {}
+        </script>
+        """.format(os.environ['USER'], reset_code, __version__)))
 
 def protect(author=None):
     """Makes current notebook protected with the given author name. Protected notebooks won't be saved
