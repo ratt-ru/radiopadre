@@ -34,7 +34,6 @@ parser.add_option('--yu1',dest='yu1',help='Maximum y-value to plot for upper pan
 parser.add_option('--yl0',dest='yl0',help='Minimum y-value to plot for lower panel (default = full range)',default=-1)
 parser.add_option('--yl1',dest='yl1',help='Maximum y-value to plot for lower panel (default = full range)',default=-1)
 parser.add_option('--cmap',dest='mycmap',help='Matplotlib colour map to use for antennas (default = coolwarm)',default='coolwarm')
-parser.add_option('--size',dest='mysize',help='Font size for figure labels (default = 20)',default=20)
 parser.add_option('--ms',dest='myms',help='Measurement Set to consult for proper antenna names',default='')
 parser.add_option('-p','--plotname',dest='pngname',help='Output PNG name (default = something sensible)',default='')
 (options,args) = parser.parse_args()
@@ -51,7 +50,6 @@ yu1 = float(options.yu1)
 yl0 = float(options.yl0)
 yl1 = float(options.yl1)
 mycmap = options.mycmap
-mysize = int(options.mysize)
 myms = options.myms
 pngname = options.pngname
 
@@ -388,6 +386,7 @@ ax2.y_range=Range1d(ylmin,ylmax)
 ax1.xaxis.axis_label=ax1_xlabel='Channel'
 ax2.xaxis.axis_label=ax2_xlabel='Channel'
 
+tt.close()
 
 #configuring titles for the plots
 ax1_title = Title(text = ax1_ylabel + ' vs ' + ax1_xlabel, align='center', text_font_size='25px')
@@ -437,8 +436,8 @@ legend_objs_ax1, legend_objs_ax1_err, legend_objs_ax2, legend_objs_ax2_err = {},
 for i in range(num_legend_objs):
     legend_objs_ax1['leg_%s'%str(i)] = Legend(items=batches_ax1[i], location='top_right', click_policy='hide')
     legend_objs_ax2['leg_%s'%str(i)] = Legend(items=batches_ax2[i], location='top_right', click_policy='hide')
-    legend_objs_ax1_err['leg_%s'%str(i)] = Legend(items=batches_ax1_err[i], location='top_right', click_policy='hide')
-    legend_objs_ax2_err['leg_%s'%str(i)] = Legend(items=batches_ax2_err[i], location='top_right', click_policy='hide')
+    legend_objs_ax1_err['leg_%s'%str(i)] = Legend(items=batches_ax1_err[i], location='top_right', click_policy='hide', visible = False)
+    legend_objs_ax2_err['leg_%s'%str(i)] = Legend(items=batches_ax2_err[i], location='top_right', click_policy='hide', visible = False)
 
 
 #adding legend objects to the layouts
@@ -483,7 +482,7 @@ for i in range(num_legend_objs):
 batch_select = CheckboxGroup( labels = ant_labs, active = [])
 
 #Dropdown to hide and show legends
-legend_toggle = Select(title="Toggle Legends", value = "On", options = ["On", "Off"])
+legend_toggle = Select(title="Showing Legends: ", value = "alo", options = [("all","All"), ("alo","Antennas"), ("elo","Errors"),("non","None")])
 
 ant_select.callback = CustomJS(args=dict(glyph1=legend_items_ax1, glyph2=legend_items_ax2, batchsel = batch_select), code=
 	'''
@@ -624,14 +623,12 @@ batch_select.callback = CustomJS.from_coffeescript( args=dict(bax1 = batches_ax1
 legend_toggle.callback =CustomJS( args = dict(loax1 = legend_objs_ax1.values(), loax1_err = legend_objs_ax1_err.values(), loax2 = legend_objs_ax2.values(), loax2_err = legend_objs_ax2_err.values() ), code = """
 
 	var len = loax1.length;
-	var i =0;
-
-	if (this.value == "On"){
+	var i ;
+	if (this.value == "alo"){
 		for(i=0; i<len; i++){
 			loax1[i].visible = true;
 			loax2[i].visible = true;
-			loax1_err[i].visible = true;
-			loax2_err[i].visible = true;
+			
 		}
 	}
 
@@ -639,10 +636,47 @@ legend_toggle.callback =CustomJS( args = dict(loax1 = legend_objs_ax1.values(), 
 		for(i=0; i<len; i++){
 			loax1[i].visible = false;
 			loax2[i].visible = false;
-			loax1_err[i].visible = false;
-			loax2_err[i].visible = false;
+			
 		}
 	}
+
+	
+
+	if (this.value == "elo"){
+		for(i=0; i<len; i++){
+			loax1_err[i].visible = true;
+			loax2_err[i].visible = true;
+			
+		}
+	}
+
+	else{
+		for(i=0; i<len; i++){
+			loax1_err[i].visible = false;
+			loax2_err[i].visible = false;
+			
+		}
+	}	
+
+	if (this.value == "all"){
+		for(i=0; i<len; i++){
+			loax1[i].visible = true;
+			loax2[i].visible = true;
+			loax1_err[i].visible = true;
+			loax2_err[i].visible = true;
+			
+		}
+	}
+
+	if (this.value == "non"){
+		for(i=0; i<len; i++){
+			loax1[i].visible = false;
+			loax2[i].visible = false;
+			loax1_err[i].visible = false;
+			loax2_err[i].visible = false;
+			
+		}
+	}	
 
 
 

@@ -37,7 +37,6 @@ def plot(cmdargs):
 	yl0	= cmdargs.get('yl0', -1)
 	yl1	= cmdargs.get('yl1', -1)
 	mycmap = cmdargs.get('mycmap', 'coolwarm')
-	mysize = cmdargs.get('mysize', 20)
 	myms = cmdargs.get('myms', '')
 	pngname = cmdargs.get('pngname', '')
 	mytab = cmdargs.get('mytab', '')
@@ -335,6 +334,8 @@ def plot(cmdargs):
 	ax1.xaxis.axis_label=ax1_xlabel='Antenna1'
 	ax2.xaxis.axis_label=ax2_xlabel='Antenna1'
 
+	tt.close()
+
 	#configuring titles for the plots
 	ax1_title = Title(text = ax1_ylabel + ' vs ' + ax1_xlabel, align='center', text_font_size='25px')
 	ax2_title = Title(text = ax2_ylabel + ' vs ' + ax2_xlabel, align='center', text_font_size='25px')
@@ -383,8 +384,8 @@ def plot(cmdargs):
 	for i in range(num_legend_objs):
 	    legend_objs_ax1['leg_%s'%str(i)] = Legend(items=batches_ax1[i], location='top_right', click_policy='hide')
 	    legend_objs_ax2['leg_%s'%str(i)] = Legend(items=batches_ax2[i], location='top_right', click_policy='hide')
-	    legend_objs_ax1_err['leg_%s'%str(i)] = Legend(items=batches_ax1_err[i], location='top_right', click_policy='hide')
-	    legend_objs_ax2_err['leg_%s'%str(i)] = Legend(items=batches_ax2_err[i], location='top_right', click_policy='hide')
+	    legend_objs_ax1_err['leg_%s'%str(i)] = Legend(items=batches_ax1_err[i], location='top_right', click_policy='hide', visible = False)
+	    legend_objs_ax2_err['leg_%s'%str(i)] = Legend(items=batches_ax2_err[i], location='top_right', click_policy='hide', visible = False)
 
 
 	#adding legend objects to the layouts
@@ -424,7 +425,7 @@ def plot(cmdargs):
 	batch_select = CheckboxGroup( labels = ant_labs, active = [])
 
 	#Dropdown to hide and show legends
-	legend_toggle = Select(title="Toggle Legends", value = "On", options = ["On", "Off"])
+	legend_toggle = Select(title="Showing Legends: ", value = "alo", options = [("all","All"), ("alo","Antennas"), ("elo","Errors"),("non","None")])
 
 	ant_select.callback = CustomJS(args=dict(glyph1=legend_items_ax1, glyph2=legend_items_ax2, batchsel = batch_select), code=
 		'''
@@ -565,14 +566,12 @@ def plot(cmdargs):
 	legend_toggle.callback =CustomJS( args = dict(loax1 = legend_objs_ax1.values(), loax1_err = legend_objs_ax1_err.values(), loax2 = legend_objs_ax2.values(), loax2_err = legend_objs_ax2_err.values() ), code = """
 
 		var len = loax1.length;
-		var i =0;
-
-		if (this.value == "On"){
+		var i ;
+		if (this.value == "alo"){
 			for(i=0; i<len; i++){
 				loax1[i].visible = true;
 				loax2[i].visible = true;
-				loax1_err[i].visible = true;
-				loax2_err[i].visible = true;
+				
 			}
 		}
 
@@ -580,12 +579,47 @@ def plot(cmdargs):
 			for(i=0; i<len; i++){
 				loax1[i].visible = false;
 				loax2[i].visible = false;
-				loax1_err[i].visible = false;
-				loax2_err[i].visible = false;
+				
 			}
 		}
 
+		
 
+		if (this.value == "elo"){
+			for(i=0; i<len; i++){
+				loax1_err[i].visible = true;
+				loax2_err[i].visible = true;
+				
+			}
+		}
+
+		else{
+			for(i=0; i<len; i++){
+				loax1_err[i].visible = false;
+				loax2_err[i].visible = false;
+				
+			}
+		}	
+
+		if (this.value == "all"){
+			for(i=0; i<len; i++){
+				loax1[i].visible = true;
+				loax2[i].visible = true;
+				loax1_err[i].visible = true;
+				loax2_err[i].visible = true;
+				
+			}
+		}
+
+		if (this.value == "non"){
+			for(i=0; i<len; i++){
+				loax1[i].visible = false;
+				loax2[i].visible = false;
+				loax1_err[i].visible = false;
+				loax2_err[i].visible = false;
+				
+			}
+		}	
 
 		""")
 
@@ -636,7 +670,6 @@ def plot_K_table(mytab=None, **kwargs):
 		yl0			: Minimum y-value to plot for lower panel (default = full range)',default=-1)
 		yl1			: Maximum y-value to plot for lower panel (default = full range)',default=-1)
 		mycmap		: Matplotlib colour map to use for antennas (default = coolwarm)',default='coolwarm')
-		mysize		: Font size for figure labels (default = 20)',default=20)
 		myms		: Measurement Set to consult for proper antenna names',default='')
 		pngname		: Output PNG name (default = something sensible)',default='')
 	"""
