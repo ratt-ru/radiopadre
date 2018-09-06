@@ -1,0 +1,24 @@
+This library mainly requires
+	1. Bokeh
+	2. Nodejs for js
+
+All python requirements are found in requirements.txt
+
+To install nodejs in the virtual environment, use: nodeenv, a nodejs virtual environment.
+Can be found (here)[https://pypi.org/project/nodeenv/]
+
+
+Instructions
+=======================================
+Install modules in requirements.txt
+
+Create python virtual environmnent and switch to it
+
+Create nodejs virtual environment with
+	nodeenv envName
+	. envName/bin/activate
+
+Run the commands
+
+
+
