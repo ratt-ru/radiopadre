@@ -11,7 +11,7 @@ import socket
 import fnmatch
 
 REPO = "git@github.com:ratt-ru/radiopadre-devel.git"
-BRANCH = "custom-js"
+BRANCH = "custom-js-newdisp"
 
 LAUNCH = "run-radiopadre"
 
@@ -81,7 +81,7 @@ print "radiopadre: Will start remote radiopadre in {}:{}, notebook(s) {}".format
 # Find remote run-radiopadre.sh script
 
 if options.remote_path:
-    padre_execs = [ os.path.join(options.remote_path,LAUNCH) ]
+    padre_execs = [ os.path.join(options.remote_path,"bin",LAUNCH) ]
 else:
     padre_execs = [ os.path.join("~/radiopadre/bin",LAUNCH), LAUNCH ]
 
@@ -192,7 +192,7 @@ else:
     # try the bootstrap
     print "radiopadre: Cloning {}, branch {} into {}:~/radiopadre".format(REPO, BRANCH, host)
     ssh_remote_interactive("git clone -b {} {} radiopadre".format(BRANCH, REPO))
-    padre_exec = os.path.join(install_path, LAUNCH)
+    padre_exec = os.path.join(install_path, "bin", LAUNCH)
     if not check_remote_file(padre_exec):
         help_yourself("git clone ran, but I still don't see the launch script {}:{}".format(host, padre_exec))
     print "radiopadre: Success! Running remote in bootstrap mode"
