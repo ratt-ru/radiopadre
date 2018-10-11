@@ -50,7 +50,7 @@ class FileList(list):
         return FileBase.sort_list(self, opt)
 
     def _repr_html_(self, ncol=None, **kw):
-        html = render_preamble() + render_title(self._title) + \
+        html = render_preamble() + render_title("{} {}".format(len(self), self._title)) + \
                render_refresh_button(full=self._parent and self._parent.is_updated())
         # if class object has a summary function, use that
         html_summary = getattr(self._classobj, "_html_summary", None)
@@ -58,7 +58,7 @@ class FileList(list):
             return html + html_summary(self)
         # else fall back to normal filelist
         if not self:
-            return html + ": 0 files"
+            return html
         # auto-set 1 or 2 columns based on filename length
         if ncol is None:
             max_ = max([len(df.basename) for df in self])
@@ -104,17 +104,28 @@ class FileList(list):
             f.show(*args, **kw)
 
     def __call__(self, *patterns):
-        """Returns a FileList os files from this list that match a pattern. Use !pattern to invert the meaning."""
+        """Returns a FileList os files from this list that match a pattern. Use !pattern to invert the meaning.
+        Use -flags to apply a sort order (where flags is one or more of xntr, to sort by extension, name, time, and reverse)"""
+        sort = None
         files = []
+        accepted_patterns = []
         for patt in itertools.chain(*[x.split() for x in patterns]):
             if patt[0] == '!':
                 files += [f for f in self if not fnmatch.fnmatch((f.path if self._showpath else f.name), patt[1:])]
+                accepted_patterns.append(patt)
+            elif patt[0] == '-':
+                sort = patt[1:]
             else:
                 files += [f for f in self if fnmatch.fnmatch((f.path if self._showpath else f.name), patt)]
-        return FileList(files,
-                        extcol=self._extcol, showpath=self._showpath,
+                accepted_patterns.append(patt)
+        title = os.path.join(self._title, ",".join(accepted_patterns))
+        if sort is not None:
+            title += ", sort order: {}".format(sort)
+
+        return FileList(files if accepted_patterns else list(self),
+                        extcol=self._extcol, showpath=self._showpath, sort=sort,
                         classobj=self._classobj,
-                        title=os.path.join(self._title, ",".join(patterns)), parent=self._parent)
+                        title=title, parent=self._parent)
 
     # def thumbs(self, max=100, **kw):
     #     display(HTML(render_refresh_button(full=self._parent and self._parent.is_updated())))

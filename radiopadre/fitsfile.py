@@ -122,13 +122,14 @@ class FITSFile(radiopadre.file.FileBase):
     @staticmethod
     def _html_summary(fits_files, title=None, showpath=False, **kw):
         if not fits_files:
-            return "0 files"
+            return ""
         html = render_title(title) if title else ""
         data = [ ff._get_summary_items() for ff in fits_files ]
         preamble = OrderedDict()
         postscript = OrderedDict()
         div_id = uuid.uuid4().hex
-        html += FITSFile._collective_action_buttons_(fits_files, preamble, postscript, div_id=div_id)
+        html += """<span style="display:inline-block; width: 32px;"></span>""" + \
+                FITSFile._collective_action_buttons_(fits_files, preamble, postscript, div_id=div_id)
         actions = [ df._action_buttons_(preamble=preamble, postscript=postscript, div_id=div_id) for df in fits_files ]
         html += render_table(data, html=("size", "axes", "res"), labels=("name", "size", "res", "axes", "modified"),
                              actions=actions,
@@ -364,7 +365,7 @@ class FITSFile(radiopadre.file.FileBase):
                 defaults[key] = kw[key]
         subs['defaults'] = dict_to_js(defaults)
 
-        subs['launch_command'] = "\n".join([f._make_js9_launch_command(subs['display_id']) for f in fits_files])
+        subs['launch_command'] = "\n".join([f._make_js9_launch_command(subs['display_id']) for f in fits_files if len(f.shape) >= 2])
 
         with open(js9_target, 'w') as outp:
             outp.write(read_html_template("js9-window-head-template.html", subs))
@@ -417,9 +418,13 @@ class FITSFile(radiopadre.file.FileBase):
         display(HTML(code))
 
     def js9(self, **kw):
+        if len(self.shape) < 2:
+            return display(HTML("cannot run JS9 on FITS images with NAXIS<2"))
         return FITSFile._show_js9([self], **kw)
 
     def js9ext(self, **kw):
+        if len(self.shape) < 2:
+            return display(HTML("cannot run JS9 on FITS images with NAXIS<2"))
         return FITSFile._show_js9ext([self], window_title="JS9: {}".format(self.fullpath), **kw)
 
     @staticmethod
@@ -454,7 +459,7 @@ class FITSFile(radiopadre.file.FileBase):
         subs1['window_title'] = "JS9: {} images".format(len(fits_files))
         subs['newtab_html'] = FITSFile._make_js9_external_window_script(fits_files, div_id, subs1)
 
-        subs['launch_command'] = "\n".join([f._make_js9_launch_command(div_id) for f in fits_files])
+        subs['launch_command'] = "\n".join([f._make_js9_launch_command(div_id) for f in fits_files if len(f.shape) >= 2])
 
         postscript["JS9_load_all"] = """<script type='text/javascript'>
             JS9p._pd_{display_id}_load_all = function () {{
@@ -473,6 +478,10 @@ class FITSFile(radiopadre.file.FileBase):
     def _action_buttons_(self, preamble=OrderedDict(), postscript=OrderedDict(), div_id=""):
         """Renders JS9 buttons for image
         """
+        # ignore less than 2D images
+        if len(self.shape) < 2:
+            return None
+
         subs = globals().copy()
         subs.update(display_id=div_id, **locals())
 
