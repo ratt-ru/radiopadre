@@ -4,7 +4,7 @@ import os
 import fnmatch
 import time
 
-from .file import data_file, FileBase
+from .file import FileBase, autodetect_file_type
 from .filelist import FileList
 from .fitsfile import FITSFile
 from .imagefile import ImageFile
@@ -13,70 +13,149 @@ from .render import render_table, render_preamble, render_refresh_button, render
 import radiopadre
 from radiopadre import settings
 
-class DataDir(FileBase):
+# Need a flag raised in show() and other methods which prevents _load_impl() from being invoked.
+# Decorators wrappig methods, and with?
+#
+
+def _matches(filename, include_patterns=(), exclude_patterns=()):
     """
-    This class represents a directory in the data folder
+    Returns True if filename matches a set of include/exclude patterns.
+    If include is set, filename MUST be in an include pattern. Filename cannot be in any exclude pattern.
+    """
+    if include_patterns and not any([fnmatch.fnmatch(filename, patt) for patt in include_patterns]):
+        return False
+    return not any([fnmatch.fnmatch(filename, patt) for patt in exclude_patterns])
+
+class DataDir(FileBase, FileList):
+    """
+    This class represents a directory
     """
 
-    def __init__(self, name, files=None, root=".", original_root=None, _skip_js_init=False):
-        FileBase.__init__(self, name, root=root)
+    def __init__(self, name, root=".",
+                 include=None, exclude=None,
+                 include_dir=None, exclude_dir=None,
+                 include_empty=None, show_hidden=None,
+                 sort="dxnt",
+                 _skip_js_init=False):
+        """
+        """
+
+        # make sure Javascript end is initialized
+        self._skip_js_init = _skip_js_init
         if not _skip_js_init:
             radiopadre._init_js_side()
-        # list of files
-        if files is None:
-            files = os.listdir(self.fullpath)
-        files = [f for f in files if not f.startswith('.')]
+
+        self._sort = sort
+        # use global settings for parameters that are not specified
+        self._include = self._exclude = self._include_dir = self._exclude_dir = None
+        for option in 'include', 'exclude', 'include_dir', 'exclude_dir':
+           # this will set value to the value of the given keyword arg, or global setting if None, or "" if None
+           value = settings.files.get("", **{option: locals()[option]})
+           if type(value) is str:
+               value = value.split()
+           setattr(self, "_"+option, value)
+        self._include_empty, self._show_hidden = settings.files.get(include_empty=include_empty, show_hidden=show_hidden)
+
+        # init base class -- this will call _scan_impl
+        FileBase.__init__(self, name, root=root)
         # our title, in HTML
-        self._original_root = root
-        self._title = os.path.join(original_root or root, self.path) or '.'
+        FileList.__init__(self, None, sort=sort, title=os.path.join(root, self.path))
 
-        # make list of data filesD and sort by time
-        self.files = FileList([data_file(os.path.join(self.fullpath, f),
-                                         root=root) for f in files],
-                              title=self._title, parent=self)
+        # subsets of content
+        self._fits = self._others = self._images = self._dirs = None
 
-        # make separate lists of fits files and image files
-        self.fits = FileList([f for f in self.files if type(f) is FITSFile],
-                             classobj=FITSFile,
-                             title="FITS files, " + self._title, parent=self)
-        self.images = FileList([f for f in self.files if type(f) is ImageFile],
-                               classobj=ImageFile,
-                               title="Images, " + self._title, parent=self)
-        self.others = FileList([f for f in self.files
-                                if type(f) is not ImageFile and type(
-                f) is not FITSFile],
-                               title="Other files, " + self._title, parent=self)
+        # any list manipulations will cause a call to self._load()
+        for method in 'append', 'extend', 'insert', 'pop', 'remove','reverse':
+            list_method = getattr(FileList, method)
+            def wrap_method(*args, **kw):
+                self._load()
+                list_method(self, *args, **kw)
+            setattr(self, method, wrap_method)
 
-    def sort(self, opt):
-        for f in self.files, self.fits, self.images:
-            f.sort(opt)
-        return self
+    def _scan_impl(self):
+        FileBase._scan_impl(self)
+        # init our file list
+        self[:] = []
+        self.ndirs = self.nfiles = 0
+        for filename in os.listdir(self.fullpath):
+            # skip hidden files and directories, unless told not to
+            if not self._show_hidden and filename[0] == ".":
+                continue
+            path = os.path.join(self.fullpath, filename)
+            filetype = autodetect_file_type(path)
+            # include/exclude based on patterns
+            if filetype is DataDir:
+                if not _matches(filename, self._include_dir, self._exclude_dir):
+                    continue
+                # omit if empty
+                if not self._include_empty and not object:
+                    continue
+                self.ndirs += 1
+            else:
+                if not _matches(filename, self._include, self._exclude):
+                    continue
+                self.nfiles += 1
+            self.append((filetype, path))
 
-    def show(self):
-        return IPython.display.display(self)
+        self.description = "{} files".format(self.nfiles)
+        if self.ndirs:
+            self.description += ", {} dirs".format(self.ndirs)
 
-    def list(self):
-        return IPython.display.display(self)
+    def _load_impl(self):
+        """Finally scan the directory and make a filelist object"""
+        print "loading",self.fullpath
+        content = []
+        for filetype, path in self:
+            if filetype is DataDir:
+                object = DataDir(path, root=self._root, include=self._include, exclude=self._exclude,
+                                 include_dir=self._include_dir, exclude_dir=self._exclude_dir,
+                                 include_empty=self._include_empty, show_hidden=self._show_hidden, sort=self._sort,
+                                 _skip_js_init=self._skip_js_init)
+            else:
+                object = filetype(path, self._root)
+            content.append(object)
+        self._set_list(content, self._sort)
 
-    def _repr_html_(self):
-        return self.files._repr_html_()
+    def _typed_subset(self, filetype, title):
+        return FileList([f for f in self if type(f) is filetype], classobj=filetype, title=title, parent=self)
 
-    def __call__(self, pattern):
-        return self.files(pattern)
+    @property
+    def dirs(self):
+        if self._dirs is None:
+            self._dirs = self._typed_subset(DataDir, "Subdirectories, " + self._title)
+        return self._dirs
 
-    def __getslice__(self, *slc):
-        return self.files.__getslice__(*slc)
+    @property
+    def fits(self):
+        if self._fits is None:
+            # make separate lists of fits files and image files
+            self._fits = self._typed_subset(FITSFile, "FITS files, " + self._title)
+        return self._fits
 
-    def __getitem__(self, item):
-        return self.files[item]
+    @property
+    def images(self):
+        if self._images is None:
+            self._images = self._typed_subset(ImageFile, title="Images, " + self._title)
+        return self._images
 
-    def ls(self):
-        return DirList(self.path, recursive=False,
-                       original_rootfolder=os.path.join(self._original_root, self.path))
 
-    def lsr(self):
-        return DirList(self.path, recursive=True,
-                       original_rootfolder=os.path.join(self._original_root, self.path))
+    def __getitem__(self, *args, **kw):
+        self._load()
+        return FileList.__getitem__(self, *args, **kw)
+
+    def __getslice__(self, *args, **kw):
+        self._load()
+        return FileList.__getslice__(self, *args, **kw)
+
+    def __contains__(self, *args, **kw):
+        self._load()
+        return FileList.__contains__(self, *args, **kw)
+
+    def __iter__(self, *args, **kw):
+        self._load()
+        return FileList.__iter__(self, *args, **kw)
+
+
 
 class DirList(list):
     def __init__(self, rootfolder=None, include="*.jpg *.png *.fits *.txt *.log",

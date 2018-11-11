@@ -18,17 +18,18 @@ class FileList(list):
         return "Contents of %s:\n" % filelist._title + "\n".join(
             ["%d: %s" % (i, d.path) or '.' for i, d in enumerate(filelist)])
 
-    def __init__(self, files=[], extcol=True, showpath=False,
+    def __init__(self, content=None, extcol=True, showpath=False,
                  classobj=None, title="", parent=None,
                  sort="xnt"):
-        list.__init__(self, files)
         self._extcol = extcol
         self._showpath = showpath
         self._classobj = classobj
         self._title = title
         self._parent = parent
-        if sort:
-            self.sort(sort)
+
+        #
+        if content is not None:
+            self._set_list(content, sort)
 
         # For every _show_xxx() method defined in the class object,
         # create a corresponding self.xxx() method that maps to it
@@ -36,6 +37,11 @@ class FileList(list):
             if method.startswith("_show_"):
                 func = getattr(classobj, method)
                 setattr(self, method[6:], lambda func=func,**kw:self._call_collective_method(func, **kw))
+
+    def _set_list(self, content, sort=None):
+        self[:] = content
+        if sort:
+            self.sort(sort)
 
     def _call_collective_method(self, method, **kw):
         display(HTML(render_refresh_button(full=self._parent and self._parent.is_updated())))
@@ -46,7 +52,7 @@ class FileList(list):
         kw.setdefault('showpath', self._showpath)
         method(self, **kw)
 
-    def sort(self, opt="xnt"):
+    def sort(self, opt="dxnt"):
         return FileBase.sort_list(self, opt)
 
     def _repr_html_(self, ncol=None, **kw):
@@ -64,15 +70,15 @@ class FileList(list):
             max_ = max([len(df.basename) for df in self])
             ncol = 2 if max_ <= settings.gen.twocolumn_list_width else 1
         if self._extcol:
-            labels = "name", "ext", "size", "modified"
+            labels = "name", "ext", "", "modified"
             data = [((df.basepath if self._showpath else df.basename), df.ext,
-                     df.size_str, df.mtime_str) for df in
+                     df.description, df.mtime_str) for df in
                     self]
             links = [(render_url(df.fullpath), render_url(df.fullpath), None, None) for df in self]
         else:
-            labels = "name", "size", "modified"
+            labels = "name", "", "modified"
             data = [((df.basepath if self._showpath else df.basename),
-                     df.size_str, df.mtime_str) for df in self]
+                     df.description, df.mtime_str) for df in self]
             links = [(render_url(df.fullpath), None, None) for df in self]
         # get "action buttons" associated with each file
         preamble = OrderedDict()

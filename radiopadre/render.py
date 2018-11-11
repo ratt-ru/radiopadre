@@ -104,7 +104,7 @@ def render_table(data, labels, html=set(), ncol=1, links=None,
 
 
 def render_refresh_button(full=False):
-    """Renders a "refresh" button which re-executes the current sell.
+    """Renders a "refresh" button which re-executes the current cell.
     If full is True, a double-click will re-execute the entire notebook, and the button
     will visually indicate that this is necessary
     """

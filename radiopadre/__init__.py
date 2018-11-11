@@ -14,8 +14,7 @@ import radiopadre.settings_manager
 
 settings = radiopadre.settings_manager.RadiopadreSettingsManager()
 
-from .file import data_file, FileBase
-from .dirlist import DataDir, DirList
+from .datadir import DataDir
 from .filelist import FileList
 from .fitsfile import FITSFile
 from .imagefile import ImageFile
@@ -97,27 +96,33 @@ def unprotect():
     display(HTML(render_status_message("""This notebook is now unprotected.
         All users can treat it as read-write.""")))
 
-
-def lsd(pattern=None, *args, **kw):
+def ls(pattern=None):
     """Creates a DirList from '.' non-recursively, optionally applying a pattern.
 
     Args:
         pattern: if specified, a wildcard pattern
     """
-    kw['recursive'] = False
-    dl = DirList(*args, **kw)
-    return dl(pattern) if pattern else dl
+    dd = DataDir('.')
+    return DataDir(pattern) if pattern else dd
 
-
-def lsdr(pattern=None, *args, **kw):
-    """Creates a DirList from '.' recursively, optionally applying a pattern.
+def lst(pattern=None):
+    """Creates a DirList from '.' non-recursively, optionally applying a pattern.
 
     Args:
         pattern: if specified, a wildcard pattern
     """
-    kw['recursive'] = True
-    dl = DirList(*args, **kw)
-    return dl(pattern) if pattern else dl
+    dd = DataDir('.', sort="dtnx")
+    return DataDir(pattern) if pattern else dd
+
+def lsrt(pattern=None):
+    """Creates a DirList from '.' non-recursively, optionally applying a pattern.
+
+    Args:
+        pattern: if specified, a wildcard pattern
+    """
+    dd = DataDir('.', sort="dtnxr")
+    return DataDir(pattern) if pattern else dd
+
 
 
 def latest(*args):

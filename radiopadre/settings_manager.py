@@ -27,13 +27,19 @@ class Section(_BASE):
             value = value[0]
         self[key] = value
 
-    def get(self,**kw):
-        assert len(kw) == 1
-        key, value = kw.keys()[0], kw.values()[0]
-        if value is None:
-            return self[key]
-        else:
-            return value
+    def get(self, default=None, **kw):
+        if not kw:
+            raise RuntimeError("Section.get() must be called with at least one keyword argument")
+        retval = []
+        for key, value in kw.items():
+            if value is None:
+                value = _BASE.get(self, key)
+                if value is None:
+                    value = default
+            retval.append(value)
+        if len(retval) == 1:
+            retval = retval[0]
+        return retval
 
     @contextmanager
     def __call__(self, **kw):
@@ -119,6 +125,16 @@ class RadiopadreSettingsManager(SettingsManager):
         gen.twocolumn_list_width = 20, D("file lists will default to dual-column if all names are within this length")
 
         gen.timeformat = "%H:%M:%S %b %d", D("time format")
+
+        files = self.add_section("files", "file settings")  # generic settings
+
+        files.include       = "*.jpg *.png *.fits *.txt *.log", D("filename patterns to include in the listings. If None, all files will be included")
+        files.exclude       = None, D("patterns to explicitly exclude from the listings")
+        files.include_dir   = None, D("subdirectory patterns to include in the listings. If None, all subdirectories will be included")
+        files.exclude_dir   = None, D("subdirectory patterns to explicitly exclude from the listings")
+        files.include_empty = False, D("if True, empty subdirectories will also be included.")
+        files.show_hidden   = False, D("if True, hidden files and subdirectories will also be included.")
+
 
         display = self.add_section("display", "display settings, should be set up auto-magically")  # generic settings
 
