@@ -45,9 +45,11 @@ class FITSFile(radiopadre.file.FileBase):
                           COMPLEX=["real", "imag", "weight"])
 
     def __init__(self, *args, **kw):
-        radiopadre.file.FileBase.__init__(self, *args, **kw)
         self._ff = self._header = self._shape = self._image_data = None
         self._rms = {}
+        self._description = "FITS image"
+        radiopadre.file.FileBase.__init__(self, *args, **kw)
+        self._summary = rich_string(self._description)
 
     @property
     def fitsobj(self):
@@ -68,10 +70,6 @@ class FITSFile(radiopadre.file.FileBase):
             self._shape = [ hdr["NAXIS%d" % i] for i in range(1, hdr["NAXIS"] + 1)]
         return self._shape
 
-    @property
-    def info(self):
-        return self.summary
-
     def _get_summary_items(self, showpath=False):
         """
         Helper method employed by summary() and _html_summary()
@@ -79,11 +77,17 @@ class FITSFile(radiopadre.file.FileBase):
         """
         name = self.path if showpath else self.name
         size = resolution = axes = "?"
+        extensions = False
         try:
             hdr = self.header
+            extensions = hdr.get("EXTEND", 'F') == 'T'
             naxis = hdr.get("NAXIS")
-            size = "&times;".join(
-                [str(hdr.get("NAXIS%d" % i)) for i in range(1, naxis + 1)])
+            if naxis:
+                size = "&times;".join([str(hdr.get("NAXIS%d" % i)) for i in range(1, naxis + 1)])
+                if extensions:
+                    size += "+EXT"
+            else:
+                size = "FITS EXT" if size else ""
             axes = ",".join(
                 [hdr.get("CTYPE%d" % i, "?").split("-", 1)[0] for i in range(1, naxis + 1)])
             delt = [abs(hdr.get("CDELT%d" % i, 0)) for i in (1, 2)]
@@ -105,19 +109,18 @@ class FITSFile(radiopadre.file.FileBase):
             traceback.print_exc()
         return name, size, resolution, axes, self.mtime_str
 
-    def summary(self):
+    def _scan_impl(self):
         data = [ self._get_summary_items() ]
         preamble = OrderedDict()
         postscript = OrderedDict()
         div_id = uuid.uuid4().hex
         actions = [ self._action_buttons_(preamble=preamble, postscript=postscript, div_id=div_id) ]
-        return rich_string(" ".join(map(str,data[0])),
+        self._description = data[0][1]
+        self._summary = rich_string(" ".join(map(str,data[0])),
                     render_table(data, html=("size", "axes", "res"), labels=("name", "size", "res", "axes", "modified"),
                                      header=False, numbering=False, actions=actions,
                                      preamble=preamble, postscript=postscript, div_id=div_id))
 
-    def _repr_html_(self):
-        return self.summary._repr_html_()
 
     @staticmethod
     def _html_summary(fits_files, title=None, showpath=False, **kw):
@@ -135,10 +138,6 @@ class FITSFile(radiopadre.file.FileBase):
                              actions=actions,
                              preamble=preamble, postscript=postscript, div_id=div_id)
         return html
-
-    @staticmethod
-    def _show_summary(fits_files, **kw):
-        display(HTML(FITSFile._html_summary(fits_files, **kw)))
 
     @staticmethod
     def _show_thumbs(fits_files,

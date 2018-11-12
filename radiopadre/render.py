@@ -2,24 +2,45 @@ import math
 import cgi
 from collections import OrderedDict
 
-#edited by me lexy
-from IPython.display import display, HTML
-import ipywidgets as widgets
-from ipywidgets import VBox
-import render,time
 
-import radiopadre
 
-class rich_string(object):
-    def __init__(self, text, html):
+class RichString(object):
+    """
+    A rich_string object contains a plain string and an HTML version of itself, and will render itself
+    in a notebook front-end appropriately
+    """
+    def __init__(self, text, html=None):
         self._text = text
-        self._html = html
+        self._html = html or "<P>{}</P>".format(text)
+
+    @property
+    def text(self):
+        return self._text
+
+    @property
+    def html(self):
+        return self._html
+
+    def __str__ (self):
+        return self._text
 
     def __repr__(self):
         return self._text
 
     def _repr_html_(self):
         return self._html
+
+    def __call__(self):
+        """Doing richstring() is the same as richstring"""
+        return self
+
+def rich_string(text, html=None):
+    if type(text) is RichString:
+        if html is not None:
+            raise TypeError("can't call rich_string(RichString,html): this is a bug")
+        return text
+    return RichString(text, html)
+
 
 def render_preamble():
     """Renders HTML preamble.
@@ -80,7 +101,9 @@ def render_table(data, labels, html=set(), ncol=1, links=None,
                     styles.get((irow, "#"), ""),
                     idatum)
             for i, col in enumerate(datum):
-                if not str(col).upper().startswith("<HTML>") and not i in html and not labels[i] in html:
+                if type(col) is RichString:
+                    col = col.html
+                elif not str(col).upper().startswith("<HTML>") and not i in html and not labels[i] in html:
                     col = cgi.escape(str(col))
                 txt += """<td style="border: 0px; text-align: left; """
                 if ncol > 1 and icol < ncol - 1 and i == len(datum) - 1:

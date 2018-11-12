@@ -122,7 +122,7 @@ class RadiopadreSettingsManager(SettingsManager):
 
         gen = self.add_section("gen", "general radiopadre settings")  # generic settings
 
-        gen.twocolumn_list_width = 20, D("file lists will default to dual-column if all names are within this length")
+        gen.twocolumn_list_width = 40, D("file lists will default to dual-column if all names are within this length")
 
         gen.timeformat = "%H:%M:%S %b %d", D("time format")
 

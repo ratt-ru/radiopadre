@@ -53,8 +53,15 @@ def get_cache_dir(path, subdir=None):
         os.mkdir(cache)
     return cache if os.access(cache, os.W_OK) else None
 
+
+_init_js_side_done = None
+
 def _init_js_side():
     """Checks that Javascript components of radiopadre are initialized, does various other init"""
+    global _init_js_side_done
+    if _init_js_side_done:
+        return
+    _init_js_side_done = True
     try:
         get_ipython
     except:

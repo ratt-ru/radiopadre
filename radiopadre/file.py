@@ -4,25 +4,27 @@ import math
 
 from IPython.display import display, HTML
 
-import radiopadre
 from radiopadre import settings
-from radiopadre.render import render_refresh_button
+from radiopadre.render import render_refresh_button, rich_string
 from collections import OrderedDict
+import casacore.tables
 
 class FileBase(object):
     """Base class referring to an abstract datafile. Sets up some standard attributes in the constructor.
 
     Attributes:
-        fullpath:   the full path to the file, e.g. results/dir1/file1.txt
-        path:       path to file relative to root padre directory, e.g. dir1/file1.txt
-        name:       the filename (os.path.basename(path)), e.g. file1.txt
-        ext:        extension with leading dot, e.g. .txt
-        basename:   filename sans extension, e.g. file1
-        basepath:   path+filename sans extension, e.g. dir1/file1
-        mtime:      modification time
-        mtime_str:  string version of mtime
-        size:       size in bytes
-        size_str:   human-readable size string
+        fullpath:       the full path to the file, e.g. results/dir1/file1.txt
+        path:           path to file relative to root padre directory, e.g. dir1/file1.txt
+        name:           the filename (os.path.basename(path)), e.g. file1.txt
+        ext:            extension with leading dot, e.g. .txt
+        basename:       filename sans extension, e.g. file1
+        basepath:       path+filename sans extension, e.g. dir1/file1
+        mtime:          modification time
+        mtime_str:      string version of mtime
+        size:           size in bytes
+        size_str:       human-readable size string
+        description:    short human-readable description (e.g. size, content, etc.)
+        _title:         file title (usually same as path, but ./ will be stripped off)
     """
 
     _unit_list = zip(['', 'k', 'M', 'G', 'T', 'P'], [0, 0, 1, 2, 2, 2])
@@ -38,54 +40,35 @@ class FileBase(object):
                   __init__ is meant to be fast, while slower operations are deferred to _load().
 
         """
-        self.fullpath = path
         self._root = root
-        if root and path.startswith(root):
+        self.fullpath = path
+        # strip off our root directory from path
+        if root and path.startswith(root) and path != root:
             path = path[len(root):]
             if path.startswith("/"):
                 path = path[1:]
+
+        # subclasses can set their own _title before calling constructor, create a default one if not
+        if not hasattr(self, '_title'):
+            self._title = path if (not root or root == ".") else os.path.join(root, path)
+            if self._title == ".":
+                self._title = os.path.abspath(self.fullpath)
+
+
         self.path = path
         self.name = os.path.basename(self.path)
         self.basepath, self.ext = os.path.splitext(self.path)
         self.basename = os.path.basename(self.basepath)
         self._scan_impl()
+        # timestamp of file last time content was loaded
+        self._loaded_mtime = None
         if load:
             self._load()
 
-    def _scan_impl(self):
-        """
-        "Scans" file, i.e. performs the faster (read disk) operations to get overall file information. This is meant
-        to be augmented by subclasses. Default version just gets filesize and mtime.
-        """
-        self._loaded = False
-        self.update_mtime()
-        # get filesize
-        self.size = os.path.getsize(self.fullpath)
-        # human-friendly size
-        if self.size > 0:
-            exponent = min(int(math.log(self.size, 1024)),
-                           len(self._unit_list) - 1)
-            quotient = float(self.size) / 1024 ** exponent
-            unit, num_decimals = self._unit_list[exponent]
-            format_string = '{:.%sf}{}' % (num_decimals)
-            self.size_str = format_string.format(quotient, unit)
-        else:
-            self.size_str = '0'
-        self.description = self.size_str
-
-
-    def _load_impl(self):
-        """
-        "Loads" file, i.e. performs the slower (read disk) operations to get detailed file information, in preparation.
-        For rendering and such. This is meant to be implemented by subclasses. E.g. a DataDir will scan its contents
-        properly at this stage, a table will check for rows and columns, etc.
-        """
-        pass
-
     def _load(self):
         """Helper method, calls _load_impl() if not already done"""
-        if not self._loaded:
-            self._loaded = True
+        if self._loaded_mtime is None or self._loaded_mtime < self.mtime:
+            self._loaded_mtime = self.mtime
             self._load_impl()
 
 
@@ -126,13 +109,8 @@ class FileBase(object):
 
     @staticmethod
     def _sort_directories_first(a, b, reverse):
-        from .datadir import DataDir
-        if type(a) is DataDir and type(b) is not DataDir:
-            return -1
-        elif type(b) is DataDir and type(a) is not DataDir:
-            return 1
-        else:
-            return 0
+        result = int(os.path.isdir(b.fullpath)) - int(os.path.isdir(a.fullpath))
+        return -result if reverse else result
 
     @staticmethod
     def _sort_by_attribute(a, b, attr, reverse):
@@ -153,21 +131,114 @@ class FileBase(object):
         """Returns True if mtime of underlying file has changed"""
         return os.path.getmtime(self.fullpath) > self.mtime
 
+
+    # Standard File rendering methods and properties (may be overloaded in some subclasses)
+    #
+    # self.description: a brief rich_string or str describing the content of the file
+    # self.info == self.summary: a longer rich_string or str describing the file and the content of the file.
+    #       Meant to include the filename.
+    # self.show(*args,**kwargs): render the file & its content in HTML
+    #
+
+    @property
+    def description(self):
+        self.rescan()
+        return rich_string(self._description)
+    
+    @property
+    def summary(self):
+        self.rescan()
+        return rich_string(self._summary)
+
+    @property
+    def info(self):
+        """info is an alias for summary"""
+        return self.summary
+
     def __str__(self):
-        return self.path
+        """str() returns the plain-text version of the file content. Calls self.render_text()."""
+        self._load()
+        return self.render_text()
+
+    def _repr_pretty_(self, p, cycle):
+        """
+        Implementation for the pretty-print method. Default uses the __str__() method.
+        """
+        if not cycle:
+            p.text(str(self))
 
     def _repr_html_(self):
+        """
+        Internal method called by Jupyter to get an HTML rendering of an object.
+        Our version makes use of subclass methods, which are mean to implement this behaviour:
+        _load() to load content, then _render_html() to render it
+        """
         self._load()
-        return self.show() or self.path
+        return self.render_html()
 
     def show(self, *args, **kw):
+        """
+        Renders the object.
+
+        Default version alls _load() to load content, then calls self._render_html(), passing along all arguments,
+        then displays the returned HTML using IPython.display
+        """
         self._load()
-        print("show", self.path)
+        html = self.render_html(*args, **kw)
+        display(HTML(html))
 
     def watch(self, *args, **kw):
-        self._load()
+        """
+        Calls show(), but also renders a refresh button
+        """
         display(HTML(render_refresh_button()))
         return self.show(*args, **kw)
+
+    # These methods are meant to be reimplemented by subclasses
+
+    def render_text(self, *args, **kw):
+        """
+        Method to be implemented by subclasses. Default version falls back to summary().
+        :return: plain-text rendering of file content
+        """
+        return rich_string(self.summary).text
+
+    def render_html(self, *args, **kw):
+        """
+        Method to be implemented by subclasses. Default version falls back to summary().
+        :return: HTML rendering of file content
+        """
+        return rich_string(self.summary).html
+
+    def _scan_impl(self):
+        """
+        "Scans" file, i.e. performs the faster (read disk) operations to get overall file information. This is meant
+        to be augmented by subclasses. Default version just gets filesize and mtime.
+        """
+        self._loaded_mtime = None
+        self.update_mtime()
+        # get filesize
+        self.size = os.path.getsize(self.fullpath)
+        # human-friendly size
+        if self.size > 0:
+            exponent = min(int(math.log(self.size, 1024)),
+                           len(self._unit_list) - 1)
+            quotient = float(self.size) / 1024 ** exponent
+            unit, num_decimals = self._unit_list[exponent]
+            format_string = '{:.%sf}{}' % (num_decimals)
+            self.size_str = format_string.format(quotient, unit)
+        else:
+            self.size_str = '0'
+        self._description = rich_string(self.size_str)
+        self._summary = rich_string("{}: {} {}".format(self.basename, self.size_str, self.mtime_str))
+
+    def _load_impl(self):
+        """
+        "Loads" file, i.e. performs the slower (read disk) operations to get detailed file information, in preparation.
+        For rendering and such. This is meant to be implemented by subclasses. E.g. a DataDir will scan its contents
+        properly at this stage, a table will check for rows and columns, etc.
+        """
+        pass
 
     def _action_buttons_(self, preamble=OrderedDict(), postscript=OrderedDict(), div_id=""):
         """
@@ -191,10 +262,14 @@ def autodetect_file_type(path):
     from .imagefile import ImageFile
     from .textfile import TextFile
     from .datadir import DataDir
+    from .casatable import CasaTable
 
     ext = os.path.splitext(path)[1].lower()
     if os.path.isdir(path):
-        return DataDir
+        if casacore.tables.tableexists(path):
+            return CasaTable
+        else:
+            return DataDir
     elif ext in [".fits", ".fts"]:
         return FITSFile
     elif ext in [".png", ".jpg", ".jpeg"]:

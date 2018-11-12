@@ -6,3 +6,5 @@ jupyter
 #pandas
 matplotlib
 pillow
+python-casacore
+
