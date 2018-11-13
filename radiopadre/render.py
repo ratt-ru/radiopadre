@@ -78,14 +78,20 @@ def render_table(data, labels, html=set(), ncol=1, links=None,
     txt += """<table style="border: 1px; text-align: left; {}">""".format(styles.get("TABLE",""))
     if header:
         txt += """<tr style="border: 0px; border-bottom: 1px double; text-align: center">"""
+        # ncol refers to single or dual-column
         for icol in range(ncol):
+            # add header for row numbers
             if numbering:
                 txt += """<th style="border: 0px; border-bottom: 1px double; text-align: center">#</th>"""
+            # add headers for every data column
             for ilab, lab in enumerate(labels):
                 txt += """<th style="text-align: center; border: 0px; border-bottom: 1px double;"""
                 if ncol > 1 and icol < ncol - 1 and ilab == len(labels) - 1:
                     txt += "border-right: 1px double; padding-right: 10px"
                 txt += "\">%s</th>\n" % lab
+            # add dummy column for action buttons
+            if actions:
+                txt += "<th></th>\n"
         txt += "</tr>\n"
     # configuring the table rows, row by row
     nrow = int(math.ceil(len(data) / float(ncol)))
