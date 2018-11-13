@@ -1,10 +1,9 @@
 import os.path
 from collections import OrderedDict
+import numpy as np
 
 import radiopadre
-
 from radiopadre import casacore_tables
-
 from .file import FileBase
 from .filelist import FileList
 from .render import render_table, rich_string, render_status_message, render_refresh_button, render_title
@@ -139,6 +138,12 @@ class CasaTable(radiopadre.file.FileBase):
                 slicer = [slice(None)] + column_slicers[colname]
                 colvalues[icol] = colvalues[icol][tuple(slicer)]
         data = [[self.rownumbers[firstrow+i]] + [colvalues[icol][i] for icol,col in enumerate(column_selection)] for i in xrange(nrows)]
+
+        # add shape hints for columns that end up with a shape
+        for icol, value in enumerate(data[0]):
+            if type(value) is np.ndarray and value.shape:
+                labels[icol] += " ({})".format("x".join(map(str, value.shape)))
+
         html += render_table(data, labels, numbering=False)
         return html
 
