@@ -64,12 +64,31 @@ class CasaTable(radiopadre.file.FileBase):
             self._subtables_obj = None
             for path in self._subtables:
                 name = os.path.basename(path)
-                self._subtables_dict[name] = subtab = CasaTable(path, root=self._root)
-                setattr(self, name, subtab)
+                while hasattr(self, name):
+                    name = name + "_"
+                self._subtables_dict[name] = path
+                setattr(self, name, path)
+
+    def __getattribute__(self, attr):
+        try:
+            subdict = radiopadre.file.FileBase.__getattribute__(self, '_subtables_dict')
+        except AttributeError:
+            return radiopadre.file.FileBase.__getattribute__(self, attr)
+        if attr not in subdict:
+            return radiopadre.file.FileBase.__getattribute__(self, attr)
+        subtab = subdict.get(attr)
+        if isinstance(subtab, str):
+            subdict[attr] = subtab = CasaTable(subtab, root=self._root)
+            setattr(self, attr, subtab)
+        return subtab
 
     @property
     def subtables(self):
         if not self._subtables_obj:
+            for name, subtab in self._subtables_dict.items():
+                if isinstance(subtab, str):
+                    self._subtables_dict[name] = CasaTable(subtab, root=self._root)
+                    setattr(self, name, subtab)
             self._subtables_obj = FileList(self._subtables_dict.values(),
                                             path=self.fullpath, root=self._root, extcol=False, showpath=False,
                                             classobj=CasaTable,
