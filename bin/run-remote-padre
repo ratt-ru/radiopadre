@@ -171,7 +171,11 @@ for padre_exec in padre_execs:
         if options.update:
             padre_dir = os.path.dirname(padre_exec)
             print "radiopadre: --update specified, will try a git pull in {}".format(padre_dir)
-            ssh_remote("cd {} ; git pull".format(padre_dir))
+            try:
+                ssh_remote("cd {} ; git pull".format(padre_dir))
+            except subprocess.CalledProcessError,exc:
+                print exc.output
+                help_yourself("git pull failed with exit code {}".format(exc.returncode))
         break
 else:
     print "radiopadre: No radiopadre launch script ({}) found on {}".format(LAUNCH, host)
@@ -210,7 +214,8 @@ if check_remote_file(remote_venv + "/.complete", "-f"):
     print "radiopadre: Testing the remote virtual environment at {}:{}".format(host, remote_venv)
     try:
         ssh_remote("source {}".format(activate_script))
-    except subprocess.CalledProcessError:
+    except subprocess.CalledProcessError,exc:
+        print exc.output
         help_yourself("The remote virtual environment at {}:{} exists, but we can't seem to activate it".format(host, remote_venv),
                       "Perhaps remove {}:{}, and I'll try to rebuild it from scratch.".format(host, remote_venv))
 else:

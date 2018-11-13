@@ -95,27 +95,50 @@ class CasaTable(radiopadre.file.FileBase):
                                             parent=self._parent or self)
         return self._subtables_obj
 
-    def render_html(self, firstrow=None, nrows=100, **kw):
+    def render_html(self, firstrow=None, nrows=100, **columns):
         html = render_title("{}: {} rows".format(self._title, self.nrows)) + \
                render_refresh_button(full=self._parent and self._parent.is_updated())
         tab = self.table
         if isinstance(tab, Exception):
             return html + rich_string("Error accessing table {}: {}".format(self.basename, tab))
-        # if first row is not specified, fall back on casacore's own HTML renderer
-        if firstrow is None:
+        # if first row is not specified, and columns not specified, fall back on casacore's own HTML renderer
+        if firstrow is None and not columns:
             return html + tab._repr_html_()
+
+        # get subset of columns to use, and slicer objects
+        column_slicers = {}
+        if columns:
+            column_selection = []
+            for col in self.columns:
+                slicer = columns.get(col, None)
+                if slicer is not None:
+                    if col not in self.columns:
+                        raise NameError("no such column: {}".format(col))
+                    column_selection.append(col)
+                    if type(slicer) in (slice, int):
+                        column_slicers[col] = [slicer]
+                    elif type(slicer) in (list, tuple):
+                        column_slicers[col] = list(slicer)
+                    elif slicer is not True:
+                        raise TypeError("unknown slice of type {} for column {}".format(type(slicer), col))
+        else:
+            column_selection = self.columns
+
         # else use ours
         if firstrow > nrows-1:
             return html + rich_string("Error accessing table {}: row {} out of range".format(self.basename, firstrow))
         nrows = min(self.nrows-firstrow, nrows)
-        labels = ["row"] + list(self.columns)
+        labels = ["row"] + list(column_selection)
         colvalues = {}
-        for icol, colname in enumerate(self.columns):
+        for icol, colname in enumerate(column_selection):
             try:
                 colvalues[icol] = tab.getcol(colname, firstrow, nrows)
             except Exception:
                 colvalues[icol] = [""]*nrows
-        data = [[self.rownumbers[firstrow+i]] + [colvalues[icol][i] for icol in xrange(len(self.columns))] for i in xrange(nrows)]
+            if colname in column_slicers:
+                slicer = [slice(None)] + column_slicers[colname]
+                colvalues[icol] = colvalues[icol][tuple(slicer)]
+        data = [[self.rownumbers[firstrow+i]] + [colvalues[icol][i] for icol,col in enumerate(column_selection)] for i in xrange(nrows)]
         html += render_table(data, labels, numbering=False)
         return html
 
