@@ -46,14 +46,29 @@ except pkg_resources.DistributionNotFound:
 ## various notebook-related init
 astropy.log.setLevel('ERROR')
 
-ROOTDIR = os.getcwd()
-
-def set_window_sizes(cell_width,window_width,window_height):
-    settings.display.cell_width, settings.display.window_width, settings.display.window_height = cell_width, window_width, window_height
-
+ROOTDIR = os.environ.get('RADIOPADRE_ROOTDIR') or os.getcwd()
 
 WORKDIR = os.environ.get('RADIOPADRE_WORKDIR') or ".radiopadre"
 WORKDIR_REDIRECT = os.environ.get('RADIOPADRE_WORKDIR_REDIRECT') or None
+
+# We have two running scenarios:
+#
+# 1. No redirect. Running radiopadre in a directory owned (and writable) by the user, say /path/to/directory. Then
+#
+#       * jupyter server is started and runs in /path/to/directory
+#       * radiopadre cache and support files live in WORKDIR=/path/to/directory/.radiopadre
+#       * kernel runs in /path/to/directory
+#
+# 2. Redirect mode. Running radiopadre to look at files owned by someone else. Then a local "redirect" work directory
+#    is created under ~/.radiopadre, and:
+#
+#       * jupyter server is started and runs in ~/.radiopadre/path/to/directory
+#       * radiopadre cache and support files live in WORKDIR=~/.radiopadre/path/to/directory/.radiopadre
+#       * kernel runs in /path/to/directory
+#
+if WORKDIR_REDIRECT:
+    os.chdir(ROOTDIR)
+    add_startup_warning("Directories: current {}, workdir {}".format(ROOTDIR, WORKDIR_REDIRECT))
 
 def get_cache_dir(path, subdir=None):
     """
@@ -149,8 +164,14 @@ def _init_js_side():
                     </script>
                  """.format(warns, os.environ['USER'], reset_code, __version__)))
 
+
+def set_window_sizes(cell_width,window_width,window_height):
+    settings.display.cell_width, settings.display.window_width, settings.display.window_height = cell_width, window_width, window_height
+
 # call this once
 _init_js_side()
+
+
 
 def protect(author=None):
     """Makes current notebook protected with the given author name. Protected notebooks won't be saved

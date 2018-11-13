@@ -11,7 +11,7 @@ import socket
 import fnmatch
 
 REPO = "git@github.com:ratt-ru/radiopadre-devel.git"
-BRANCH = "custom-js-newdisp"
+BRANCH = "refactoring-2018"
 
 LAUNCH = "run-radiopadre"
 

@@ -13,7 +13,6 @@ DIR = os.getcwd()
 
 JUPYTER_OPTS = [
     "notebook",
-    "--notebook-dir=.",
     "--ContentsManager.pre_save_hook=radiopadre.notebook_utils._notebook_save_hook",
     "--ContentsManager.allow_hidden=True",
     # "--NotebookApp.allow_origin='*'",
@@ -34,8 +33,10 @@ parser.add_argument("-n","--no-browser",action="store_true",
                   help="do not open a browser session, even if running locally.")
 parser.add_argument("--workdir-home",action="store_true",
                   help="always use ~/.radiopadre as work directory location, even if local directory is writable.")
-parser.add_argument("args", nargs="*",
-                  help="additional Jupyter arguments")
+parser.add_argument("-d", "--default",action="store_true",
+                  help="create default notebook, if notebook is not given.")
+parser.add_argument("notebook", nargs="?",
+                  help="notebook to load, if given")
 
 options = parser.parse_args()
 
@@ -78,6 +79,9 @@ message("Welcome to Radiopadre!")
 message("  Using radiopadre install at {PADRE_PATH}")
 message("  Running in {DIR}")
 
+ALL_NOTEBOOKS = glob.glob("*.ipynb")
+
+message("  Available notebooks: " + " ".join(ALL_NOTEBOOKS))
 
 # get hostname
 os.environ["HOSTNAME"] = subprocess.check_output("/bin/hostname")
@@ -88,10 +92,33 @@ notebook_dir = subprocess.check_output("{PADRE_VENV}/bin/pip show jupyter| "
 if not notebook_dir:
     raise subprocess.CalledProcessError("jupyter installation path not found")
 
+LOAD_NOTEBOOK = options.notebook
+CREATE_DEFAULT_NOTEBOOK = False
+DEFAULT_NAME = "radiopadre-default.ipynb"
 
-
+if LOAD_NOTEBOOK:
+    message("  Will load {LOAD_NOTEBOOK} as requested")
+elif options.default:
+    LOAD_NOTEBOOK = DEFAULT_NAME
+    if DEFAULT_NAME in ALL_NOTEBOOKS:
+        message("  Will load {LOAD_NOTEBOOK} as requested")
+    else:
+        CREATE_DEFAULT_NOTEBOOK = True
+        message("  Will create and load default {LOAD_NOTEBOOK} as requested")
+else:
+    # are there any notebooks in the directory? If only one, load it automatically.
+    if len(ALL_NOTEBOOKS) == 1:
+        LOAD_NOTEBOOK = ALL_NOTEBOOKS[0]
+        message("  Only one notebook found, will auto-load.")
+    elif not ALL_NOTEBOOKS:
+        LOAD_NOTEBOOK = "radiopadre-default.ipynb"
+        CREATE_DEFAULT_NOTEBOOK = True
+        message("  No notebooks. Will auto-create and load default {LOAD_NOTEBOOK}.")
+    else:
+        message("  Not auto-loading any notebooks. Pick one, or specify it on the command line.")
 
 # Determine a writeable working directory. Try "./.radiopadre" first
+
 workdir_redirect = ''
 PADRE_WORKDIR = ".radiopadre"
 cwd = os.getcwd()
@@ -127,6 +154,40 @@ if PADRE_WORKDIR is None:
     PADRE_WORKDIR = workdir_redirect = homebase
     message("  Using {PADRE_WORKDIR} as a working directory.")
 
+    # make sure notebook server runs in the writable directory
+    redirect_dir = os.path.dirname(homebase)
+    JUPYTER_OPTS.append("--notebook-dir={}".format(redirect_dir))
+
+    # create symlinks to notebooks in original directory
+    for path in ALL_NOTEBOOKS:
+        linkname = os.path.join(redirect_dir, os.path.basename(path))
+        if not os.path.exists(linkname):
+            os.symlink(os.path.abspath(path), linkname)
+
+    # if a notebook was specified, make a symlink and make sure it's loaded. Unless we're creating a default.
+    if LOAD_NOTEBOOK:
+        linkname = os.path.join(redirect_dir, os.path.basename(LOAD_NOTEBOOK))
+        if not CREATE_DEFAULT_NOTEBOOK:
+            if not os.path.exists(linkname):
+                os.symlink(os.path.abspath(LOAD_NOTEBOOK), linkname)
+        LOAD_NOTEBOOK = os.path.abspath(linkname)
+
+# create default notebook
+if CREATE_DEFAULT_NOTEBOOK:
+    if os.path.exists(LOAD_NOTEBOOK):
+        message("Strange, {LOAD_NOTEBOOK} already exists but we mean to create a default?")
+    else:
+        import nbformat
+        nb = nbformat.v4.new_notebook()
+        nb['cells'] = [
+            nbformat.v4.new_markdown_cell("""### This is a very basic default radiopadre notebook to start you browsing"""),
+            nbformat.v4.new_code_cell("# execute this with Ctrl+Enter\nfrom radiopadre import ls, settings\nls = ls()\nls"),
+            nbformat.v4.new_code_cell("ls[0]")
+        ]
+        nbformat.write(nb, LOAD_NOTEBOOK)
+
+
+os.environ['RADIOPADRE_ROOTDIR'] = os.getcwd()
 os.environ['RADIOPADRE_WORKDIR'] = PADRE_WORKDIR
 os.environ['RADIOPADRE_WORKDIR_REDIRECT'] = workdir_redirect
 
@@ -187,8 +248,6 @@ else:
         message("Allowing jupyter notebook to open a web browser. Use --no-browser to disable this.")
         browser = True
 
-message("Available notebooks: " + " ".join(glob.glob("*.ipynb")))
-
 # find unused ports for Jupyter & helpers
 def find_unused_port (base,maxtries=1000):
     for i in range(maxtries):
@@ -219,7 +278,9 @@ if options.remote:
 JUPYTER_OPTS.append("--port={}".format(jupyter_port))
 if not browser:
     JUPYTER_OPTS.append("--no-browser")
-JUPYTER_OPTS += list(options.args)
+
+if LOAD_NOTEBOOK:
+    JUPYTER_OPTS.append(LOAD_NOTEBOOK)
 
 child_processes = []
 
@@ -229,8 +290,6 @@ if js9dir:
     os.environ['RADIOPADRE_JS9_HELPER_PORT'] = str(forwarded_helper_port)
     os.environ['RADIOPADRE_JS9_HTTP'] = "http://localhost:{}/".format(forwarded_http_port)
     open(PADRE_WORKDIR + "/js9prefs.js", "w").write("JS9Prefs.globalOpts.helperPort = {};\n".format(forwarded_helper_port))
-    ## NB: this might not play nice if you launch multiple padres with their own helper. But that's your problem.
-    open(notebook_dir + "/notebook/static/js9prefs-tmp.js", "w").write("JS9Prefs.globalOpts.helperPort = {};\n".format(forwarded_helper_port))
 
 try:
     helper_proc = None
@@ -255,6 +314,7 @@ try:
     message("Starting: jupyter notebook "+" ".join(JUPYTER_OPTS))
 
     ## start jupyter process
+
     notebook_proc = subprocess.Popen([PADRE_VENV+"/bin/jupyter"] + JUPYTER_OPTS,
                                       stdin=sys.stdin, stdout=sys.stdout, stderr=sys.stderr,
                                       env=os.environ)
