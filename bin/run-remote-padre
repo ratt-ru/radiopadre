@@ -58,6 +58,10 @@ parser.add_option("-a","--auto",metavar="PATTERN",type="string",default=DEFAULT_
                   "Can be a wildcard pattern. Default is %default. Use -a none to disable auto-open.")
 parser.add_option("-c","--copy",action="store_true",
                   help="If notebook does not exist on the remote, try to copy a boilerplate.")
+parser.add_option("--no-casacore", action="store_true",
+                  help="Ignore casacore installation errors, if installing on remote.")
+parser.add_option("--no-js9", action="store_true",
+                  help="Ignore JS9 installation errors, if installing on remote.")
 
 (options,args) = parser.parse_args()
 
@@ -227,6 +231,10 @@ else:
 
 if bootstrap:
     padre_exec += " --bootstrap"
+if options.no_casacore:
+    padre_exec += " --no-casacore"
+if options.no_js9:
+    padre_exec += " --no-js9"
 
 padre_exec += "  --remote"
 

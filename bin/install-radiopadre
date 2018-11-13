@@ -13,18 +13,18 @@ JS9_REPO = "https://github.com/ericmandel/js9.git"
 JS9_DIR = PADRE_PATH + "/js9"
 
 import argparse
-parser = argparse.ArgumentParser(description="Inits radiopadre virtual environment and installs components")
+parser = argparse.ArgumentParser(description="Initializes radiopadre virtual environment and installs components")
 
 parser.add_argument("command",choices=["install", "reinstall", "reqs", "js9" ], default="install", nargs="?",
                   help="what to do. 'install' (default) to check and install as needed, 'reinstall' to reinstall everything "
                        "from scratch, 'reqs' or 'js9' to try installing just a single component.")
-parser.add_argument("--bootstrap", action="store_true",
-                  help="automatically initialize radiopadre virtual environment, if missing.")
 parser.add_argument("--refresh", action="store_true",
                   help="remove and reinstall the radiopadre virtual environment from scratch.")
 parser.add_argument("--js9", metavar="DIR", type=str,
                   help="JS9 source directory or repository URL. Default is to try {JS9_DIR}, then {JS9_REPO}. "
                        "Set to 'git' to force use of {JS9_REPO}.".format(**globals()))
+parser.add_argument("--no-casacore", action="store_true",
+                  help="ignores missing python-casacore. Table functionality will be reduced.")
 parser.add_argument("--no-js9", action="store_true",
                   help="skips the JS9 installation. FITS functionality will be reduced.")
 parser.add_argument("--cfitsio-path", metavar="DIR", type=str, default="/usr",
@@ -47,6 +47,25 @@ def shell(cmd):
 # See https://stackoverflow.com/questions/1871549/determine-if-python-is-running-inside-virtualenv
 if hasattr(sys, 'real_prefix') or (hasattr(sys, 'base_prefix') and sys.base_prefix != sys.prefix):
     bye("Can't run this script inside a virtualenv. Please deactivate.")
+
+# check for casacore
+if not options.no_casacore:
+    try:
+        import casacore.tables
+    except Exception,exc:
+        bye("Can't find casacore.tables ({exc}). Try apt install python-casacore perhaps, or run with --no-casacore.")
+
+# check for JS9 requirements
+if options.command in ["install", "reinstall", "js9"] and not options.no_js9:
+    try:
+        nodejs = subprocess.check_output("which nodejs || which node", shell=True)
+    except subprocess.CalledProcessError:
+        open(PADRE_VENV + "/js9status", "w").write("nodejs missing")
+        bye("Unable to find nodejs or node -- can't install JS9. Try apt-get install nodejs perhaps, or run with --no-js9")
+    nodejs = subprocess.check_output("which nodejs || which node", shell=True)
+
+
+
 
 # Look for virtualenv. Burn it down if it needs a refresh.
 
@@ -123,14 +142,7 @@ if options.command in ["install", "reinstall", "reqs"]:
     shell("{PADRE_PATH}/bin/install-js9-colormaps {colormap_js}")
 
 if options.command in ["install", "reinstall", "js9"] and not options.no_js9:
-
     js9status = open(PADRE_VENV + "/js9status", "w")
-
-    try:
-        nodejs = subprocess.check_output("which nodejs || which node", shell=True)
-    except subprocess.CalledProcessError:
-        js9status.write("nodejs missing")
-        bye("Unable to find nodejs or node -- can't run js9helper. You need to apt-get install nodejs perhaps?")
 
     # install JS9 inside venv
     # determine whether to use existing directory or repo
