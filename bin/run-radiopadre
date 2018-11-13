@@ -73,7 +73,7 @@ else:
         message("Found working radiopadre virtualenv")
     elif options.bootstrap:
         message("Can't find complete radiopadre virtualenv, bootstrapping with install-radiopadre")
-        if shell("{PADRE_PATH}/bin/install-radiopadre {} {}".format(
+        if shell("{}/bin/install-radiopadre {} {}".format(PADRE_PATH,
                     "--no-casacore" if options.no_casacore else "",
                     "--no-js9" if options.no_js9 else "",
                 )):
