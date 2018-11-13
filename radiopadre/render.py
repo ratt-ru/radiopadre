@@ -122,8 +122,11 @@ def render_table(data, labels, html=set(), ncol=1, links=None,
                     txt += """">%s</td>""" % col
 
             # render actions, if supplied
-            if actions and actions[idatum]:
-                txt += """<td style="white-space: nowrap;">%s</td>""" % actions[idatum]
+            if actions:
+                if actions[idatum]:
+                    txt += """<td style="white-space: nowrap;">%s</td>""" % actions[idatum]
+                else:
+                    txt += """<td></td>"""
         txt += """</tr>\n"""
     txt += "</table>"
     for code in postscript.itervalues():
