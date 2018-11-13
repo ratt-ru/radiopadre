@@ -60,8 +60,8 @@ def render_title(title):
     return "<b>%s</b>" % cgi.escape(title)
 
 
-def render_status_message(msg):
-    return "<p style='background: lightblue;'><b>%s</b></p>" % cgi.escape(msg)
+def render_status_message(msg, bgcolor='lightblue'):
+    return "<p style='background: {};'><b>{}</b></p>".format(bgcolor, cgi.escape(msg))
 
 
 def render_table(data, labels, html=set(), ncol=1, links=None,

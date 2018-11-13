@@ -129,6 +129,7 @@ class FileList(FileBase, list):
     def __call__(self, *patterns):
         """Returns a FileList os files from this list that match a pattern. Use !pattern to invert the meaning.
         Use -flags to apply a sort order (where flags is one or more of xntr, to sort by extension, name, time, and reverse)"""
+        self._load()
         sort = None
         files = []
         accepted_patterns = []
@@ -163,6 +164,7 @@ class FileList(FileBase, list):
     #     display(HTML("<p>%d files. Don't know how to make thumbnails for this collection.</p>" % len(self)))
 
     def __getslice__(self, *slc):
+        self._load()
         slice_str = ":".join([str(s) if s is not None and s < 2**31 else "" for s in slc])
         title = "{}[{}]".format(self._title, slice_str)
         return FileList(list.__getslice__(self, *slc),
@@ -171,11 +173,11 @@ class FileList(FileBase, list):
                         title=title, parent=self._parent)
 
     def sort(self, opt="dxnt"):
+        self._load()
         title = "{}, sort order: {}".format(self._title, sort)
         return FileList(FileBase.sort_list(self, opt),
                         path=self.fullpath, root=self._root, extcol=self._extcol, showpath=self._showpath,
                         classobj=self._classobj,
                         title=title, parent=self._parent)
-
 
 

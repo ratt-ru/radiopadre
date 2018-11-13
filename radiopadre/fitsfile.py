@@ -349,7 +349,7 @@ class FITSFile(radiopadre.file.FileBase):
     @staticmethod
     def _make_js9_external_window_script(fits_files, basename, subs, **kw):
         # creates an HTML script per each image, by replacing various arguments in a templated bit of html
-        cachedir = radiopadre.get_cache_dir(fits_files[0].fullpath, "js9-launch")
+        cachedir, cachedir_url = radiopadre.get_cache_dir(fits_files[0].fullpath, "js9-launch")
         for ff in fits_files:
             symlink = "{}/{}".format(cachedir, ff.name)
             if not os.path.exists(symlink):
@@ -372,7 +372,7 @@ class FITSFile(radiopadre.file.FileBase):
             outp.write(read_html_template("js9-dualwindow-body-template.html", subs))
             outp.write(read_html_template("js9-dualwindow-tail-template.html", subs))
 
-        return js9_target
+        return "{cachedir_url}/js9-{basename}-newtab.html".format(**locals())
 
     @staticmethod
     def _show_js9ext(fits_files, **kw):

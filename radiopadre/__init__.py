@@ -12,12 +12,30 @@ from radiopadre.notebook_utils import scrub_cell
 
 import radiopadre.settings_manager
 
+_startup_warnings = []
+
+def add_startup_warning(message):
+    global _startup_warnings
+    _startup_warnings.append(message)
+
+# init settings
 settings = radiopadre.settings_manager.RadiopadreSettingsManager()
+
+try:
+    import casacore.tables as casacore_tables
+except Exception,exc:
+    casacore_tables = None
+    add_startup_warning("""Warning: casacore.tables failed to import ({}). Table browsing functionality will 
+        not be available in this notebook. You probably want to install casacore-dev and python-casacore on this 
+        system ({}), then reinstall the radiopadre environment.
+        """.format(exc, os.environ['HOSTNAME']))
+
 
 from .datadir import DataDir
 from .filelist import FileList
 from .fitsfile import FITSFile
 from .imagefile import ImageFile
+from .casatable import CasaTable
 from .render import render_table, render_preamble, render_refresh_button, render_status_message, render_url, render_title
 
 try:
@@ -34,24 +52,62 @@ def set_window_sizes(cell_width,window_width,window_height):
     settings.display.cell_width, settings.display.window_width, settings.display.window_height = cell_width, window_width, window_height
 
 
+WORKDIR = os.environ.get('RADIOPADRE_WORKDIR') or ".radiopadre"
+WORKDIR_REDIRECT = os.environ.get('RADIOPADRE_WORKDIR_REDIRECT') or None
+
 def get_cache_dir(path, subdir=None):
-    """Creates directory .radiopadre/subdir in directory of object given by path, and returns path to it.
-    If write permissions not available, returns None
+    """
+    Creates directory for caching radiopadre stuff associated with the given file.
+    For an file given by path/to/directory/filename, the cache directory is either
+        path/to/directory/.radiopadre[/subdir]
+        ~/.radiopadre/path/to/directory/.radiopadre[/subdir]
+    ...depending on whether radiopadre used the current directory as the workdir (normally the case when you
+    run radiopadre in your own files), or ~/.radiopadre (i.e. "workdir redirect" mode. normally the case when looking at
+    others' files)
+
+    Returns tuple of (real_path, url_path). The former is the real filesystem location of the directory.
+    The latter is the URL to this directory. In workdir redirect mode, the two are different
     """
     basedir = os.path.dirname(path)
-    padre = os.path.join(basedir, ".radiopadre")
-    if not os.path.exists(padre):
-        if not os.access(basedir, os.W_OK):
-            return None
-        os.mkdir(padre)
-    if not os.access(padre, os.W_OK):
-        return None
+    if not os.path.abspath(basedir).startswith(os.path.abspath(ROOTDIR)):
+        raise RuntimeError("Trying to make cache for directory {} that is outside the current hierarchy {}".format(
+                            path, ROOTDIR))
+
+    if WORKDIR_REDIRECT:
+        padre = WORKDIR
+        urlpath = ".radiopadre"
+        if os.path.samefile(basedir, ROOTDIR):
+            if not os.path.exists(padre):
+                os.mkdir(padre)
+        else:
+            components = list(basedir.split("/"))
+            components.append(".radiopadre")
+            for comp in components:
+                if not os.access(padre, os.W_OK):
+                    raise RuntimeError("no write access to {}. Make sure you have the correct persmissions.".format(padre))
+                padre = os.path.join(padre, comp)
+                urlpath = os.path.join(urlpath, comp)
+                if not os.path.exists(padre):
+                    os.mkdir(padre)
+    else:
+        padre = urlpath = os.path.join(basedir, ".radiopadre")
+        if os.path.exists(padre):
+            if not os.access(padre, os.W_OK):
+                raise RuntimeError("no write access to {}. Run radiopadre with --workdir-home.".format(padre))
+        else:
+            if not os.access(basedir, os.W_OK):
+                raise RuntimeError("no write access to {}. Run radiopadre with --workdir-home.".format(basedir))
+            os.mkdir(padre)
+
     if not subdir:
-        return padre if os.access(padre, os.W_OK) else None
+        return padre, urlpath
+
     cache = os.path.join(padre, subdir)
+    urlpath = os.path.join(urlpath, subdir)
     if not os.path.exists(cache):
         os.mkdir(cache)
-    return cache if os.access(cache, os.W_OK) else None
+
+    return cache, urlpath
 
 
 _init_js_side_done = None
@@ -82,11 +138,19 @@ def _init_js_side():
         display(Javascript(reset_code))
     settings.display.reset = reset, radiopadre.settings_manager.DocString("call this to reset sizes after e.g. a browser resize")
 
-    display(HTML("""<script type='text/javascript'>
-            document.radiopadre.register_user('{}');
-            {}
-        </script>
-        """.format(os.environ['USER'], reset_code, __version__)))
+    global _startup_warnings
+    warns = "\n".join([render_status_message(msg, bgcolor='yellow') for msg in _startup_warnings])
+
+
+    display(HTML("""{}
+                    <script type='text/javascript'>
+                    document.radiopadre.register_user('{}');
+                    {}
+                    </script>
+                 """.format(warns, os.environ['USER'], reset_code, __version__)))
+
+# call this once
+_init_js_side()
 
 def protect(author=None):
     """Makes current notebook protected with the given author name. Protected notebooks won't be saved

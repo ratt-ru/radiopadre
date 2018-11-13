@@ -10,23 +10,27 @@ from radiopadre import settings
 
 
 def _make_thumbnail(image, width):
-    thumbdir = radiopadre.get_cache_dir(image, "thumbs")
+    thumbdir, thumbdir_url = radiopadre.get_cache_dir(image, "thumbs")
     if thumbdir is None:
-        return None
+        return None, None
 
-    thumb = os.path.join(thumbdir, "%d.%s" % (width, os.path.basename(image)))
+    name = "%d.%s" % (width, os.path.basename(image))
+
+    thumb = os.path.join(thumbdir, name)
+    thumb_url = os.path.join(thumbdir_url, name)
 
     # does thumb need to be updated?
     if not os.path.exists(thumb) or os.path.getmtime(thumb) < os.path.getmtime(image):
         # can't write? That's ok too
         if not os.access(thumbdir, os.W_OK) or os.path.exists(thumb) and not os.access(thumb, os.W_OK):
-            return None
+            return None, None
         img = PIL.Image.open(image)
         img.thumbnail((width,int(round(width*(img.height/float(img.width))))), PIL.Image.ANTIALIAS)
         img.save(thumb)
 #        if os.system("convert -thumbnail %d %s %s" % (width, image, thumb)):
 #            raise RuntimeError("thumbnail convert failed, maybe imagemagick is not installed?")
-    return thumb
+
+    return thumb, thumb_url
 
 
 class ImageFile(radiopadre.file.FileBase):
@@ -67,7 +71,7 @@ class ImageFile(radiopadre.file.FileBase):
                 # they really shouldn't happen
                 else:
                     try:
-                        thumb = _make_thumbnail(image, npix)
+                        thumb_realfile, thumb = _make_thumbnail(image, npix)
                         if not thumb and external_thumbs:
                             nfail += 1
                     except:

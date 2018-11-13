@@ -7,7 +7,7 @@ from IPython.display import display, HTML
 from radiopadre import settings
 from radiopadre.render import render_refresh_button, rich_string
 from collections import OrderedDict
-import casacore.tables
+from radiopadre import casacore_tables
 
 class FileBase(object):
     """Base class referring to an abstract datafile. Sets up some standard attributes in the constructor.
@@ -24,7 +24,8 @@ class FileBase(object):
         size:           size in bytes
         size_str:       human-readable size string
         description:    short human-readable description (e.g. size, content, etc.)
-        _title:         file title (usually same as path, but ./ will be stripped off)
+
+        _title:         displayed title (usually same as path, but ./ will be stripped off)
     """
 
     _unit_list = zip(['', 'k', 'M', 'G', 'T', 'P'], [0, 0, 1, 2, 2, 2])
@@ -266,7 +267,7 @@ def autodetect_file_type(path):
 
     ext = os.path.splitext(path)[1].lower()
     if os.path.isdir(path):
-        if casacore.tables.tableexists(path):
+        if casacore_tables and casacore_tables.tableexists(path):
             return CasaTable
         else:
             return DataDir

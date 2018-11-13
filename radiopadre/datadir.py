@@ -8,14 +8,13 @@ from .file import FileBase, autodetect_file_type
 from .filelist import FileList
 from .fitsfile import FITSFile
 from .imagefile import ImageFile
+from .casatable import CasaTable
 from .render import render_table, render_preamble, render_refresh_button, rich_string, render_url, render_title
 
 import radiopadre
 from radiopadre import settings
 
 # Need a flag raised in show() and other methods which prevents _load_impl() from being invoked.
-# Decorators wrappig methods, and with?
-#
 
 def _matches(filename, include_patterns=(), exclude_patterns=()):
     """
@@ -35,15 +34,15 @@ class DataDir(FileList):
                  include=None, exclude=None,
                  include_dir=None, exclude_dir=None,
                  include_empty=None, show_hidden=None,
-                 sort="dxnt",
-                 _skip_js_init=False):
+                 sort="dxnt"):
+                 # _skip_js_init=False):
         """
         """
 
-        # make sure Javascript end is initialized
-        self._skip_js_init = _skip_js_init
-        if not _skip_js_init:
-            radiopadre._init_js_side()
+        # # make sure Javascript end is initialized
+        # self._skip_js_init = _skip_js_init
+        # if not _skip_js_init:
+        #     radiopadre._init_js_side()
 
         self._sort = sort
         # use global settings for parameters that are not specified
@@ -60,7 +59,7 @@ class DataDir(FileList):
         FileList.__init__(self, content=None, path=name, root=root, sort=sort)
 
         # subsets of content
-        self._fits = self._others = self._images = self._dirs = None
+        self._fits = self._others = self._images = self._dirs = self._tables = None
 
         # any list manipulations will cause a call to self._load()
         for method in 'append', 'extend', 'insert', 'pop', 'remove','reverse':
@@ -103,8 +102,8 @@ class DataDir(FileList):
             if filetype is DataDir:
                 object = DataDir(path, root=self._root, include=self._include, exclude=self._exclude,
                                  include_dir=self._include_dir, exclude_dir=self._exclude_dir,
-                                 include_empty=self._include_empty, show_hidden=self._show_hidden, sort=self._sort,
-                                 _skip_js_init=self._skip_js_init)
+                                 include_empty=self._include_empty, show_hidden=self._show_hidden, sort=self._sort)
+#                                 _skip_js_init=self._skip_js_init)
             else:
                 object = filetype(path, self._root)
             content.append(object)
@@ -131,6 +130,12 @@ class DataDir(FileList):
         if self._images is None:
             self._images = self._typed_subset(ImageFile, title="Images, " + self._title)
         return self._images
+    
+    @property
+    def tables(self):
+        if self._tables is None:
+            self._tables = self._typed_subset(CasaTable, title="Tables, " + self._title)
+        return self._tables
 
     def __getitem__(self, *args, **kw):
         self._load()

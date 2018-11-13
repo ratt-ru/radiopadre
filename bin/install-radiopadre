@@ -123,6 +123,15 @@ if options.command in ["install", "reinstall", "reqs"]:
     shell("{PADRE_PATH}/bin/install-js9-colormaps {colormap_js}")
 
 if options.command in ["install", "reinstall", "js9"] and not options.no_js9:
+
+    js9status = open(PADRE_VENV + "/js9status", "w")
+
+    try:
+        nodejs = subprocess.check_output("which nodejs || which node", shell=True)
+    except subprocess.CalledProcessError:
+        js9status.write("nodejs missing")
+        bye("Unable to find nodejs or node -- can't run js9helper. You need to apt-get install nodejs perhaps?")
+
     # install JS9 inside venv
     # determine whether to use existing directory or repo
     js9_git = js9_dir = js9_temp = None
@@ -137,6 +146,7 @@ if options.command in ["install", "reinstall", "js9"] and not options.no_js9:
             js9_dir = options.js9
             message("Will install JS9 from local directory {js9_dir}")
         else:
+            js9status.write("not a valid repo")
             bye("--js9 {options.js9}: not a valid directory or git repository")
     elif os.path.isdir(JS9_DIR):
         js9_dir = JS9_DIR
@@ -154,43 +164,44 @@ if options.command in ["install", "reinstall", "js9"] and not options.no_js9:
             js9_dir = js9_temp = tempfile.mkdtemp(prefix="js9")
         message("Cloning {js9_git} into {js9_dir}")
         if shell("git clone {js9_git} {js9_dir}") != 0:
+            js9status.write("git clone failed")
             bye("Failed to clone JS9 repo, see log above")
     else:
         if js9_dir == JS9_DIR and os.access(JS9_DIR, os.W_OK) and os.path.exists(JS9_DIR + "/.git"):
             message("Will do a git pull in {js9_dir}")
             if shell("git -C {js9_dir} pull") != 0:
+                js9status.write("git pull failed")
                 bye("Failed to git pull in JS9 directory, see log above")
 
     # Configure and install
     js9_www = PADRE_VENV + "/js9-www"
     if subprocess.call("""cd {js9_dir} && \
-        ./configure --prefix={PADRE_VENV} --with-webdir={js9_www} --with-helper=nod --with-cfitsio={options.cfitsio_path} && \
-        make && make install""".format(**globals()), shell=True):
+            ./configure --prefix={PADRE_VENV} --with-webdir={js9_www} --with-helper=nod --with-cfitsio={options.cfitsio_path} && \
+            make && make install""".format(**globals()), shell=True):
+        js9status.write("build failed")
         bye("Failed to configure and/or build JS9 in {js9_dir}, see log above. Fix it, or run with --no-js9.")
 
     # check for cfitsio
     try:
         output = subprocess.check_output("grep FITSLIB {js9_dir}/config.log".format(**globals()), shell=True)
         if output.strip() != "FITSLIB='cfitsio'":
-            raise subprocess.CalledProcessError("no cfitsio")
+            raise subprocess.CalledProcessError("cfitsio",-1,"no cfitsio")
     except subprocess.CalledProcessError:
+        js9status.write("cfitsio missing")
         bye("JS9 did not find the cfitsio library. Try installing it (apt install libcfitsio-dev), and/or specifying"
             " the path to it with --cfitsio-path, and/or running with --no-js9 if you're really stuck.")
 
     # Make symlink to js9 install dir in notebook dir
-    try:
-        notebook_js9_www = notebook_dir + "/notebook/static/js9-www"
-        message("making link from {notebook_js9_www} to {js9_www}")
-        if not os.path.exists(notebook_js9_www):
-            os.symlink(js9_www, notebook_js9_www)
+    notebook_js9_www = notebook_dir + "/notebook/static/js9-www"
+    message("making link from {notebook_js9_www} to {js9_www}")
+    if not os.path.exists(notebook_js9_www):
+        os.symlink(js9_www, notebook_js9_www)
 
-        notebook_socket_io = notebook_dir + "/notebook/static/socket.io.js"
-        js9_socket_io = js9_www + "/node_modules/socket.io-client/dist/socket.io.js"
-        message("making link from {notebook_socket_io} to {js9_socket_io}")
-        if not os.path.exists(notebook_socket_io):
-            os.symlink(js9_socket_io, notebook_socket_io)
-    except subprocess.CalledProcessError:
-        bye("Failed to determine jupyter notebook path")
+    notebook_socket_io = notebook_dir + "/notebook/static/socket.io.js"
+    js9_socket_io = js9_www + "/node_modules/socket.io-client/dist/socket.io.js"
+    message("making link from {notebook_socket_io} to {js9_socket_io}")
+    if not os.path.exists(notebook_socket_io):
+        os.symlink(js9_socket_io, notebook_socket_io)
 
     # copy config
     shutil.copy2(PADRE_PATH + "/js9-config/js9prefs.js", js9_www)
@@ -199,6 +210,8 @@ if options.command in ["install", "reinstall", "js9"] and not options.no_js9:
     if js9_temp:
         message("Removing JS9 source directory {js9_temp}")
         shutil.rmtree(js9_temp)
+
+    js9status.write(os.path.abspath(js9_www))
 
 
 open(complete_cookie, "w").write("installed by {__file__}".format(**globals()))

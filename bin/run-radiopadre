@@ -32,6 +32,8 @@ parser.add_argument("-b","--browser", action="store_true",
                   help="open a browser session, even if running under ssh.")
 parser.add_argument("-n","--no-browser",action="store_true",
                   help="do not open a browser session, even if running locally.")
+parser.add_argument("--workdir-home",action="store_true",
+                  help="always use ~/.radiopadre as work directory location, even if local directory is writable.")
 parser.add_argument("args", nargs="*",
                   help="additional Jupyter arguments")
 
@@ -72,23 +74,90 @@ else:
     print "Activating the radiopadre virtualenv"
     execfile(activation_script, dict(__file__=activation_script))
 
+message("Welcome to Radiopadre!")
+message("  Using radiopadre install at {PADRE_PATH}")
+message("  Running in {DIR}")
+
+
+# get hostname
+os.environ["HOSTNAME"] = subprocess.check_output("/bin/hostname")
+
 # get jupyter path
 notebook_dir = subprocess.check_output("{PADRE_VENV}/bin/pip show jupyter| "
                                        "grep Location:|cut -d ':' -f 2".format(**globals()), shell=True).strip()
 if not notebook_dir:
     raise subprocess.CalledProcessError("jupyter installation path not found")
 
-# make radiopadre directory
-if not os.path.exists(".radiopadre"):
-    os.mkdir(".radiopadre")
+
+
+
+# Determine a writeable working directory. Try "./.radiopadre" first
+workdir_redirect = ''
+PADRE_WORKDIR = ".radiopadre"
+cwd = os.getcwd()
+if options.workdir_home:
+    message("  Will fall back to ~/.radiopadre as working directory since --workdir-home is set.")
+    PADRE_WORKDIR = None
+elif os.path.exists(PADRE_WORKDIR):
+    if not os.access(PADRE_WORKDIR, os.W_OK):
+        message("  {PADRE_WORKDIR} is not writeable. Will fall back to ~/.radiopadre.")
+        PADRE_WORKDIR = None
+    else:
+        message("  {PADRE_WORKDIR} will be used as a working directory.")
+else:
+    if not os.access(cwd, os.W_OK):
+        message("  {PADRE_WORKDIR} does not exist, and we have no write permission to local directory. Will fall back to ~/.radiopadre.")
+        PADRE_WORKDIR = None
+    else:
+        os.mkdir(PADRE_WORKDIR)
+        message("  Created {PADRE_WORKDIR} to be used as a working directory.")
+
+# That didn't work -- try to create something under ~/.radiopadre instead
+
+if PADRE_WORKDIR is None:
+    homebase = os.path.expanduser("~/.radiopadre")
+    if not os.path.exists(homebase):
+        os.mkdir(homebase)
+    components = list(os.path.abspath(cwd).split("/"))
+    components.append(".radiopadre")
+    for comp in components:
+        homebase = os.path.join(homebase, comp)
+        if not os.path.exists(homebase):
+            os.mkdir(homebase)
+    PADRE_WORKDIR = workdir_redirect = homebase
+    message("  Using {PADRE_WORKDIR} as a working directory.")
+
+os.environ['RADIOPADRE_WORKDIR'] = PADRE_WORKDIR
+os.environ['RADIOPADRE_WORKDIR_REDIRECT'] = workdir_redirect
+
+# check status of JS9. Ends up being True, or a RuntimeError
+
+js9dir = js9error = None
+js9status_file = PADRE_VENV + "/js9status"
+if not os.path.exists(js9status_file):
+    js9error = "not found"
+else:
+    js9dir = open(js9status_file).read().strip()
+    if not js9dir.startswith("/"):
+        js9error = js9dir
+        js9dir = None
+
+os.environ['RADIOPADRE_JS9_DIR'] = js9dir or ''
+os.environ['RADIOPADRE_JS9_ERROR'] = js9error or ''
+if js9dir:
+    message("  Found JS9 install in {js9dir}")
+else:
+    message("  Warning: JS9 not functional ({js9error}). Reinstall radiopadre?".format(js9error))
+
 
 # make link to JS9 install
-if not os.path.exists(".radiopadre/js9-www"):
-    os.symlink(PADRE_VENV + "/js9-www", ".radiopadre/js9-www")
-if not os.path.exists(".radiopadre/js9colormaps.js"):
-    os.symlink(notebook_dir + "/notebook/static/js9colormaps.js", ".radiopadre/js9colormaps.js")
-if not os.path.exists(".radiopadre/radiopadre-www"):
-    os.symlink(PADRE_PATH + "/html", ".radiopadre/radiopadre-www")
+if js9dir:
+    if not os.path.exists(PADRE_WORKDIR + "/js9-www"):
+        os.symlink(js9dir, PADRE_WORKDIR + "/js9-www")
+    if not os.path.exists(PADRE_WORKDIR + "/js9colormaps.js"):
+        os.symlink(notebook_dir + "/notebook/static/js9colormaps.js", PADRE_WORKDIR + "/js9colormaps.js")
+    if not os.path.exists(PADRE_WORKDIR + "/radiopadre-www"):
+        os.symlink(PADRE_PATH + "/html", PADRE_WORKDIR + "/radiopadre-www")
 
 # add padre directory to PYTHONPATH
 if "PYTHONPATH" in os.environ:
@@ -96,10 +165,6 @@ if "PYTHONPATH" in os.environ:
 else:
     os.environ["PYTHONPATH"] = PADRE_PATH
 
-
-message("Welcome to Radiopadre!")
-message("  Using radiopadre install at {PADRE_PATH}")
-message("  Running in {DIR}")
 
 browser = False
 if os.environ.get("SSH_CLIENT"):
@@ -151,13 +216,6 @@ if options.remote:
     print forwarded_helper_port, forwarded_http_port
 
 
-os.environ['RADIOPADRE_HTTP_PORT'] = str(forwarded_http_port)
-os.environ['RADIOPADRE_JS9_HELPER_PORT'] = str(forwarded_helper_port)
-# os.environ['RADIOPADRE_JS9_ACCESS'] = "http://localhost:{}/".format(http_port)  # else set to "jupyter" to use internal server
-os.environ['RADIOPADRE_JS9_HTTP'] = "http://localhost:{}/".format(forwarded_http_port)
-
-open(".radiopadre/js9prefs.js", "w").write("JS9Prefs.globalOpts.helperPort = {};\n".format(forwarded_helper_port));
-
 JUPYTER_OPTS.append("--port={}".format(jupyter_port))
 if not browser:
     JUPYTER_OPTS.append("--no-browser")
@@ -165,22 +223,34 @@ JUPYTER_OPTS += list(options.args)
 
 child_processes = []
 
+os.environ['RADIOPADRE_HTTP_PORT'] = str(forwarded_http_port)
+
+if js9dir:
+    os.environ['RADIOPADRE_JS9_HELPER_PORT'] = str(forwarded_helper_port)
+    os.environ['RADIOPADRE_JS9_HTTP'] = "http://localhost:{}/".format(forwarded_http_port)
+    open(PADRE_WORKDIR + "/js9prefs.js", "w").write("JS9Prefs.globalOpts.helperPort = {};\n".format(forwarded_helper_port))
+    ## NB: this might not play nice if you launch multiple padres with their own helper. But that's your problem.
+    open(notebook_dir + "/notebook/static/js9prefs-tmp.js", "w").write("JS9Prefs.globalOpts.helperPort = {};\n".format(forwarded_helper_port))
+
 try:
-    js9helper = PADRE_VENV+"/js9-www/js9Helper.js"
     helper_proc = None
-    if os.path.exists(js9helper):
-        message("Starting JS9 helper process")
-        try:
-            nodejs = subprocess.check_output("which nodejs || which node", shell=True)
-        except subprocess.CalledProcessError:
-            bye("Unable to find nodejs or node -- can't run js9helper. You need to apt-get install nodejs perhaps?")
-        child_processes.append(subprocess.Popen([nodejs.strip(), js9helper, 
-            '{{"helperPort": {}}}'.format(helper_port)],
-            stdin=DEVZERO, stdout=sys.stdout, stderr=sys.stderr))
+    if js9dir:
+        js9helper = js9dir +"/js9Helper.js"
+        if os.path.exists(js9helper):
+            message("Starting JS9 helper process on port {helper_port}")
+            try:
+                nodejs = subprocess.check_output("which nodejs || which node", shell=True)
+            except subprocess.CalledProcessError:
+                bye("Unable to find nodejs or node -- can't run js9helper. You need to apt-get install nodejs perhaps?")
+            child_processes.append(subprocess.Popen([nodejs.strip(), js9helper,
+                '{{"helperPort": {}}}'.format(helper_port)],
+                stdin=DEVZERO, stdout=sys.stdout, stderr=sys.stderr))
 
     message("Starting HTTP server process in {DIR} on port {http_port}")
-    child_processes.append(subprocess.Popen([PADRE_VENV+"/bin/python", PADRE_PATH+"/bin/http_server.py", str(http_port)],
-                                       stdin=DEVZERO, stdout=sys.stdout, stderr=sys.stderr))
+    args = [PADRE_VENV+"/bin/python", PADRE_PATH+"/bin/http_server.py", str(http_port)]
+    if workdir_redirect:
+        args.append("/.radiopadre/={}/".format(PADRE_WORKDIR))
+    child_processes.append(subprocess.Popen(args, stdin=DEVZERO, stdout=sys.stdout, stderr=sys.stderr))
 
     message("Starting: jupyter notebook "+" ".join(JUPYTER_OPTS))
 
