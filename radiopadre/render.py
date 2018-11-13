@@ -112,7 +112,7 @@ def render_table(data, labels, html=set(), ncol=1, links=None,
                 elif not str(col).upper().startswith("<HTML>") and not i in html and not labels[i] in html:
                     col = cgi.escape(str(col))
                 txt += """<td style="border: 0px; text-align: left; """
-                if ncol > 1 and icol < ncol - 1 and i == len(datum) - 1:
+                if ncol > 1 and icol < ncol - 1 and i == len(datum) - 1 and not actions:
                     txt += "border-right: 1px double; padding-right: 10px"
                 txt += "{}; {};".format(styles.get(labels[i], ""), styles.get((irow, labels[i]), ""))
                 link = links and links[idatum][i]
@@ -123,10 +123,14 @@ def render_table(data, labels, html=set(), ncol=1, links=None,
 
             # render actions, if supplied
             if actions:
-                if actions[idatum]:
-                    txt += """<td style="white-space: nowrap;">%s</td>""" % actions[idatum]
+                if ncol > 1 and icol < ncol - 1:
+                    txt += """<td style="white-space: nowrap; border-right: 1px double;">"""
                 else:
-                    txt += """<td></td>"""
+                    txt += """<td style="white-space: nowrap; {}">"""
+                if actions[idatum]:
+                    txt += """{}</td>""".format(actions[idatum])
+                else:
+                    txt += """</td>"""
         txt += """</tr>\n"""
     txt += "</table>"
     for code in postscript.itervalues():
