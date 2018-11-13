@@ -86,12 +86,15 @@ def render_table(data, labels, html=set(), ncol=1, links=None,
             # add headers for every data column
             for ilab, lab in enumerate(labels):
                 txt += """<th style="text-align: center; border: 0px; border-bottom: 1px double;"""
-                if ncol > 1 and icol < ncol - 1 and ilab == len(labels) - 1:
+                if ncol > 1 and icol < ncol - 1 and ilab == len(labels) - 1 and not actions:
                     txt += "border-right: 1px double; padding-right: 10px"
                 txt += "\">%s</th>\n" % lab
             # add dummy column for action buttons
             if actions:
-                txt += "<th></th>\n"
+                if ncol > 1 and icol < ncol - 1:
+                    txt += """<th style="border-right: 1px double;"></th>\n"""
+                else:
+                    txt += """<th></th>\n"""
         txt += "</tr>\n"
     # configuring the table rows, row by row
     nrow = int(math.ceil(len(data) / float(ncol)))
