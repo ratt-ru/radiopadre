@@ -205,16 +205,16 @@ else:
 
 ## Check for remote virtualenv
 remote_venv = "~/.radiopadre-venv"
-if check_remote_file(remote_venv, "-d"):
+if check_remote_file(remote_venv + "/.complete", "-f"):
     activate_script = "{}/bin/activate".format(remote_venv)
     print "radiopadre: Testing the remote virtual environment at {}:{}".format(host, remote_venv)
     try:
         ssh_remote("source {}".format(activate_script))
     except subprocess.CalledProcessError:
         help_yourself("The remote virtual environment at {}:{} exists, but we can't seem to activate it".format(host, remote_venv),
-                      "For example, remove {}:{}, and I'll try to rebuild it from scratch.".format(host, remote_venv))
+                      "Perhaps remove {}:{}, and I'll try to rebuild it from scratch.".format(host, remote_venv))
 else:
-    print "radiopadre: No remote virtual environment at {}:{}, but I can create it".format(host, remote_venv)
+    print "radiopadre: Missing or incomplete remote virtual environment at {}:{}, but I can create it".format(host, remote_venv)
     if not has_venv:
         help_yourself("However, I don't see virtualenv and/or pip installed on {}".format(host), 
                       "Try 'sudo apt instal virtualenv pip' on {}".format(host))

@@ -184,15 +184,8 @@ if CREATE_DEFAULT_NOTEBOOK:
     if os.path.exists(LOAD_NOTEBOOK):
         message("Strange, {LOAD_NOTEBOOK} already exists but we mean to create a default?")
     else:
-        import nbformat
-        nb = nbformat.v4.new_notebook()
-        nb['cells'] = [
-            nbformat.v4.new_markdown_cell("""### This is a very basic default radiopadre notebook to start you browsing"""),
-            nbformat.v4.new_code_cell("# execute this with Ctrl+Enter\nfrom radiopadre import ls, settings\nls = ls()\nls"),
-            nbformat.v4.new_code_cell("ls[0]")
-        ]
-        nbformat.write(nb, LOAD_NOTEBOOK)
-
+        import shutil
+        shutil.copyfile(PADRE_PATH+"/notebooks/"+DEFAULT_NAME, LOAD_NOTEBOOK)
 
 os.environ['RADIOPADRE_ROOTDIR'] = os.getcwd()
 os.environ['RADIOPADRE_WORKDIR'] = PADRE_WORKDIR
