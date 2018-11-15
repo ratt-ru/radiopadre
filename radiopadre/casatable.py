@@ -20,7 +20,7 @@ class CasaTable(radiopadre.file.FileBase):
         :param args:
         :param kwargs:
         """
-        self._error = None
+        self._error = self._dir_obj = None
         self._table = table
         self._subtables_obj = None
         self._parent = parent
@@ -42,7 +42,8 @@ class CasaTable(radiopadre.file.FileBase):
             return exc
 
     def _scan_impl(self):
-        radiopadre.datadir.FileBase._scan_impl(self)
+        radiopadre.file.FileBase._scan_impl(self)
+        self._dir_obj = None
         tab = self.table
         if isinstance(tab, Exception):
             msg = "CasaTable error: {}".format(tab)
@@ -80,6 +81,13 @@ class CasaTable(radiopadre.file.FileBase):
             subdict[attr] = subtab = CasaTable(subtab, root=self._root)
             setattr(self, attr, subtab)
         return subtab
+
+    @property
+    def dir(self):
+        from .datadir import DataDir
+        if self._dir_obj is None:
+            self._dir_obj = DataDir(self.fullpath, root=self._root)
+        return self._dir_obj
 
     @property
     def subtables(self):

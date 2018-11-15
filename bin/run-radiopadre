@@ -25,6 +25,8 @@ parser = argparse.ArgumentParser(description="Runs radiopadre")
 #                   help="looks for N unused ports and reports them. For internal use.");
 parser.add_argument("--bootstrap", action="store_true",
                   help="automatically initialize radiopadre virtual environment, if missing.")
+parser.add_argument("--reinstall", action="store_true",
+                  help="reinstall radiopadre virtual environment before running.")
 parser.add_argument("--remote", action="store_true",
                   help="runs script in remote mode. Normally used by run-remote-padre -- not to be invoked directly.")
 parser.add_argument("-b","--browser", action="store_true",
@@ -69,11 +71,14 @@ if hasattr(sys, 'real_prefix') or (hasattr(sys, 'base_prefix') and sys.base_pref
     else:
         bye("Can't run this script inside a non-radiopadre virtualenv. Please deactivate and rerun.")
 else:
-    if os.path.exists(activation_script) and os.path.exists(complete_cookie):
-        message("Found working radiopadre virtualenv")
-    elif options.bootstrap:
-        message("Can't find complete radiopadre virtualenv, bootstrapping with install-radiopadre")
-        if shell("{}/bin/install-radiopadre {} {}".format(PADRE_PATH,
+    if os.path.exists(activation_script) and os.path.exists(complete_cookie) and not options.reinstall:
+        message("Found radiopadre virtualenv in {PADRE_VENV}")
+    elif options.bootstrap or options.reinstall:
+        if options.reinstall:
+            message("Will reinstall radiopadre virtualenv using install-radiopadre")
+        else:
+            message("Can't find complete radiopadre virtualenv, bootstrapping with install-radiopadre")
+        if shell("{}/bin/install-radiopadre {} {} reinstall".format(PADRE_PATH,
                     "--no-casacore" if options.no_casacore else "",
                     "--no-js9" if options.no_js9 else "",
                 )):

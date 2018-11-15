@@ -58,6 +58,8 @@ parser.add_option("-a","--auto",metavar="PATTERN",type="string",default=DEFAULT_
                   "Can be a wildcard pattern. Default is %default. Use -a none to disable auto-open.")
 parser.add_option("-c","--copy",action="store_true",
                   help="If notebook does not exist on the remote, try to copy a boilerplate.")
+parser.add_option("--reinstall", action="store_true",
+                  help="Reinstall radiopadre virtual environment on remote.")
 parser.add_option("--no-casacore", action="store_true",
                   help="Ignore casacore installation errors, if installing on remote.")
 parser.add_option("--no-js9", action="store_true",
@@ -172,7 +174,7 @@ for padre_exec in padre_execs:
             padre_dir = os.path.dirname(padre_exec)
             print "radiopadre: --update specified, will try a git pull in {}".format(padre_dir)
             try:
-                ssh_remote("cd {} ; git pull".format(padre_dir))
+                ssh_remote("cd {} ; git checkout {}; git pull".format(padre_dir, BRANCH))
             except subprocess.CalledProcessError,exc:
                 print exc.output
                 help_yourself("git pull failed with exit code {}".format(exc.returncode))
@@ -209,7 +211,7 @@ else:
 
 ## Check for remote virtualenv
 remote_venv = "~/.radiopadre-venv"
-if check_remote_file(remote_venv + "/.complete", "-f"):
+if not options.reinstall and check_remote_file(remote_venv + "/.complete", "-f"):
     activate_script = "{}/bin/activate".format(remote_venv)
     print "radiopadre: Testing the remote virtual environment at {}:{}".format(host, remote_venv)
     try:
@@ -219,23 +221,28 @@ if check_remote_file(remote_venv + "/.complete", "-f"):
         help_yourself("The remote virtual environment at {}:{} exists, but we can't seem to activate it".format(host, remote_venv),
                       "Perhaps remove {}:{}, and I'll try to rebuild it from scratch.".format(host, remote_venv))
 else:
-    print "radiopadre: Missing or incomplete remote virtual environment at {}:{}, but I can create it".format(host, remote_venv)
+    if options.reinstall:
+        print "radiopadre: --reinstall given, will reinstall remote virtual environment"
+    else:
+        print "radiopadre: Missing or incomplete remote virtual environment at {}:{}, but I can create it".format(host, remote_venv)
     if not has_venv:
         help_yourself("However, I don't see virtualenv and/or pip installed on {}".format(host), 
                       "Try 'sudo apt instal virtualenv pip' on {}".format(host))
                       
-    if bootstrap:
+    if bootstrap and not options.reinstall:
         print "radiopadre: Since we're bootstrapping a new installation, I will proceed to do so"
-    else:
+    elif not options.reinstall:
         if not options.init:
             answ = raw_input("radiopadre: This may take a few minutes. Shall I try doing that for you (y/n)? ").upper()
             if answ != "Y":
                 print "radiopadre: OK, bye..."
                 sys.exit(1)
-        bootstrap = True
+    bootstrap = True
 
 if bootstrap:
     padre_exec += " --bootstrap"
+if options.reinstall:
+    padre_exec += " --reinstall"
 if options.no_casacore:
     padre_exec += " --no-casacore"
 if options.no_js9:
