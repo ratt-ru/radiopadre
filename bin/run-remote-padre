@@ -171,7 +171,7 @@ for padre_exec in padre_execs:
     if check_remote_file(padre_exec):
         print "radiopadre: Found remote radiopadre launch script at {}:{}".format(host, padre_exec)
         if options.update:
-            padre_dir = os.path.dirname(padre_exec)
+            padre_dir = os.path.dirname(os.path.dirname(padre_exec))
             print "radiopadre: --update specified, will try a git pull in {}".format(padre_dir)
             try:
                 ssh_remote("cd {} ; git checkout {}; git pull".format(padre_dir, BRANCH))

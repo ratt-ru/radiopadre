@@ -35,12 +35,12 @@ def _make_thumbnail(image, width):
 
 class ImageFile(radiopadre.file.FileBase):
     @staticmethod
-    def _show_thumbs(images, width=None, ncol=None, maxwidth=None, mincol=None,
-                     external_thumbs=None,
-                     maxcol=None, title=None, **kw):
+    def _render_thumbs(images, width=None, ncol=None, maxwidth=None, mincol=None,
+                       external_thumbs=None,
+                       maxcol=None, title="", **kw):
 
         if not images:
-            return None
+            return ""
         nrow, ncol, width = radiopadre.file.compute_thumb_geometry(
             len(images), ncol, mincol, maxcol, width, maxwidth)
         npix = int(settings.plot.screen_dpi * width)
@@ -93,7 +93,19 @@ class ImageFile(radiopadre.file.FileBase):
         if nfail:
             html += "(WARNING: %d thumbnails unexpectedly failed to generate, check console for errors)<br>\n" % nfail
 
+        return html
+
+    @staticmethod
+    def _show_thumbs(images, **kw):
+        html = ImageFile._render_thumbs(images, **kw)
         display(HTML(html))
+
+    @property
+    def thumb(self):
+        return ImageFile._render_thumbs([self])
+
+    def render_html(self, *args, **kw):
+        return self.thumb
 
     def show(self, width=None, **kw):
         display(Image(self.fullpath, width=width and width * 100))

@@ -33,6 +33,10 @@ class FileList(FileBase, list):
 
         if content is not None:
             self._set_list(content, sort)
+            # if all content is of same type, set the classobj
+            type0 = type(content[0])
+            if issubclass(type0, FileBase) and not self._classobj and len(set([type(x) for x in content])) == 1:
+                self._classobj = classobj = type0
 
         # For every _show_xxx() method defined in the class object,
         # create a corresponding self.xxx() method that maps to it
