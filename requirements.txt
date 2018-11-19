@@ -7,4 +7,5 @@ jupyter
 matplotlib
 pillow
 python-casacore
+cubical
 
