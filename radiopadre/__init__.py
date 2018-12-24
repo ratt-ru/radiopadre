@@ -46,83 +46,192 @@ except pkg_resources.DistributionNotFound:
 ## various notebook-related init
 astropy.log.setLevel('ERROR')
 
-ROOTDIR = os.environ.get('RADIOPADRE_ROOTDIR') or os.getcwd()
+# We need to be able to look at both the user's own files, and other users' files. We also need to be able to run
+# in a container. Consider also that:
+#
+#   1. Jupyter will only serve files under the directory it is started in (as /files/xxx)
+#   2. The notebook should reside in the Jupyter starting directory, and be writeable by the user
+#   3. We need a user-writeable cache directory to store thumbnails, JS9 launch scripts, etc. This must also reside
+#      under the starting directory (to be servable by Jupyter). Ideally, we want to use .radiopadre inside
+#      the actual subdirectory being viewed, but what if we don't own it?
+#   4. If running in a container, the data directory might be mounted under some funny prefix (e.g. /mnt/data) that the user
+#      doesn't recognize, this needs to be stripped out from pathnames
+#
+# Point (1) means we have to select a directory to be visualized in advance, and we can't go outside of that hierarchy.
+# So let's say the user wants to be looking at /path/to/directory. We call this
+#
+#       DISPLAY_ROOTDIR = /path/to/directory
+#
+# Let's then assume the user is displaying the content of dir=/path/to/directory/foo/bar/.
+#
+# We have two ways of running radiopadre: native (or in a virtual environment), or in a container. The following
+# scenarios then arise:
+#
+# I.   Native, /path/to/directory is user-writeable
+#
+#       Jupyter starting dir is /path/to/directory
+#       ROOTDIR      = CWD = DISPLAY_ROOTDIR = /path/to/directory
+#       CACHEBASE    = ROOTDIR/.radiopadre
+#       URLBASE      =
+#       CACHEURLBASE = .radiopadre
+#       FAKEROOT     = False
+#
+# II.  Native, /path/to/directory is not user-writeable. We have to fake a directory in the user's $HOME.
+#
+#       Startup script will create a "fake" directory ~/.radiopadre/path/to/directory if needed, populate
+#       it with a default notebook, and make a symlink "content" -> /path/to/directory
+#       Jupyter starting dir is the fake dir, ~/.radiopadre/path/to/directory
+#
+#       ROOTDIR       = CWD = DISPLAY_ROOTDIR = /path/to/directory
+#       CACHEBASE     = ~/.radiopadre/path/to/directory/cache
+#       URLBASE       = content
+#       CACHEURLBASE  = cache
+#       FAKEROOT      = ~/.radiopadre/path/to/directory/
+#
+# III. Running in container, /path/to/directory is user-writeable, mounted under ROOT_MOUNT
+#
+#       DISPLAY_ROOTDIR = /path/to/directory
+#       ROOTDIR      = CWD = ROOT_MOUNT
+#       CACHEBASE    = ROOTDIR/.radiopadre
+#       URLBASE      =
+#       CACHEURLBASE = .radiopadre
+#       FAKEROOT     = False
+#
+# IV.  Running in container, /path/to/directory is not user-writeable, mounted under ROOT_MOUNT.
+#      User's directory will be mounted under HOME_MOUNT.
+#      Startup script will create a "fake" directory HOME_MOUNT/.radiopadre/path/to/directory if needed, populate
+#      it with a default notebook, and make a symlink "content" -> ROOT_MOUNT
+#      Jupyter starting dir is the fake dir, HOME_MOUNT/.radiopadre/path/to/directory
+#
+#       DISPLAY_ROOTDIR = /path/to/directory
+#       ROOTDIR      = CWD = ROOT_MOUNT
+#       CACHEBASE    = HOME_MOUNT/.radiopadre/path/to/directory/cache
+#       URLBASE      = content
+#       CACHEURLBASE = cache
+#       FAKEROOT     = HOME_MOUNT/.radiopadre/path/to/directory/
+#
+# Summarizing this into rules on variable setup:
+#
+#       DISPLAY_ROOTDIR = /path/to/directory        # always
+#       ROOTDIR = CWD = DISPLAY_ROOTDIR             # in native mode
+#                     = $RADIOPADRE_ROOT_MOUNT      # in container mode
+#       HOME_MOUNT    = ~                           # in native mode
+#                     = $RADIOPADRE_HOME_MOUNT      # in container mode
+#       CACHEBASE     = ROOTDIR/.radiopadre         # if not FAKEROOT
+#                       HOME_MOUNT/.radiopadre/path/to/directory/  # if FAKEROOT
+#       URLBASE       =                             # if not FAKEROOT
+#                     = content                     # if FAKEROOT
+#       CACHEURLBASE  = .radiopadre                 # if not FAKEROOT
+#                     = .radiopadre/content         # if FAKEROOT
+#
+# NONE OF THE DIR NAMES ABOVE SHALL HAVE A TRALING SLASH!!!
+#
+# Cache dir rules are as follows:
+#       When looking at dir=/path/to/directory/foo/bar, if dir is user-writeable, use
+#       /path/to/directory/foo/bar/.radiopadre for cache (URLBASE/foo/bar/.radiopadre is the URL), else
+#       CACHEBASE/foo/bar (CACHEURLBASE/foo/bar is the URL)
+#
+# Rewriting rules are as follows:
+#
+#       1. Displayed paths always replace a leading ROOTDIR with DISPLAY_ROOTDIR
+#       2. URLs for the native HTTP server (for e.g. JS9) replace /files with ""
+#
+# When starting up, we check if RADIOPADRE_ROOT_MOUNT is set, and assume container mode if so
 
-WORKDIR = os.environ.get('RADIOPADRE_WORKDIR') or ".radiopadre"
-WORKDIR_REDIRECT = os.environ.get('RADIOPADRE_WORKDIR_REDIRECT') or None
+_setup_done = False
 
-# We have two running scenarios:
-#
-# 1. No redirect. Running radiopadre in a directory owned (and writable) by the user, say /path/to/directory. Then
-#
-#       * jupyter server is started and runs in /path/to/directory
-#       * radiopadre cache and support files live in WORKDIR=/path/to/directory/.radiopadre
-#       * kernel runs in /path/to/directory
-#
-# 2. Redirect mode. Running radiopadre to look at files owned by someone else. Then a local "redirect" work directory
-#    is created under ~/.radiopadre, and:
-#
-#       * jupyter server is started and runs in ~/.radiopadre/path/to/directory
-#       * radiopadre cache and support files live in WORKDIR=~/.radiopadre/path/to/directory/.radiopadre
-#       * kernel runs in /path/to/directory
-#
-if WORKDIR_REDIRECT:
+def display_setup():
+    data = [ ("cwd", os.getcwd()) ]
+    for varname in "DISPLAY_ROOTDIR", "ROOTDIR", "CACHEBASE", "URLBASE", "CACHEURLBASE":
+        data.append((varname, globals()[varname]))
+
+    display(HTML(render_table(data, ["", ""], numbering=False)))
+
+if not _setup_done:
+    RADIOPADRE_ROOT_MOUNT = os.environ.get("RADIOPADRE_ROOT_MOUNT")
+    CONTAINER_MODE = bool(RADIOPADRE_ROOT_MOUNT)
+
+    DISPLAY_ROOTDIR = os.environ.get("RADIOPADRE_ROOTDIR") or os.getcwd()
+
+    ROOTDIR = RADIOPADRE_ROOT_MOUNT or DISPLAY_ROOTDIR
     os.chdir(ROOTDIR)
-    add_startup_warning("Directories: current {}, workdir {}".format(ROOTDIR, WORKDIR_REDIRECT))
+    os.path.split(ROOTDIR.rstrip("/"))
+
+    HOME_MOUNT = os.environ.get("RADIOPADRE_HOME_MOUNT") or os.path.expanduser("~")
+    FAKEROOT = os.environ.get("RADIOPADRE_FAKEROOT") or None
+    URLBASE = ""
+    CACHEURLBASE = ".radiopadre"
+
+    if not FAKEROOT:
+        CACHEURLBASE = ".radiopadre"
+        CACHEBASE    = os.path.join(ROOTDIR, ".radiopadre")
+    else:
+        content = os.path.basename(FAKEROOT.rstrip("/"))
+        URLBASE = content
+        CACHEURLBASE = ".radiopadre"
+        CACHEBASE = os.path.join(FAKEROOT, CACHEURLBASE)
+        #if not os.path.exists(content):os.path.join(FAKEROOT, CONTENT
+        #    raise RuntimeError("{} does not exist. Please use the correct run-radiopadre script, or report a bug.".format(content))
+
+    if not os.access(CACHEBASE, os.W_OK):
+        raise RuntimeError("{} is not user-writeable. Please use the correct run-radiopadre script, or report a bug.".format(CACHEBASE))
+
+    _setup_done = True
+
+    # TODO: remove this when done debugging
+    display_setup()
+
 
 def get_cache_dir(path, subdir=None):
     """
     Creates directory for caching radiopadre stuff associated with the given file.
-    For an file given by path/to/directory/filename, the cache directory is either
-        path/to/directory/.radiopadre[/subdir]
-        ~/.radiopadre/path/to/directory/.radiopadre[/subdir]
-    ...depending on whether radiopadre used the current directory as the workdir (normally the case when you
-    run radiopadre in your own files), or ~/.radiopadre (i.e. "workdir redirect" mode. normally the case when looking at
-    others' files)
 
     Returns tuple of (real_path, url_path). The former is the real filesystem location of the directory.
-    The latter is the URL to this directory. In workdir redirect mode, the two are different
+    The latter is the URL to this directory.
     """
     basedir = os.path.dirname(path)
-    if not os.path.abspath(basedir).startswith(os.path.abspath(ROOTDIR)):
-        raise RuntimeError("Trying to make cache for directory {} that is outside the current hierarchy {}".format(
-                            path, ROOTDIR))
-
-    if WORKDIR_REDIRECT:
-        padre = WORKDIR
-        urlpath = ".radiopadre"
-        if os.path.samefile(basedir, ROOTDIR):
-            if not os.path.exists(padre):
-                os.mkdir(padre)
-        else:
-            components = list(basedir.split("/"))
-            components.append(".radiopadre")
-            for comp in components:
-                if not os.access(padre, os.W_OK):
-                    raise RuntimeError("no write access to {}. Make sure you have the correct persmissions.".format(padre))
-                padre = os.path.join(padre, comp)
-                urlpath = os.path.join(urlpath, comp)
-                if not os.path.exists(padre):
-                    os.mkdir(padre)
+    # make basedir fully qualified, and make basedir_rel relative to ROOTDIR
+    if not basedir or basedir == ".":
+        basedir = ROOTDIR
+        basedir_rel = "."
     else:
-        padre = urlpath = os.path.join(basedir, ".radiopadre")
-        if os.path.exists(padre):
-            if not os.access(padre, os.W_OK):
-                raise RuntimeError("no write access to {}. Run radiopadre with --workdir-home.".format(padre))
-        else:
-            if not os.access(basedir, os.W_OK):
-                raise RuntimeError("no write access to {}. Run radiopadre with --workdir-home.".format(basedir))
-            os.mkdir(padre)
+        rootdir = ROOTDIR + "/"
+        basedir = os.path.abspath(basedir)
+        if not basedir.startswith(rootdir):
+            raise RuntimeError("Trying to access {}, which is outside the {} hierarchy".format(path, ROOTDIR))
+        basedir_rel = basedir[len(rootdir):]
 
-    if not subdir:
-        return padre, urlpath
+    cachedir = os.path.join(basedir, ".radiopadre")
+    cacheurl = os.path.normpath(os.path.join(URLBASE, basedir_rel, ".radiopadre"))
 
-    cache = os.path.join(padre, subdir)
-    urlpath = os.path.join(urlpath, subdir)
-    if not os.path.exists(cache):
-        os.mkdir(cache)
+    # cachedir doesn't exist, but we can create it
+    if not os.path.exists(cachedir) and os.access(basedir, os.W_OK):
+        os.mkdir(cachedir)
 
-    return cache, urlpath
+    # same for subdir
+    if subdir:
+        cacheurl = os.path.join(cacheurl, subdir)
+        subdir_full = os.path.join(cachedir, subdir)
+        if not os.path.exists(subdir_full) and os.access(cachedir, os.W_OK):
+            os.mkdir(subdir_full)
+        cachedir = subdir_full
+
+    # cachedir is writeable by us -- use it
+    if os.path.exists(cachedir) and os.access(cachedir, os.W_OK):
+        return cachedir, cacheurl
+
+    # ok, fall back to creating cache under CACHEBASE, which is guaranteed to be ours at least -- if it's not writeable,
+    # we can fail and let the user sort it out
+    cachedir = os.path.normpath(os.path.join(CACHEBASE, basedir_rel, subdir or "."))
+    cacheurl = os.path.normpath(os.path.join(CACHEURLBASE, basedir_rel, subdir or "."))
+    if not os.path.exists(cachedir):
+        os.system("mkdir -p {}".format(cachedir))
+    if not os.access(cachedir, os.W_OK):
+        # TODO: maybe rm -fr the f*cker?
+        raise RuntimeError("{} is not writeable. Try removing it.".format(cachedir))
+
+    #print cachedir, cacheurl, basedir_rel
+    return cachedir, cacheurl
 
 
 _init_js_side_done = None

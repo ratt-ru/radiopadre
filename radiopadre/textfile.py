@@ -4,13 +4,34 @@ import re
 import IPython.display
 from IPython.display import HTML, display
 
-import radiopadre.file
+from radiopadre.file import ItemBase, FileBase
 from radiopadre.render import render_title, render_url, render_preamble, rich_string
 from radiopadre import settings
 
-class TextFile(radiopadre.file.FileBase):
 
-    def _get_lines(self, head=0, tail=0, full=False, grep=None, slicer=None):
+class NumberedLineList(ItemBase):
+    def __init__ (self, enumerated_lines=[], title=None):
+        ItemBase.__init__(self, title=title)
+        self._set_content(enumerated_lines)
+
+    def _set_content(self, enumerated_lines):
+        self._lines = enumerated_lines
+
+    @property
+    def lines(self):
+        self.rescan()
+        return self._lines
+
+    def __len__(self):
+        self.rescan()
+        return len(self._lines)
+
+    def __iter__(self):
+        self.rescan()
+        for _, line in self._lines:
+            yield line
+
+    def _get_lines(self, head=0, tail=0, full=None, grep=None, slicer=None):
         """
         Applies selection keywords, and returns head and tail lines from file.
 
@@ -25,8 +46,7 @@ class TextFile(radiopadre.file.FileBase):
         # no selection? Return None, None
         if not head and not tail and not full and not grep and slice is None:
             return [], []
-        # read file
-        lines = list(enumerate(file(self.fullpath).readlines()))
+        lines = self._lines
         if not full:
             # apply slice
             if slicer:
@@ -52,8 +72,12 @@ class TextFile(radiopadre.file.FileBase):
         tail = lines[-tail:] if tail else []
         return head, tail
 
-    def render_text(self, head=None, tail=None, full=False, grep=None, slicer=None):
-        txt = "{} modified {}:\n".format(self.path, self.update_mtime())
+    def render_text(self, head=None, tail=None, full=None, grep=None, slicer=None, subtitle=None):
+        self.rescan()
+        if self.title:
+            txt = str(self.title) + str(subtitle or "") + ":\n"
+        else:
+            txt = ""
         # read file, unless head and tail is already passed in
         if type(head) is not list or type(tail) is not list:
             head = settings.text.get(head=head)
@@ -70,9 +94,11 @@ class TextFile(radiopadre.file.FileBase):
                 txt += "{}: {}\n".format(line_num + 1, line.strip())
         return txt
 
-    def render_html(self, head=None, tail=None, full=False, grep=None, fs=None, slicer=None):
+    def render_html(self, head=None, tail=None, full=None, grep=None, fs=None, slicer=None, subtitle=None):
+        self.rescan()
         txt = render_preamble()
-        txt += "<A HREF={} target='_blank'>{}</A> modified {}:".format(render_url(self.fullpath), render_title(self.path), self.update_mtime())
+        if self.title:
+            txt += "{}{}:".format(rich_string(self.title).html, rich_string(subtitle or "").html)
         fs = settings.text.get(fs=fs)
         # read file, unless head and tail is already passed in
         if type(head) is not list or type(tail) is not list:
@@ -87,8 +113,8 @@ class TextFile(radiopadre.file.FileBase):
         border_style = "1px solid black"
 
         def render_line(line_num, line, firstlast):
-            border_top = border_style if line_num == firstlast[0]+1 else "none"
-            border_bottom = border_style if line_num == firstlast[1]+1 else "none"
+            border_top = border_style if line_num == firstlast[0] else "none"
+            border_bottom = border_style if line_num == firstlast[1] else "none"
             border_rl = border_style if line_num != "..." else "none"
             background = "#f2f2f2" if line_num != "..." else "none"
             return """
@@ -103,45 +129,56 @@ class TextFile(radiopadre.file.FileBase):
                 </DIV>\n""".format(**locals())
 
         txt += """<DIV style="display: table; width: 100%; font-size: {}%">""".format(fs*100)
-        all_lines = head+tail
-        firstlast = all_lines[0][0], all_lines[-1][0]
+        firstlast = self._lines[0][0], self._lines[-1][0]
         for line_num, line in head:
-            txt += render_line(line_num+1, cgi.escape(line), firstlast)
+            txt += render_line(line_num, cgi.escape(line), firstlast)
         if tail:
             txt += render_line("...", "", firstlast)
             for line_num, line in tail:
-                txt += render_line(line_num+1, cgi.escape(line), firstlast)
+                txt += render_line(line_num, cgi.escape(line), firstlast)
         txt += "\n</DIV>\n"
         return txt
 
-    def _render(self, head=None, tail=None, full=False, grep=None, fs=None, slicer=None):
+    def _render(self, head=0, tail=0, full=None, grep=None, fs=None, slicer=None, title=None):
         head, tail = self._get_lines(head, tail, full, grep, slicer)
-        return rich_string(self.render_text(head, tail), self.render_html(head, tail, fs=fs))
+        return rich_string(self.render_text(head, tail, title=title),
+                           self.render_html(head, tail, fs=fs, title=title))
 
-    def grep(self, regex, **kw):
-        return self._render(full=True, grep=regex, **kw)
+    def grep(self, regex, fs=None):
+        self.show(grep=regex, fs=fs, subtitle=" (grep: {})".format(regex))
 
-    def head(self, num=None, **kw):
-        """shortcut for show(head=num)"""
-        num = num or settings.text.head or 10
-        return self._render(head=num, tail=0, **kw)
+    def head(self, num=None, fs=None):
+        self.show(head=num, tail=0, fs=fs)
 
-    def tail(self, num=None, **kw):
-        """shortcut for show(tail=num)"""
-        num = num or settings.text.tail or 10
-        return self._render(head=0, tail=num, **kw)
+    def tail(self, num=None, fs=None):
+        self.show(head=0, tail=num, fs=fs)
 
-    def full(self, **kw):
-        """shortcut for show(full=True)"""
-        return self._render(full=True, **kw)
+    def full(self, fs=None):
+        self.show(full=True, fs=fs)
 
     def __getitem__(self, linenum):
-        linenum = int(linenum)
-        return self._render(slicer=linenum)
+        return self._lines[int(linenum)]
 
     def __getslice__(self, *slicer):
-        return self._render(slicer=slicer)
+        return NumberedLineList(self._get_lines(slicer=slicer)[0])
 
     def __call__(self, *args):
-        return self._render(grep=args or "*")
+        return NumberedLineList(self._get_lines(grep=args)[0])
+
+
+
+class TextFile(FileBase, NumberedLineList):
+    def __init__(self, *args, **kw):
+        FileBase.__init__(self, *args, **kw)
+        NumberedLineList.__init__(self, [])
+
+    def _scan_impl(self):
+        FileBase._scan_impl(self)
+        self._title = rich_string(
+            "{} modified {}".format(self.path, self.update_mtime()),
+            "<A HREF={} target='_blank'>{}</A> modified {}".format(
+                        render_url(self.fullpath), render_title(self.path), self.update_mtime()))
+
+    def _load_impl(self):
+        self._set_content(list(enumerate(file(self.fullpath).readlines())))
 

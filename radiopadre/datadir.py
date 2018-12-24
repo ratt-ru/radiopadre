@@ -30,7 +30,7 @@ class DataDir(FileList):
     This class represents a directory
     """
 
-    def __init__(self, name, root=".",
+    def __init__(self, name,
                  include=None, exclude=None,
                  include_dir=None, exclude_dir=None,
                  include_empty=None, show_hidden=None,
@@ -56,7 +56,7 @@ class DataDir(FileList):
         self._include_empty, self._show_hidden = settings.files.get(include_empty=include_empty, show_hidden=show_hidden)
 
         # init base FileList as empty initially, this will be populated by _load_impl()
-        FileList.__init__(self, content=None, path=name, root=root, sort=sort)
+        FileList.__init__(self, content=None, path=name, sort=sort)
 
         # subsets of content
         self._fits = self._others = self._images = self._dirs = self._tables = None
@@ -100,41 +100,43 @@ class DataDir(FileList):
         content = []
         for filetype, path in self:
             if filetype is DataDir:
-                object = DataDir(path, root=self._root, include=self._include, exclude=self._exclude,
+                object = DataDir(path, include=self._include, exclude=self._exclude,
                                  include_dir=self._include_dir, exclude_dir=self._exclude_dir,
                                  include_empty=self._include_empty, show_hidden=self._show_hidden, sort=self._sort)
 #                                 _skip_js_init=self._skip_js_init)
             else:
-                object = filetype(path, self._root)
+                object = filetype(path)
             content.append(object)
         self._set_list(content, self._sort)
 
     def _typed_subset(self, filetype, title):
+        if not os.path.samefile(self.fullpath, radiopadre.ROOTDIR):
+            title = "{}, {}".format(title, self.fullpath)
         return FileList([f for f in self if type(f) is filetype], path=self.fullpath, classobj=filetype, title=title, parent=self)
 
     @property
     def dirs(self):
         if self._dirs is None:
-            self._dirs = self._typed_subset(DataDir, "Subdirectories, " + self._title)
+            self._dirs = self._typed_subset(DataDir, title="Subdirectories")
         return self._dirs
 
     @property
     def fits(self):
         if self._fits is None:
             # make separate lists of fits files and image files
-            self._fits = self._typed_subset(FITSFile, "FITS files, " + self._title)
+            self._fits = self._typed_subset(FITSFile, title="FITS files")
         return self._fits
 
     @property
     def images(self):
         if self._images is None:
-            self._images = self._typed_subset(ImageFile, title="Images, " + self._title)
+            self._images = self._typed_subset(ImageFile, title="Images")
         return self._images
     
     @property
     def tables(self):
         if self._tables is None:
-            self._tables = self._typed_subset(CasaTable, title="Tables, " + self._title)
+            self._tables = self._typed_subset(CasaTable, title="Tables")
         return self._tables
 
     def __getitem__(self, *args, **kw):

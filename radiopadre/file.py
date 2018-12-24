@@ -4,148 +4,47 @@ import math
 
 from IPython.display import display, HTML
 
+import radiopadre
 from radiopadre import settings
 from radiopadre.render import render_refresh_button, rich_string
 from collections import OrderedDict
 from radiopadre import casacore_tables
 
-class FileBase(object):
-    """Base class referring to an abstract datafile. Sets up some standard attributes in the constructor.
 
-    Attributes:
-        fullpath:       the full path to the file, e.g. results/dir1/file1.txt
-        path:           path to file relative to root padre directory, e.g. dir1/file1.txt
-        name:           the filename (os.path.basename(path)), e.g. file1.txt
-        ext:            extension with leading dot, e.g. .txt
-        basename:       filename sans extension, e.g. file1
-        basepath:       path+filename sans extension, e.g. dir1/file1
-        mtime:          modification time
-        mtime_str:      string version of mtime
-        size:           size in bytes
-        size_str:       human-readable size string
-        description:    short human-readable description (e.g. size, content, etc.)
+class ItemBase(object):
+    """Base class referring to an abstract displayable data item.
 
-        _title:         displayed title (usually same as path, but ./ will be stripped off)
+    Properties:
+        summary:        short summary of item content
+        description:    longer human-readable description (e.g. size, content, etc.)
+        title:          displayed title
+
     """
+    def __init__(self, title=None):
+        if title is not None:
+            self._title = title
+        # init default attributes, if not already set by parent class when calling
+        for attr in '_title', '_summary', '_description':
+            if not hasattr(self, attr):
+                setattr(self, attr, '')
 
-    _unit_list = zip(['', 'k', 'M', 'G', 'T', 'P'], [0, 0, 1, 2, 2, 2])
-
-    def __init__(self, path, root="", load=False):
-        """Construct a datafile and set up standard attributes.
-        
-        Args:
-            path: path to the file
-            root: root folder, will be stripped from beginning of file path if not empty
-            load: if True, will "load" detailed file content by calling self._load(). The meaning of this depends
-                  on the subclass. For example, when a  DataDir loads, it will scan its content. In general,
-                  __init__ is meant to be fast, while slower operations are deferred to _load().
-
+    def rescan(self):
         """
-        self._root = root
-        self.fullpath = path
-        # strip off our root directory from path
-        if root and path.startswith(root) and path != root:
-            path = path[len(root):]
-            if path.startswith("/"):
-                path = path[1:]
-
-        # subclasses can set their own _title before calling constructor, create a default one if not
-        if not hasattr(self, '_title'):
-            self._title = path if (not root or root == ".") else os.path.join(root, path)
-            if self._title == ".":
-                self._title = os.path.abspath(self.fullpath)
-
-
-        self.path = path
-        self.name = os.path.basename(self.path)
-        self.basepath, self.ext = os.path.splitext(self.path)
-        self.basename = os.path.basename(self.basepath)
-        self._scan_impl()
-        # timestamp of file last time content was loaded
-        self._loaded_mtime = None
-        if load:
-            self._load()
-
-    def _load(self):
-        """Helper method, calls _load_impl() if not already done"""
-        if self._loaded_mtime is None or self._loaded_mtime < self.mtime:
-            self._loaded_mtime = self.mtime
-            self._load_impl()
-
-
-    def rescan(self, force=False):
+        Calling rescan() ensures that the item is fully loaded into memory (i.e. any long I/O
+        deferred from construction time is executed).
         """
-        Rescans content if mtime has been updated, or if force is True.
-        """
-        if force or self.is_updated():
-            self._scan_impl()
-            self._load_impl()
+        pass
 
-
-    @staticmethod
-    def sort_list(filelist, opt="dxnt"):
-        """
-        Sort a list of FileBase objects by directory first, eXtension, Time, Size, optionally Reverse
-        """
-        opt = opt.lower()
-        # build up order of comparison
-        reverse = 'r' in opt
-        comparisons = []
-        for key in opt:
-            if key == "d":
-                comparisons.append(FileBase._sort_directories_first)
-            else: 
-                attr = FileBase._sort_attributes.get(key)
-                if attr:
-                    comparisons.append(lambda a,b,reverse: FileBase._sort_by_attribute(a, b, attr, reverse))
-
-        def compare(a, b):
-            for comp in comparisons:
-                result = comp(a, b, reverse)
-                if result:
-                    return result
-            return 0
-
-        return sorted(filelist, cmp=compare)
-
-    @staticmethod
-    def _sort_directories_first(a, b, reverse):
-        result = int(os.path.isdir(b.fullpath)) - int(os.path.isdir(a.fullpath))
-        return -result if reverse else result
-
-    @staticmethod
-    def _sort_by_attribute(a, b, attr, reverse):
-        result = cmp(getattr(a, attr), getattr(b, attr))
-        return -result if reverse else result
-
-    _sort_attributes = dict(x="ext", n="basepath", s="size", t="mtime")
-
-    def update_mtime(self):
-        """Updates mtime and mtime_str attributes according to current file mtime,
-        returns mtime_str"""
-        self.mtime = os.path.getmtime(self.fullpath)
-        self.mtime_str = time.strftime(settings.gen.timeformat,
-                                       time.localtime(self.mtime))
-        return self.mtime_str
-
-    def is_updated(self):
-        """Returns True if mtime of underlying file has changed"""
-        return os.path.getmtime(self.fullpath) > self.mtime
-
-
-    # Standard File rendering methods and properties (may be overloaded in some subclasses)
-    #
-    # self.description: a brief rich_string or str describing the content of the file
-    # self.info == self.summary: a longer rich_string or str describing the file and the content of the file.
-    #       Meant to include the filename.
-    # self.show(*args,**kwargs): render the file & its content in HTML
-    #
+    @property
+    def title(self):
+        self.rescan()
+        return rich_string(self._title) if self._title else ""
 
     @property
     def description(self):
         self.rescan()
         return rich_string(self._description)
-    
+
     @property
     def summary(self):
         self.rescan()
@@ -158,7 +57,7 @@ class FileBase(object):
 
     def __str__(self):
         """str() returns the plain-text version of the file content. Calls self.render_text()."""
-        self._load()
+        self.rescan()
         return self.render_text()
 
     def _repr_pretty_(self, p, cycle):
@@ -174,7 +73,7 @@ class FileBase(object):
         Our version makes use of subclass methods, which are mean to implement this behaviour:
         _load() to load content, then _render_html() to render it
         """
-        self._load()
+        self.rescan()
         return self.render_html()
 
     def show(self, *args, **kw):
@@ -184,7 +83,7 @@ class FileBase(object):
         Default version alls _load() to load content, then calls self._render_html(), passing along all arguments,
         then displays the returned HTML using IPython.display
         """
-        self._load()
+        self.rescan()
         html = self.render_html(*args, **kw)
         display(HTML(html))
 
@@ -211,12 +110,115 @@ class FileBase(object):
         """
         return rich_string(self.summary).html
 
+
+
+
+class FileBase(ItemBase):
+    """Base class referring to an abstract datafile. Sets up some standard attributes in the constructor.
+
+    Attributes:
+        fullpath:       the full path to the file, e.g. /results/dir1/file1.txt. This is the path used to access
+                        the file.
+        path:           Display path, used for rendering the file. This could be different from fullpath if
+                        e.g. running padre inside a container (in which case fullpath would have had some
+                        funny directory prepended to it, which we don't want to show to the user).
+                        So e.g. dir1/file1.txt
+        name:           the filename (os.path.basename(path)), e.g. file1.txt
+        ext:            extension with leading dot, e.g. .txt
+        basename:       filename sans extension, e.g. file1
+        basepath:       path+filename sans extension, e.g. dir1/file1
+        mtime:          modification time
+        mtime_str:      string version of mtime
+        size:           size in bytes
+        size_str:       human-readable size string
+        description:    short human-readable description (e.g. size, content, etc.)
+
+        _title:         displayed title (usually same as path, but ./ will be stripped off)
+    """
+
+    _unit_list = zip(['', 'k', 'M', 'G', 'T', 'P'], [0, 0, 1, 2, 2, 2])
+
+    @staticmethod
+    def get_display_path(path):
+        """
+        Rewrites path into a display path, taking the rewriting rules (see radiopadre/__init__.py) into
+        account
+        """
+        # strip leading ./
+        if path.startswith("./"):
+            path = path[2:]
+        # use DISPLAY_ROOTDIR if referring to the root directory
+        if not path or path == ".":
+            return radiopadre.DISPLAY_ROOTDIR
+        # if path not fully qualified, use it as is
+        if not path.startswith("/"):
+            return path
+        # if fully qualified, it must start with ROOTDIR/
+        rootdir = radiopadre.ROOTDIR + "/"
+        if not path.startswith(rootdir):
+            raise RuntimeError("Trying to access {}, which is outside the {} hierarchy".format(path, radiopadre.ROOTDIR))
+        # which we strip
+        return path[len(rootdir):]
+
+
+    def __init__(self, path, load=False, title=None):
+        """Construct a datafile and set up standard attributes.
+        
+        Args:
+            path: path to the file
+            load: if True, will "load" detailed file content by calling self._load(). The meaning of this depends
+                  on the subclass. For example, when a  DataDir loads, it will scan its content. In general,
+                  __init__ is meant to be fast, while slower operations are deferred to _load().
+
+        """
+        ItemBase.__init__(self, title=title)
+        self.fullpath = path
+        self.path = FileBase.get_display_path(path)
+
+        # subclasses can set their own _title before calling constructor, use display path if not
+        if not hasattr(self, '_title'):
+            self._title = self.path if title is None else title
+
+        self.name = os.path.basename(self.fullpath)
+        self.basepath, self.ext = os.path.splitext(self.path)
+        self.basename = os.path.basename(self.basepath)
+        self._scan_impl()
+        # timestamp of file last time content was loaded
+        self._loaded_mtime = None
+        if load:
+            self._load()
+
+    def _load(self):
+        """Helper method, calls _load_impl() if not already done"""
+        if self._loaded_mtime is None or self._loaded_mtime < self.mtime:
+            self._loaded_mtime = self.mtime
+            self._load_impl()
+
+    def rescan(self, force=False, load=True):
+        """
+        Rescans content if mtime has been updated, or if force is True. If load is True, forces a load as well.
+        """
+        if force or self.is_updated():
+            self._scan_impl()
+        if load:
+            self._load()
+
+    def update_mtime(self):
+        """Updates mtime and mtime_str attributes according to current file mtime,
+        returns mtime_str"""
+        self.mtime = os.path.getmtime(self.fullpath)
+        self.mtime_str = time.strftime(settings.gen.timeformat, time.localtime(self.mtime))
+        return self.mtime_str
+
+    def is_updated(self):
+        """Returns True if mtime of underlying file has changed since the last scan"""
+        return os.path.getmtime(self.fullpath) > self.mtime
+
     def _scan_impl(self):
         """
         "Scans" file, i.e. performs the faster (read disk) operations to get overall file information. This is meant
         to be augmented by subclasses. Default version just gets filesize and mtime.
         """
-        self._loaded_mtime = None
         self.update_mtime()
         # get filesize
         self.size = os.path.getsize(self.fullpath)
@@ -253,6 +255,45 @@ class FileBase(object):
         :return: HTML code for action buttons, or None
         """
         return None
+
+
+    @staticmethod
+    def sort_list(filelist, opt="dxnt"):
+        """
+        Sort a list of FileBase objects by directory first, eXtension, Time, Size, optionally Reverse
+        """
+        opt = opt.lower()
+        # build up order of comparison
+        reverse = 'r' in opt
+        comparisons = []
+        for key in opt:
+            if key == "d":
+                comparisons.append(FileBase._sort_directories_first)
+            else:
+                attr = FileBase._sort_attributes.get(key)
+                if attr:
+                    comparisons.append(lambda a,b,reverse: FileBase._sort_by_attribute(a, b, attr, reverse))
+
+        def compare(a, b):
+            for comp in comparisons:
+                result = comp(a, b, reverse)
+                if result:
+                    return result
+            return 0
+
+        return sorted(filelist, cmp=compare)
+
+    @staticmethod
+    def _sort_directories_first(a, b, reverse):
+        result = int(os.path.isdir(b.fullpath)) - int(os.path.isdir(a.fullpath))
+        return -result if reverse else result
+
+    @staticmethod
+    def _sort_by_attribute(a, b, attr, reverse):
+        result = cmp(getattr(a, attr), getattr(b, attr))
+        return -result if reverse else result
+
+    _sort_attributes = dict(x="ext", n="basepath", s="size", t="mtime")
 
 
 def autodetect_file_type(path):

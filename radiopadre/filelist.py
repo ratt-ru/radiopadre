@@ -10,6 +10,7 @@ import itertools
 from .file import FileBase
 from .render import render_table, render_preamble, render_refresh_button, render_url, render_title
 
+import radiopadre
 from radiopadre import settings
 
 class FileList(FileBase, list):
@@ -18,18 +19,19 @@ class FileList(FileBase, list):
         return "Contents of %s:\n" % filelist._title + "\n".join(
             ["%d: %s" % (i, d.path) or '.' for i, d in enumerate(filelist)])
 
-    def __init__(self, content=None, path="", root=".", extcol=False, showpath=False,
+    def __init__(self, content=None, path="", extcol=False, showpath=False,
                  classobj=None, title=None, parent=None,
                  sort="xnt"):
         self._extcol = extcol
         self._showpath = showpath
         self._classobj = classobj
         self._parent = parent
+        self._sort = sort or ""
         if title:
             self._title = title
         self.nfiles = self.ndirs = 0
 
-        FileBase.__init__(self, path, root=root)
+        FileBase.__init__(self, path)
 
         if content is not None:
             self._set_list(content, sort)
@@ -69,7 +71,7 @@ class FileList(FileBase, list):
         if not self:
             display(HTML("<p>0 files</p>"))
             return None
-        kw.setdefault('title', self._title + " (%d file%s)" % (len(self), "s" if len(self) > 1 else ""))
+        kw.setdefault('title', self._title + ": %d file%s" % (len(self), "s" if len(self) > 1 else ""))
         kw.setdefault('showpath', self._showpath)
         method(self, **kw)
 
@@ -77,10 +79,16 @@ class FileList(FileBase, list):
         self._load()
         html = render_preamble() + render_title("{}: {}".format(self._title, self.description)) + \
                render_refresh_button(full=self._parent and self._parent.is_updated())
+
+        arrow = "&uarr;" if "r" in self._sort else "&darr;"
+        # find primary sort key ("d" and "r" excepted)
+        sort = self._sort.replace("r", "").replace("d", "")
+        primary_sort = sort and sort[0]
+
         # if class object has a summary function, use that
         html_summary = getattr(self._classobj, "_html_summary", None)
         if html_summary:
-            return html + html_summary(self)
+            return html + html_summary(self, primary_sort=primary_sort, sort_arrow=arrow)
         # else fall back to normal filelist
         if not self:
             return html
@@ -88,17 +96,24 @@ class FileList(FileBase, list):
         if ncol is None:
             max_ = max([len(df.basename) for df in self])
             ncol = 2 if max_ <= settings.gen.twocolumn_list_width else 1
-        from .datadir import DataDir
+
         def ext(df):
             return df.ext+"/" if os.path.isdir(df.path) else df.ext
+
         if self._extcol:
-            labels = "name", "ext", "", "modified"
+            labels = ("{}name".format(arrow if primary_sort == "n" else ""),
+                      "{}ext".format(arrow  if primary_sort == "x" else ""),
+                      "{}size".format(arrow if primary_sort == "s" else ""),
+                      "{}modified".format(arrow if primary_sort == "t" else ""))
             data = [((df.basepath if self._showpath else df.basename), ext(df),
                      df.description, df.mtime_str)
                     for df in self]
             links = [(render_url(df.fullpath), render_url(df.fullpath), None, None) for df in self]
         else:
-            labels = "name", "", "modified"
+            labels = (arrow+"name" if primary_sort == "n" else
+                          ("name {}ext".format(arrow) if primary_sort == "x" else "name"),
+                      "{}size".format(arrow if primary_sort == "s" else ""),
+                      "{}modified".format(arrow if primary_sort == "t" else ""))
             data = [((df.basepath if self._showpath else df.basename) + ext(df),
                      df.description, df.mtime_str) for df in self]
             links = [(render_url(df.fullpath), None, None) for df in self]
@@ -146,12 +161,17 @@ class FileList(FileBase, list):
             else:
                 files += [f for f in self if fnmatch.fnmatch((f.path if self._showpath else f.name), patt)]
                 accepted_patterns.append(patt)
-        title = os.path.join(self._title, ",".join(accepted_patterns))
+        title = self._title
+        if accepted_patterns:
+            if os.path.samefile(self.fullpath, radiopadre.ROOTDIR):
+                title = ",".join(accepted_patterns)
+            else:
+                title += " ({})".format(",".join(accepted_patterns))
         if sort is not None:
-            title += ", sort order: {}".format(sort)
+            title += " [sort: {}]".format(sort)
 
         return FileList(files if accepted_patterns else list(self),
-                        path=self.fullpath, root=self._root, extcol=self._extcol, showpath=self._showpath, sort=sort,
+                        path=self.fullpath, extcol=self._extcol, showpath=self._showpath, sort=sort or self._sort,
                         classobj=self._classobj,
                         title=title, parent=self._parent)
 
@@ -172,15 +192,17 @@ class FileList(FileBase, list):
         slice_str = ":".join([str(s) if s is not None and s < 2**31 else "" for s in slc])
         title = "{}[{}]".format(self._title, slice_str)
         return FileList(list.__getslice__(self, *slc),
-                        path=self.fullpath, root=self._root, extcol=self._extcol, showpath=self._showpath,
+                        path=self.fullpath, extcol=self._extcol, showpath=self._showpath,
+                        sort=self._sort,
                         classobj=self._classobj,
                         title=title, parent=self._parent)
 
     def sort(self, opt="dxnt"):
         self._load()
-        title = "{}, sort order: {}".format(self._title, sort)
+        title = "{}, [sort: {}]".format(self._title, opt)
         return FileList(FileBase.sort_list(self, opt),
-                        path=self.fullpath, root=self._root, extcol=self._extcol, showpath=self._showpath,
+                        path=self.fullpath, extcol=self._extcol, showpath=self._showpath,
+                        sort=opt,
                         classobj=self._classobj,
                         title=title, parent=self._parent)
 

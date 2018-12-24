@@ -1,8 +1,11 @@
 import math
 import cgi
+import os.path
 from collections import OrderedDict
 
+from IPython.display import display, HTML
 
+import radiopadre
 
 class RichString(object):
     """
@@ -11,7 +14,7 @@ class RichString(object):
     """
     def __init__(self, text, html=None):
         self._text = text
-        self._html = html or "<P>{}</P>".format(text)
+        self._html = html or text
 
     @property
     def text(self):
@@ -34,6 +37,24 @@ class RichString(object):
         """Doing richstring() is the same as richstring"""
         return self
 
+    def __add__(self, other):
+        if type(other) is RichString:
+            return RichString(self.text + other.text, self.html + other.html)
+        else:
+            return RichString(self.text + str(other), self.html + str(other))
+
+    def __iadd__ (self, other):
+        if type(other) is RichString:
+            self._text += other.text
+            self._html += other.html
+        else:
+            self._text += str(other)
+            self._html += str(other)
+
+    def show(self):
+        display(HTML(self.html))
+
+
 def rich_string(text, html=None):
     if type(text) is RichString:
         if html is not None:
@@ -49,11 +70,18 @@ def render_preamble():
     return """<script>document.radiopadre.fixup_hrefs()</script>"""
 
 
-def render_url(fullpath, prefix="files"):
+def render_url(fullpath): # , prefix="files"):
     """Converts a path relative to the notebook (i.e. kernel) to a URL that
     can be served by the notebook server, by prepending the notebook
-    directory""";
-    return ("/#NOTEBOOK_%s#/" % prefix.upper()) + fullpath;
+    directory"""
+    if fullpath.startswith(radiopadre.CACHEURLBASE):
+        url = os.path.normpath(os.path.join("/files", fullpath))
+    else:
+        url = os.path.normpath(os.path.join("/files", radiopadre.URLBASE, fullpath))
+    # print "{} URL is {}".format(fullpath, url)
+    return url
+
+#    return ("/#NOTEBOOK_%s#/" % prefix.upper()) + fullpath;
 
 
 def render_title(title):

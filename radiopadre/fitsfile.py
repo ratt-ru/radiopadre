@@ -45,22 +45,20 @@ class FITSFile(radiopadre.file.FileBase):
                           COMPLEX=["real", "imag", "weight"])
 
     def __init__(self, *args, **kw):
-        self._ff = self._header = self._shape = self._image_data = None
-        self._rms = {}
+        self._header = self._shape = self._image_data = None
         self._description = "FITS image"
         radiopadre.file.FileBase.__init__(self, *args, **kw)
         self._summary = rich_string(self._description)
 
     @property
     def fitsobj(self):
-        if not self._ff or self.is_updated():
-            self._ff = pyfits.open(self.fullpath)
-            self.update_mtime()
-            self._rms = {}
-        return self._ff
+        return pyfits.open(self.fullpath)
 
     @property
     def header(self):
+        if not self._header or self.is_updated():
+            self._header = self.fitsobj[0].header
+            self.update_mtime()
         return self.fitsobj[0].header
 
     @property
@@ -123,7 +121,7 @@ class FITSFile(radiopadre.file.FileBase):
 
 
     @staticmethod
-    def _html_summary(fits_files, title=None, showpath=False, **kw):
+    def _html_summary(fits_files, title=None, primary_sort="", sort_arrow="", **kw):
         if not fits_files:
             return ""
         html = render_title(title) if title else ""
@@ -134,7 +132,12 @@ class FITSFile(radiopadre.file.FileBase):
         html += """<span style="display:inline-block; width: 32px;"></span>""" + \
                 FITSFile._collective_action_buttons_(fits_files, preamble, postscript, div_id=div_id)
         actions = [ df._action_buttons_(preamble=preamble, postscript=postscript, div_id=div_id) for df in fits_files ]
-        html += render_table(data, html=("size", "axes", "res"), labels=("name", "size", "res", "axes", "modified"),
+        html += render_table(data, html=("size", "axes", "res"),
+                             labels=("{}name".format(sort_arrow if primary_sort == "n" else ""),
+                                     "{}size".format(sort_arrow if primary_sort == "s" else ""),
+                                     "res",
+                                     "axes",
+                                     "{}modified".format(sort_arrow if primary_sort == "t" else "")),
                              actions=actions,
                              preamble=preamble, postscript=postscript, div_id=div_id)
         return html

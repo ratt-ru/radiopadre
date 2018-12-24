@@ -14,7 +14,7 @@ class CasaTable(radiopadre.file.FileBase):
     """
 
     """
-    def __init__(self, name, root=".", table=None, title=None, parent=None, **kwargs):
+    def __init__(self, name, table=None, title=None, parent=None, **kwargs):
         """
 
         :param args:
@@ -26,7 +26,7 @@ class CasaTable(radiopadre.file.FileBase):
         self._parent = parent
         if title:
             self._title = title
-        radiopadre.file.FileBase.__init__(self, name, root)
+        radiopadre.file.FileBase.__init__(self, name)
 
 
     @property
@@ -36,7 +36,7 @@ class CasaTable(radiopadre.file.FileBase):
         if casacore_tables is None:
             return RuntimeError("no casacore.tables installed")
         try:
-            tab = casacore_tables.table(self.path, ack=False)
+            tab = casacore_tables.table(self.fullpath, ack=False)
             return tab
         except Exception, exc:
             return exc
@@ -78,7 +78,7 @@ class CasaTable(radiopadre.file.FileBase):
             return radiopadre.file.FileBase.__getattribute__(self, attr)
         subtab = subdict.get(attr)
         if isinstance(subtab, str):
-            subdict[attr] = subtab = CasaTable(subtab, root=self._root)
+            subdict[attr] = subtab = CasaTable(subtab)
             setattr(self, attr, subtab)
         return subtab
 
@@ -86,7 +86,7 @@ class CasaTable(radiopadre.file.FileBase):
     def dir(self):
         from .datadir import DataDir
         if self._dir_obj is None:
-            self._dir_obj = DataDir(self.fullpath, root=self._root)
+            self._dir_obj = DataDir(self.fullpath)
         return self._dir_obj
 
     @property
@@ -94,15 +94,56 @@ class CasaTable(radiopadre.file.FileBase):
         if not self._subtables_obj:
             for name, subtab in self._subtables_dict.items():
                 if isinstance(subtab, str):
-                    self._subtables_dict[name] = CasaTable(subtab, root=self._root)
+                    self._subtables_dict[name] = CasaTable(subtab,)
                     setattr(self, name, subtab)
             self._subtables_obj = FileList(self._subtables_dict.values(),
-                                            path=self.fullpath, root=self._root, extcol=False, showpath=False,
+                                            path=self.fullpath, extcol=False, showpath=False,
                                             classobj=CasaTable,
                                             parent=self._parent or self)
         return self._subtables_obj
 
-    def render_html(self, firstrow=None, nrows=100, **columns):
+    def _render_epoch(self, epoch, format):
+        pass
+
+    def _render_direction(self, direction, format):
+        pass
+
+    def _render_quantity(self, value, units, format):
+        """
+        Helper method. Renders a quantity (values with units) to a string
+
+        :param value:   list of values
+        :param units:   list of units
+        :param format:
+        :return:
+        """
+        import casacore.quanta
+        if type(value) is np.ndarray:
+            value = value.flatten()
+        else:
+            value = [value]
+        if format:
+            if format[0] == "%":
+                return format%tuple(value)
+            elif format[0] == "{":
+                return format.format(*value)
+        if len(value) != len(units):
+            print value, units
+            raise TypeError("value and units have a different length")
+        qqs = [casacore.quanta.quantity(x, unit) for x, unit in zip(value, units)]
+        return " ".join([qq.formatted(format or '') for qq in qqs])
+
+    @staticmethod
+    def _render_slice(slc):
+        if type(slc) is slice:
+            txt = "{}:{}".format('' if slc.start is None else slc.start, '' if slc.stop is None else slc.stop)
+            if slc.step is not None:
+                txt += ":{}".format(slc.step)
+            return txt
+        else:
+            return str(slc)
+
+    def render_html(self, firstrow=None, nrows=100, all=False, **columns):
         html = render_title("{}: {} rows".format(self._title, self.nrows)) + \
                render_refresh_button(full=self._parent and self._parent.is_updated())
         tab = self.table
@@ -112,8 +153,11 @@ class CasaTable(radiopadre.file.FileBase):
         if firstrow is None and not columns:
             return html + tab._repr_html_()
 
+        firstrow = firstrow or 0
+
         # get subset of columns to use, and slicer objects
         column_slicers = {}
+        column_formats = {}
         if columns:
             column_selection = []
             for col in self.columns:
@@ -123,12 +167,22 @@ class CasaTable(radiopadre.file.FileBase):
                         raise NameError("no such column: {}".format(col))
                     column_selection.append(col)
                     if type(slicer) in (slice, int):
-                        column_slicers[col] = [slicer]
+                        slicer = [slicer]
                     elif type(slicer) in (list, tuple):
-                        column_slicers[col] = list(slicer)
-                    elif slicer is not True:
+                        slicer = list(slicer)
+                    elif type(slicer) is str:
+                        column_formats[col] = slicer
+                        slicer = []
+                    elif slicer is True:
+                        slicer = []
+                    else:
                         raise TypeError("unknown slice of type {} for column {}".format(type(slicer), col))
-        else:
+                    if len(slicer):
+                        desc = "[{}]".format(",".join(map(self._render_slice, slicer)))
+                    else:
+                        desc = ""
+                    column_slicers[col] = slicer, desc
+        if not columns or all:
             column_selection = self.columns
 
         # else use ours
@@ -137,22 +191,51 @@ class CasaTable(radiopadre.file.FileBase):
         nrows = min(self.nrows-firstrow, nrows)
         labels = ["row"] + list(column_selection)
         colvalues = {}
+        styles = {}
         for icol, colname in enumerate(column_selection):
+            style = None
+            shape_suffix = ""
+            formatter = None
+
+            # figure out formatting of measures/quanta columns
+            colkw = tab.getcolkeywords(colname)
+            units = colkw.get("QuantumUnits", [])
+            measinfo = colkw.get('MEASINFO', {})
+            meastype = measinfo.get('type')
+
+            if units:
+                formatter = lambda value:self._render_quantity(value, units=units, format=column_formats.get(colname))
+
             try:
-                colvalues[icol] = tab.getcol(colname, firstrow, nrows)
+                colvalues[icol] = colval = tab.getcol(colname, firstrow, nrows)
+                if colval.ndim > 1:
+                    shape_suffix = " ({})".format("x".join(map(str, colval.shape[1:])))
             except Exception:
                 colvalues[icol] = [""]*nrows
             if colname in column_slicers:
-                slicer = [slice(None)] + column_slicers[colname]
-                colvalues[icol] = colvalues[icol][tuple(slicer)]
+                slicer, desc = column_slicers[colname]
+                slicer = [slice(None)] + slicer
+                try:
+                    colvalues[icol] = colvalues[icol][tuple(slicer)]
+                except IndexError:
+                    colvalues[icol] = ["index error"]*nrows
+                    style = "color: red"
+                if desc:
+                    shape_suffix += " " + desc
+            if formatter:
+#                try:
+                    colvalues[icol] = map(formatter, colvalues[icol])
+#                except Exception:
+#                    colvalues[icol] = ["format error"]*nrows
+#                    style = "color: red"
+
+            labels[icol+1] += shape_suffix
+            if style:
+                styles[labels[icol+1]] = style
+
         data = [[self.rownumbers[firstrow+i]] + [colvalues[icol][i] for icol,col in enumerate(column_selection)] for i in xrange(nrows)]
 
-        # add shape hints for columns that end up with a shape
-        for icol, value in enumerate(data[0]):
-            if type(value) is np.ndarray and value.shape:
-                labels[icol] += " ({})".format("x".join(map(str, value.shape)))
-
-        html += render_table(data, labels, numbering=False)
+        html += render_table(data, labels, styles=styles, numbering=False)
         return html
 
     def _select_rows_columns(self, rows, columns, desc):
@@ -163,7 +246,7 @@ class CasaTable(radiopadre.file.FileBase):
             tab = tab.selectrows(rows)
         if columns is not None:
             tab = tab.select(columns)
-        return CasaTable(self.fullpath, root=self._root, title="{}[{}]".format(self._title, desc), table=tab)
+        return CasaTable(self.fullpath, title="{} [{}]".format(self._title, desc), table=tab)
 
 
     def __getitem__(self, item):
@@ -206,7 +289,7 @@ class CasaTable(radiopadre.file.FileBase):
         if self._error:
             return self._error
         tab = self.table.query(taql, sortlist=sortlist,columns=columns, limit=limit, offset=offset)
-        return CasaTable(self.fullpath, root=self._root, title="{}[{}]".format(self._title, taql), table=tab)
+        return CasaTable(self.fullpath, title="{} ({})".format(self._title, taql), table=tab)
 
     def __call__(self, taql, sortlist='', columns='', limit=0, offset=0):
         return self.query(taql, sortlist, columns, limit, offset)

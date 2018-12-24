@@ -60,11 +60,10 @@ if options.command in ["install", "reinstall", "js9"] and not options.no_js9:
     try:
         nodejs = subprocess.check_output("which nodejs || which node", shell=True)
     except subprocess.CalledProcessError:
-        open(PADRE_VENV + "/js9status", "w").write("nodejs missing")
+        if os.path.exists((PADRE_VENV):)
+            open(PADRE_VENV + "/js9status", "w").write("nodejs missing")
         bye("Unable to find nodejs or node -- can't install JS9. Try apt-get install nodejs perhaps, or run with --no-js9")
     nodejs = subprocess.check_output("which nodejs || which node", shell=True)
-
-
 
 
 # Look for virtualenv. Burn it down if it needs a refresh.
