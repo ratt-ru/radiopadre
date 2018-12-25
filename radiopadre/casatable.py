@@ -127,9 +127,12 @@ class CasaTable(radiopadre.file.FileBase):
                 return format%tuple(value)
             elif format[0] == "{":
                 return format.format(*value)
+        # value and units must have the same length -- unless a single unit is given, which can then repeat
         if len(value) != len(units):
-            print value, units
-            raise TypeError("value and units have a different length")
+            if len(units) == 1:
+                units = [units[0]]*len(value)
+            else:
+                raise TypeError("value and units have a different length")
         qqs = [casacore.quanta.quantity(x, unit) for x, unit in zip(value, units)]
         return " ".join([qq.formatted(format or '') for qq in qqs])
 

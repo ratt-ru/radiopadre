@@ -171,13 +171,9 @@ class FileBase(ItemBase):
                   __init__ is meant to be fast, while slower operations are deferred to _load().
 
         """
-        ItemBase.__init__(self, title=title)
         self.fullpath = path
         self.path = FileBase.get_display_path(path)
-
-        # subclasses can set their own _title before calling constructor, use display path if not
-        if not hasattr(self, '_title'):
-            self._title = self.path if title is None else title
+        ItemBase.__init__(self, title=self.path if title is None else title)
 
         self.name = os.path.basename(self.fullpath)
         self.basepath, self.ext = os.path.splitext(self.path)

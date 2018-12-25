@@ -27,18 +27,17 @@ class FileList(FileBase, list):
         self._classobj = classobj
         self._parent = parent
         self._sort = sort or ""
-        if title:
-            self._title = title
         self.nfiles = self.ndirs = 0
 
-        FileBase.__init__(self, path)
+        FileBase.__init__(self, path, title=title)
 
         if content is not None:
             self._set_list(content, sort)
             # if all content is of same type, set the classobj
-            type0 = type(content[0])
-            if issubclass(type0, FileBase) and not self._classobj and len(set([type(x) for x in content])) == 1:
-                self._classobj = classobj = type0
+            if len(content):
+                type0 = type(content[0])
+                if issubclass(type0, FileBase) and not self._classobj and len(set([type(x) for x in content])) == 1:
+                    self._classobj = classobj = type0
 
         # For every _show_xxx() method defined in the class object,
         # create a corresponding self.xxx() method that maps to it
@@ -166,7 +165,7 @@ class FileList(FileBase, list):
             if os.path.samefile(self.fullpath, radiopadre.ROOTDIR):
                 title = ",".join(accepted_patterns)
             else:
-                title += " ({})".format(",".join(accepted_patterns))
+                title += "/{}".format(",".join(accepted_patterns))
         if sort is not None:
             title += " [sort: {}]".format(sort)
 
