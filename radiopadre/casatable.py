@@ -219,11 +219,13 @@ class CasaTable(radiopadre.file.FileBase):
 
             try:
                 colvalues[icol] = colval = tab.getcol(colname, firstrow, nrows)
-                if colval.ndim > 1:
+#                print colname, colvalues[icol]
+                if type(colval) is np.ndarray and colval.ndim > 1:
                     shape_suffix = " ({})".format("x".join(map(str, colval.shape[1:])))
-            except Exception:
-                colvalues[icol] = [""]*nrows
-            if colname in column_slicers:
+            except Exception, exc:
+                error = type(exc)
+                colvalues[icol] = ["(err)"]*nrows
+            if colname in column_slicers and not error:
                 slicer, desc = column_slicers[colname]
                 slicer = [slice(None)] + slicer
                 try:
