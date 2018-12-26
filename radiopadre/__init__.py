@@ -1,19 +1,41 @@
 import json
-import time
 
-import IPython.display
 import nbformat
 import astropy
-import fnmatch
 import os
 import pkg_resources
 import radiopadre.notebook_utils
 from IPython.display import display, HTML, Javascript
+
 from radiopadre.notebook_utils import _notebook_save_hook
 from radiopadre.notebook_utils import scrub_cell
-from .file import data_file, FileBase
+
+import radiopadre.settings_manager
+
+_startup_warnings = []
+
+def add_startup_warning(message):
+    global _startup_warnings
+    _startup_warnings.append(message)
+
+# init settings
+settings = radiopadre.settings_manager.RadiopadreSettingsManager()
+
+try:
+    import casacore.tables as casacore_tables
+except Exception,exc:
+    casacore_tables = None
+    add_startup_warning("""Warning: casacore.tables failed to import ({}). Table browsing functionality will 
+        not be available in this notebook. You probably want to install casacore-dev and python-casacore on this 
+        system ({}), then reinstall the radiopadre environment.
+        """.format(exc, os.environ['HOSTNAME']))
+
+
+from .datadir import DataDir
+from .filelist import FileList
 from .fitsfile import FITSFile
 from .imagefile import ImageFile
+from .casatable import CasaTable
 from .render import render_table, render_preamble, render_refresh_button, render_status_message, render_url, render_title
 
 try:
@@ -21,40 +43,243 @@ try:
 except pkg_resources.DistributionNotFound:
     __version__ = "development"
 
-# when running inside a docker containers, these are used to tell radiopadre
-# where the results directory is mounted, and what its original path on
-# the host is. Note that rendered paths will display the _host_ path rather
-# than the internal container path (to avoid confusing the user),
-# hence the need to know ORIGINAL_RESULTDIR
-RESULTDIR = os.environ.get('PADRE_DATA_DIR', None)
-ORIGINAL_RESULTDIR = os.environ.get('PADRE_ORIGINAL_DIR', None)
-
-WIDTH = None  # globally fix a plot width (inches)
-MINCOL = 2  # default min # of columns to display in thumbnail view
-MAXCOL = 4  # default max # of columns to display in thumbnail view
-MAXWIDTH = 16  # default width of thumbnail view (inches)
-DPI = 80  # screen DPI
-
-TWOCOLUMN_LIST_WIDTH = 20  # if all filenames in a list are <= this in length,
-# use two columns by default
-
-TIMEFORMAT = "%H:%M:%S %b %d"
-
 ## various notebook-related init
 astropy.log.setLevel('ERROR')
 
+# We need to be able to look at both the user's own files, and other users' files. We also need to be able to run
+# in a container. Consider also that:
+#
+#   1. Jupyter will only serve files under the directory it is started in (as /files/xxx)
+#   2. The notebook should reside in the Jupyter starting directory, and be writeable by the user
+#   3. We need a user-writeable cache directory to store thumbnails, JS9 launch scripts, etc. This must also reside
+#      under the starting directory (to be servable by Jupyter). Ideally, we want to use .radiopadre inside
+#      the actual subdirectory being viewed, but what if we don't own it?
+#   4. If running in a container, the data directory might be mounted under some funny prefix (e.g. /mnt/data) that the user
+#      doesn't recognize, this needs to be stripped out from pathnames
+#
+# Point (1) means we have to select a directory to be visualized in advance, and we can't go outside of that hierarchy.
+# So let's say the user wants to be looking at /path/to/directory. We call this
+#
+#       DISPLAY_ROOTDIR = /path/to/directory
+#
+# Let's then assume the user is displaying the content of dir=/path/to/directory/foo/bar/.
+#
+# We have two ways of running radiopadre: native (or in a virtual environment), or in a container. The following
+# scenarios then arise:
+#
+# I.   Native, /path/to/directory is user-writeable
+#
+#       Jupyter starting dir is /path/to/directory
+#       ROOTDIR      = CWD = DISPLAY_ROOTDIR = /path/to/directory
+#       CACHEBASE    = ROOTDIR/.radiopadre
+#       URLBASE      =
+#       CACHEURLBASE = .radiopadre
+#       FAKEROOT     = False
+#
+# II.  Native, /path/to/directory is not user-writeable. We have to fake a directory in the user's $HOME.
+#
+#       Startup script will create a "fake" directory ~/.radiopadre/path/to/directory if needed, populate
+#       it with a default notebook, and make a symlink "content" -> /path/to/directory
+#       Jupyter starting dir is the fake dir, ~/.radiopadre/path/to/directory
+#
+#       ROOTDIR       = CWD = DISPLAY_ROOTDIR = /path/to/directory
+#       CACHEBASE     = ~/.radiopadre/path/to/directory/cache
+#       URLBASE       = content
+#       CACHEURLBASE  = cache
+#       FAKEROOT      = ~/.radiopadre/path/to/directory/
+#
+# III. Running in container, /path/to/directory is user-writeable, mounted under ROOT_MOUNT
+#
+#       DISPLAY_ROOTDIR = /path/to/directory
+#       ROOTDIR      = CWD = ROOT_MOUNT
+#       CACHEBASE    = ROOTDIR/.radiopadre
+#       URLBASE      =
+#       CACHEURLBASE = .radiopadre
+#       FAKEROOT     = False
+#
+# IV.  Running in container, /path/to/directory is not user-writeable, mounted under ROOT_MOUNT.
+#      User's directory will be mounted under HOME_MOUNT.
+#      Startup script will create a "fake" directory HOME_MOUNT/.radiopadre/path/to/directory if needed, populate
+#      it with a default notebook, and make a symlink "content" -> ROOT_MOUNT
+#      Jupyter starting dir is the fake dir, HOME_MOUNT/.radiopadre/path/to/directory
+#
+#       DISPLAY_ROOTDIR = /path/to/directory
+#       ROOTDIR      = CWD = ROOT_MOUNT
+#       CACHEBASE    = HOME_MOUNT/.radiopadre/path/to/directory/cache
+#       URLBASE      = content
+#       CACHEURLBASE = cache
+#       FAKEROOT     = HOME_MOUNT/.radiopadre/path/to/directory/
+#
+# Summarizing this into rules on variable setup:
+#
+#       DISPLAY_ROOTDIR = /path/to/directory        # always
+#       ROOTDIR = CWD = DISPLAY_ROOTDIR             # in native mode
+#                     = $RADIOPADRE_ROOT_MOUNT      # in container mode
+#       HOME_MOUNT    = ~                           # in native mode
+#                     = $RADIOPADRE_HOME_MOUNT      # in container mode
+#       CACHEBASE     = ROOTDIR/.radiopadre         # if not FAKEROOT
+#                       HOME_MOUNT/.radiopadre/path/to/directory/  # if FAKEROOT
+#       URLBASE       =                             # if not FAKEROOT
+#                     = content                     # if FAKEROOT
+#       CACHEURLBASE  = .radiopadre                 # if not FAKEROOT
+#                     = .radiopadre/content         # if FAKEROOT
+#
+# NONE OF THE DIR NAMES ABOVE SHALL HAVE A TRALING SLASH!!!
+#
+# Cache dir rules are as follows:
+#       When looking at dir=/path/to/directory/foo/bar, if dir is user-writeable, use
+#       /path/to/directory/foo/bar/.radiopadre for cache (URLBASE/foo/bar/.radiopadre is the URL), else
+#       CACHEBASE/foo/bar (CACHEURLBASE/foo/bar is the URL)
+#
+# Rewriting rules are as follows:
+#
+#       1. Displayed paths always replace a leading ROOTDIR with DISPLAY_ROOTDIR
+#       2. URLs for the native HTTP server (for e.g. JS9) replace /files with ""
+#
+# When starting up, we check if RADIOPADRE_ROOT_MOUNT is set, and assume container mode if so
+
+_setup_done = False
+
+def display_setup():
+    data = [ ("cwd", os.getcwd()) ]
+    for varname in "DISPLAY_ROOTDIR", "ROOTDIR", "CACHEBASE", "URLBASE", "CACHEURLBASE":
+        data.append((varname, globals()[varname]))
+
+    display(HTML(render_table(data, ["", ""], numbering=False)))
+
+if not _setup_done:
+    RADIOPADRE_ROOT_MOUNT = os.environ.get("RADIOPADRE_ROOT_MOUNT")
+    CONTAINER_MODE = bool(RADIOPADRE_ROOT_MOUNT)
+
+    DISPLAY_ROOTDIR = os.environ.get("RADIOPADRE_ROOTDIR") or os.getcwd()
+
+    ROOTDIR = RADIOPADRE_ROOT_MOUNT or DISPLAY_ROOTDIR
+    os.chdir(ROOTDIR)
+    os.path.split(ROOTDIR.rstrip("/"))
+
+    HOME_MOUNT = os.environ.get("RADIOPADRE_HOME_MOUNT") or os.path.expanduser("~")
+    FAKEROOT = os.environ.get("RADIOPADRE_FAKEROOT") or None
+    URLBASE = ""
+    CACHEURLBASE = ".radiopadre"
+
+    if not FAKEROOT:
+        CACHEURLBASE = ".radiopadre"
+        CACHEBASE    = os.path.join(ROOTDIR, ".radiopadre")
+    else:
+        content = os.path.basename(FAKEROOT.rstrip("/"))
+        URLBASE = content
+        CACHEURLBASE = ".radiopadre"
+        CACHEBASE = os.path.join(FAKEROOT, CACHEURLBASE)
+        #if not os.path.exists(content):os.path.join(FAKEROOT, CONTENT
+        #    raise RuntimeError("{} does not exist. Please use the correct run-radiopadre script, or report a bug.".format(content))
+
+    if not os.access(CACHEBASE, os.W_OK):
+        raise RuntimeError("{} is not user-writeable. Please use the correct run-radiopadre script, or report a bug.".format(CACHEBASE))
+
+    _setup_done = True
+
+    # Uncomment this when debugging paths setup
+    # display_setup()
+
+
+def get_cache_dir(path, subdir=None):
+    """
+    Creates directory for caching radiopadre stuff associated with the given file.
+
+    Returns tuple of (real_path, url_path). The former is the real filesystem location of the directory.
+    The latter is the URL to this directory.
+    """
+    basedir = os.path.dirname(path)
+    # make basedir fully qualified, and make basedir_rel relative to ROOTDIR
+    if not basedir or basedir == ".":
+        basedir = ROOTDIR
+        basedir_rel = "."
+    else:
+        rootdir = ROOTDIR + "/"
+        basedir = os.path.abspath(basedir)
+        if not basedir.startswith(rootdir):
+            raise RuntimeError("Trying to access {}, which is outside the {} hierarchy".format(path, ROOTDIR))
+        basedir_rel = basedir[len(rootdir):]
+
+    cachedir = os.path.join(basedir, ".radiopadre")
+    cacheurl = os.path.normpath(os.path.join(URLBASE, basedir_rel, ".radiopadre"))
+
+    # cachedir doesn't exist, but we can create it
+    if not os.path.exists(cachedir) and os.access(basedir, os.W_OK):
+        os.mkdir(cachedir)
+
+    # same for subdir
+    if subdir:
+        cacheurl = os.path.join(cacheurl, subdir)
+        subdir_full = os.path.join(cachedir, subdir)
+        if not os.path.exists(subdir_full) and os.access(cachedir, os.W_OK):
+            os.mkdir(subdir_full)
+        cachedir = subdir_full
+
+    # cachedir is writeable by us -- use it
+    if os.path.exists(cachedir) and os.access(cachedir, os.W_OK):
+        return cachedir, cacheurl
+
+    # ok, fall back to creating cache under CACHEBASE, which is guaranteed to be ours at least -- if it's not writeable,
+    # we can fail and let the user sort it out
+    cachedir = os.path.normpath(os.path.join(CACHEBASE, basedir_rel, subdir or "."))
+    cacheurl = os.path.normpath(os.path.join(CACHEURLBASE, basedir_rel, subdir or "."))
+    if not os.path.exists(cachedir):
+        os.system("mkdir -p {}".format(cachedir))
+    if not os.access(cachedir, os.W_OK):
+        # TODO: maybe rm -fr the f*cker?
+        raise RuntimeError("{} is not writeable. Try removing it.".format(cachedir))
+
+    #print cachedir, cacheurl, basedir_rel
+    return cachedir, cacheurl
+
+
+_init_js_side_done = None
 
 def _init_js_side():
-    """Checks that Javascript components of radiopadre are initialized"""
+    """Checks that Javascript components of radiopadre are initialized, does various other init"""
+    global _init_js_side_done
+    if _init_js_side_done:
+        return
+    _init_js_side_done = True
     try:
         get_ipython
     except:
         return None
     get_ipython().magic("matplotlib inline")
     # load radiopadre/js/init.js and init controls
-    initjs = os.path.join(os.path.dirname(__file__), "js", "init.js")
-    display(Javascript(open(initjs).read()))
-    display(Javascript("document.radiopadre.init_controls('%s')" % os.environ['USER']))
+    #initjs = os.path.join(os.path.dirname(__file__), "html", "init-radiopadre-components.js")
+    #display(Javascript(open(initjs).read()))
+
+    reset_code = """
+        var width = $(".rendered_html")[0].clientWidth;
+        Jupyter.notebook.kernel.execute(`import radiopadre; radiopadre.set_window_sizes(
+                                                ${width}, 
+                                                ${window.innerWidth}, ${window.innerHeight})`);
+    """
+
+    def reset():
+        display(Javascript(reset_code))
+    settings.display.reset = reset, radiopadre.settings_manager.DocString("call this to reset sizes after e.g. a browser resize")
+
+    global _startup_warnings
+    warns = "\n".join([render_status_message(msg, bgcolor='yellow') for msg in _startup_warnings])
+
+
+    display(HTML("""{}
+                    <script type='text/javascript'>
+                    document.radiopadre.register_user('{}');
+                    {}
+                    </script>
+                 """.format(warns, os.environ['USER'], reset_code, __version__)))
+
+
+def set_window_sizes(cell_width,window_width,window_height):
+    settings.display.cell_width, settings.display.window_width, settings.display.window_height = cell_width, window_width, window_height
+
+# call this once
+_init_js_side()
+
 
 
 def protect(author=None):
@@ -72,197 +297,33 @@ def unprotect():
     display(HTML(render_status_message("""This notebook is now unprotected.
         All users can treat it as read-write.""")))
 
-
-class FileList(list):
-    @staticmethod
-    def list_to_string(filelist):
-        return "Contents of %s:\n" % filelist._title + "\n".join(
-            ["%d: %s" % (i, d.path) or '.' for i, d in enumerate(filelist)])
-
-    def __init__(self, files=[], extcol=True, showpath=False,
-                 classobj=None, title="", parent=None,
-                 sort="xnt"):
-        list.__init__(self, files)
-        self._extcol = extcol
-        self._showpath = showpath
-        self._classobj = classobj
-        self._title = title
-        self._parent = parent
-        if sort:
-            self.sort(sort)
-
-    def sort(self, opt="xnt"):
-        return FileBase.sort_list(self, opt)
-
-    def _repr_html_(self, ncol=None, **kw):
-        html = render_preamble() + render_title(self._title) + \
-               render_refresh_button(full=self._parent and self._parent.is_updated());
-        if not self:
-            return html + ": 0 files"
-        # auto-set 1 or 2 columns based on filename length
-        if ncol is None:
-            max_ = max([len(df.basename) for df in self])
-            ncol = 2 if max_ <= TWOCOLUMN_LIST_WIDTH else 1
-        if self._extcol:
-            labels = "name", "ext", "size", "modified"
-            data = [((df.basepath if self._showpath else df.basename), df.ext,
-                     df.size_str, df.mtime_str) for df in
-                    self]
-            links = [(render_url(df.fullpath), render_url(df.fullpath), None, None) for df in self]
-        else:
-            labels = "name", "size", "modified"
-            data = [((df.basepath if self._showpath else df.basename),
-                     df.size_str, df.mtime_str) for df in self]
-            links = [(render_url(df.fullpath), None, None) for df in self]
-        html += render_table(data, labels, links=links, ncol=ncol)
-        return html
-
-    def show(self, ncol=None, **kw):
-        return IPython.display.display(HTML(self._repr_html_(ncol=ncol, **kw)))
-
-    def list(self, ncol=None, **kw):
-        return IPython.display.display(HTML(self._repr_html_(ncol=ncol, **kw)))
-
-    def __str__(self):
-        return FileList.list_to_string(self)
-
-    def summary(self, **kw):
-        kw.setdefault('title', self._title)
-        kw.setdefault('showpath', self._showpath)
-        summary = getattr(self._classobj, "_show_summary", None)
-        if summary:
-            display(HTML(render_refresh_button(full=self._parent and self._parent.is_updated())))
-            return summary(self, **kw)
-        else:
-            return self.list(**kw)
-
-    # def watch(self,*args,**kw):
-    #     display(HTML(render_refresh_button()))
-    #     self.show_all(*args,**kw)
-
-    def show_all(self, *args, **kw):
-        display(HTML(render_refresh_button(full=self._parent and self._parent.is_updated())))
-        if not self:
-            display(HTML("<p>0 files</p>"))
-        for f in self:
-            f.show(*args, **kw)
-
-    def __call__(self, pattern):
-        files = []
-        for patt in pattern.split():
-            files += [f for f in self if
-                      fnmatch.fnmatch((f.path if self._showpath else f.name),
-                                      patt)]
-        return FileList(files,
-                        extcol=self._extcol, showpath=self._showpath,
-                        classobj=self._classobj,
-                        title=os.path.join(self._title, pattern), parent=self._parent)
-
-    def thumbs(self, **kw):
-        display(HTML(render_refresh_button(full=self._parent and self._parent.is_updated())))
-        if not self:
-            display(HTML("<p>0 files</p>"))
-            return None
-        kw.setdefault('title', self._title + " (%d file%s)" % (len(self), "s" if len(self) > 1 else ""))
-        kw.setdefault('showpath', self._showpath)
-        thumbs = getattr(self._classobj, "_show_thumbs", None)
-        if thumbs:
-            return thumbs(self, **kw)
-        display(HTML("<p>%d files. Don't know how to make thumbnails for this collection.</p>" % len(self)))
-
-    def __getslice__(self, *slc):
-        return FileList(list.__getslice__(self, *slc),
-                        extcol=self._extcol, showpath=self._showpath,
-                        classobj=self._classobj,
-                        title="%s[%s]" % (self._title, ":".join(map(str, slc))), parent=self._parent)
-
-
-class DataDir(FileBase):
-    """
-    This class represents a directory in the data folder
-    """
-
-    def __init__(self, name, files=None, root=".", original_root=None, _skip_js_init=False):
-        FileBase.__init__(self, name, root=root)
-        if not _skip_js_init:
-            _init_js_side()
-        # list of files
-        if files is None:
-            files = os.listdir(self.fullpath)
-        files = [f for f in files if not f.startswith('.')]
-        # our title, in HTML
-        self._original_root = root
-        self._title = os.path.join(original_root or root, self.path) or '.'
-
-        # make list of data filesD and sort by time
-        self.files = FileList([data_file(os.path.join(self.fullpath, f),
-                                         root=root) for f in files],
-                              title=self._title, parent=self)
-
-        # make separate lists of fits files and image files
-        self.fits = FileList([f for f in self.files if type(f) is FITSFile],
-                             classobj=FITSFile,
-                             title="FITS files, " + self._title, parent=self)
-        self.images = FileList([f for f in self.files if type(f) is ImageFile],
-                               classobj=ImageFile,
-                               title="Images, " + self._title, parent=self)
-        self.others = FileList([f for f in self.files
-                                if type(f) is not ImageFile and type(
-                f) is not FITSFile],
-                               title="Other files, " + self._title, parent=self)
-
-    def sort(self, opt):
-        for f in self.files, self.fits, self.images:
-            f.sort(opt)
-        return self
-
-    def show(self):
-        return IPython.display.display(self)
-
-    def list(self):
-        return IPython.display.display(self)
-
-    def _repr_html_(self):
-        return self.files._repr_html_()
-
-    def __call__(self, pattern):
-        return self.files(pattern)
-
-    def __getslice__(self, *slc):
-        return self.files.__getslice__(*slc)
-
-    def __getitem__(self, item):
-        return self.files[item]
-
-    def ls(self):
-        return DirList(self.path, recursive=False,
-                       original_rootfolder=os.path.join(self._original_root, self.path))
-
-    def lsr(self):
-        return DirList(self.path, recursive=True,
-                       original_rootfolder=os.path.join(self._original_root, self.path))
-
-
-def lsd(pattern=None, *args, **kw):
+def ls(pattern=None):
     """Creates a DirList from '.' non-recursively, optionally applying a pattern.
 
     Args:
         pattern: if specified, a wildcard pattern
     """
-    kw['recursive'] = False
-    dl = DirList(*args, **kw)
-    return dl(pattern) if pattern else dl
+    dd = DataDir('.')
+    return DataDir(pattern) if pattern else dd
 
-
-def lsdr(pattern=None, *args, **kw):
-    """Creates a DirList from '.' recursively, optionally applying a pattern.
+def lst(pattern=None):
+    """Creates a DirList from '.' non-recursively, optionally applying a pattern.
 
     Args:
         pattern: if specified, a wildcard pattern
     """
-    kw['recursive'] = True
-    dl = DirList(*args, **kw)
-    return dl(pattern) if pattern else dl
+    dd = DataDir('.', sort="dtnx")
+    return DataDir(pattern) if pattern else dd
+
+def lsrt(pattern=None):
+    """Creates a DirList from '.' non-recursively, optionally applying a pattern.
+
+    Args:
+        pattern: if specified, a wildcard pattern
+    """
+    dd = DataDir('.', sort="dtnxr")
+    return DataDir(pattern) if pattern else dd
+
 
 
 def latest(*args):
@@ -277,157 +338,6 @@ def latest(*args):
     if not dl:
         raise (IOError, "no subdirectories here")
     return dl[-args.get(int, -1)].lsr()
-
-
-class DirList(list):
-    def __init__(self, rootfolder=None, include="*.jpg *.png *.fits *.txt",
-                 exclude=".* .*/", exclude_empty=True, original_rootfolder=None,
-                 sort="xnt",
-                 recursive=True, title=None, _scan=True):
-        """
-        Creates a DirList object corresponding to a rootfolder and (optionally)
-        all its subdirectories.
-
-        Args:
-            recursive: set to False to make non-recursive list
-            include: list of filename patterns to include
-            exclude: list of filename patterns to exclude. Trailing slash
-                matches directory names.
-            exclude_empty: if True, directories with no matching files will be
-                omitted
-            original_rootfolder: the "original" name of rootfolder, used to
-                "rewrite" displayed paths when running the notebook in e.g. a
-                container (in which case rootfolder refers to the path inside
-                the container, while original_rootfolder refers to the true path
-                on the host). If None, rootfolder is used
-            title:  the title of the directory list -- uses
-                original_rootfolder or rootfolder by default
-            sort:   sort order, default is 'xnt'
-            _scan: (for internal use only) if False, directory is not re-scanned
-        """
-        _init_js_side()
-        self._root = rootfolder = rootfolder or os.environ.get('PADRE_DATA_DIR') or '.'
-        self._original_root = original_rootfolder or os.environ.get('PADRE_HOST_DATA_DIR') or rootfolder
-        self._title = title or self._original_root
-
-        # setup exclude/include patterns
-        include_files = include.split()
-        exclude_files = [f for f in exclude.split() if f[-1] != '/']
-        exclude_dirs = [f[:-1] for f in exclude.split() if f[-1] == '/'] + [
-            "radiopadre-thumbnails"]
-        #
-        if _scan:
-            if not os.path.exists(rootfolder):
-                raise IOError("directory %s does not exist" % rootfolder)
-            for dir_, dirnames, files in os.walk(rootfolder):
-                # exclude subdirectories
-                if not recursive and dir_ != rootfolder:
-                    dirnames[:] = []
-                else:
-                    dirnames[:] = [d for d in dirnames
-                                   if not any([fnmatch.fnmatch(d, patt) for patt in exclude_dirs])]
-                # get files matching include/exclude filters, and weed out
-                # non-existent ones (i.e. dangling symlinks)
-                files = [f for f in files
-                         if any(
-                        [fnmatch.fnmatch(f, patt) for patt in include_files])
-                         and not any(
-                        [fnmatch.fnmatch(f, patt) for patt in exclude_files])
-                         and os.path.exists(os.path.join(dir_, f))
-                         ]
-                if files or not exclude_empty:
-                    self.append(DataDir(dir_, files, root=rootfolder,
-                                        original_root=original_rootfolder, _skip_js_init=True))
-        # init lists
-        self.sort(sort)
-
-    def latest(self, num=1):
-        if not self:
-            raise IOError("no subdirectories in %s" % self._root)
-        return self.sort("t")[-num]
-
-    def sort(self, opt="xnt"):
-        self._sort_option = opt
-        FileBase.sort_list(self, opt)
-        # set up aggregated file lists
-        self.files = FileList(title=self._title, showpath=True, parent=self)
-        self.fits = FileList(classobj=FITSFile,
-                             title="FITS files, " + self._title, showpath=True, parent=self)
-        self.images = FileList(classobj=ImageFile,
-                               title="Images, " + self._title, showpath=True, parent=self)
-        self.others = FileList(title="Other files, " + self._title,
-                               showpath=True, parent=self)
-        for d in self:
-            for attr in 'files', 'fits', 'images', 'others':
-                getattr(self, attr).extend(getattr(d, attr))
-        return self
-
-    def is_updated(self):
-        return any([d.is_updated() for d in self])
-
-    def _repr_html_(self, copy_filename=None, copy_dirs='dirs', copy_root='root', **kw):
-        """Render DirList in HTML. If copy is not None, adds buttons to make copies
-        of the notebook under subdir/COPY.ipynb"""
-        html = render_preamble() + render_title(self._title) + \
-               render_refresh_button(full=self.is_updated())
-        if not self:
-            return html + ": no subdirectories"
-        dirlist = []
-        for dir_ in self:
-            nfits = len(dir_.fits)
-            nimg = len(dir_.images)
-            nother = len(dir_.files) - nfits - nimg
-            table_entry = [dir_.path or '.', nfits, nimg, nother,
-                           time.strftime(TIMEFORMAT, time.localtime(dir_.mtime))]
-            if copy_filename:
-                # if copy of this notebook exists in subdirectory, show "load copy" button
-                copypath = os.path.join(dir_.fullpath, copy_filename + ".ipynb")
-                if os.path.exists(copypath):
-                    button = """<A href=%s target='_blank'
-                                title="%s contains its own copy of this notebook, click to open."
-                                >open custom copy of notebook</a>""" % (
-                        render_url(copypath, "notebooks"),
-                        dir_.name)
-                # else show "make copy" button
-                else:
-                    #                    button = """<button onclick="console.log('%s');"
-                    button = """<a href='#' onclick="document.radiopadre.copy_notebook('%s','%s','%s'); return false;" 
-                                title="Click to make a new copy of this radiopadre notebook in %s."
-                                >create custom copy of notebook</a>""" % (copypath, copy_dirs, copy_root, dir_.name)
-                table_entry.append(button)
-            dirlist.append(table_entry)
-        labels = ["name", "# FITS", "# img", "# others", "modified"]
-        copy_filename and labels.append("copy")
-        html += render_table(dirlist, labels=labels, html=["copy"])
-        return html
-
-    def __str__(self):
-        return FileList.list_to_string(self)
-
-    def show(self, **kw):
-        return display(HTML(self._repr_html_(**kw)))
-
-    def list(self, **kw):
-        return display(HTML(self._repr_html_(**kw)))
-
-    def subdirectory_catalog(self, basename="results", dirs="dirs", root="root", **kw):
-        return display(HTML(self._repr_html_(copy_filename=basename, copy_dirs=dirs, copy_root=root, **kw)))
-
-    def __call__(self, pattern):
-        newlist = DirList(self._root, _scan=False, title="%s/%s" % (self._title,
-                                                                    pattern))
-        for patt in pattern.split():
-            newlist += [d for d in self if fnmatch.fnmatch(d.path, patt)]
-        newlist.sort(self._sort_option)
-        return newlist
-
-    def __getslice__(self, *slc):
-        newlist = DirList(self._root, _scan=False,
-                          title="%s[%s]" % (
-                              self._title, ":".join(map(str, slc))))
-        newlist += list.__getslice__(self, *slc)
-        newlist.sort(self._sort_option)
-        return newlist
 
 
 def copy_current_notebook(oldpath, newpath, cell=0, copy_dirs='dirs', copy_root='root'):

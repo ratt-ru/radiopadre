@@ -1,0 +1,11 @@
+APLpy
+astropy
+jupyter
+#pixiedust
+#requests
+#pandas
+matplotlib
+pillow
+python-casacore
+cubical
+
