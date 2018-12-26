@@ -1,5 +1,6 @@
 import os.path
 from collections import OrderedDict
+import itertools
 import numpy as np
 
 import radiopadre
@@ -127,14 +128,17 @@ class CasaTable(radiopadre.file.FileBase):
                 return format%tuple(value)
             elif format[0] == "{":
                 return format.format(*value)
-        # value and units must have the same length -- unless a single unit is given, which can then repeat
-        if len(value) != len(units):
-            if len(units) == 1:
-                units = [units[0]]*len(value)
-            else:
-                raise TypeError("value and units have a different length")
-        qqs = [casacore.quanta.quantity(x, unit) for x, unit in zip(value, units)]
-        return " ".join([qq.formatted(format or '') for qq in qqs])
+        # >1 unit: include in render
+        if len(units) > 1:
+            qqs = [casacore.quanta.quantity(x, unit).formatted(format or '') for x, unit in zip(value, itertools.cycle(units))]
+            single_unit = False
+        else:
+            unit = units[0]
+            qqs = [casacore.quanta.quantity(x, unit).formatted(format or '') for x in value]
+            single_unit = all([qq.endswith(unit) for qq in qqs])
+            if single_unit:
+                qqs = [qq[:-len(unit)].strip() for qq in qqs]
+        return " ".join(qqs)
 
     @staticmethod
     def _render_slice(slc):
@@ -143,17 +147,19 @@ class CasaTable(radiopadre.file.FileBase):
             if slc.step is not None:
                 txt += ":{}".format(slc.step)
             return txt
+        elif type(slc) is list:
+            return ",".join(map(str, slc))
         else:
             return str(slc)
 
-    def render_html(self, firstrow=None, nrows=100, all=False, **columns):
+    def render_html(self, native=False, firstrow=0, nrows=100, all=False, **columns):
         html = render_title("{}: {} rows".format(self._title, self.nrows)) + \
                render_refresh_button(full=self._parent and self._parent.is_updated())
         tab = self.table
         if isinstance(tab, Exception):
             return html + rich_string("Error accessing table {}: {}".format(self.basename, tab))
         # if first row is not specified, and columns not specified, fall back on casacore's own HTML renderer
-        if firstrow is None and not columns:
+        if native:
             return html + tab._repr_html_()
 
         firstrow = firstrow or 0
@@ -169,9 +175,9 @@ class CasaTable(radiopadre.file.FileBase):
                     if col not in self.columns:
                         raise NameError("no such column: {}".format(col))
                     column_selection.append(col)
-                    if type(slicer) in (slice, int):
+                    if type(slicer) in (slice, int, list):
                         slicer = [slicer]
-                    elif type(slicer) in (list, tuple):
+                    elif type(slicer) is tuple:
                         slicer = list(slicer)
                     elif type(slicer) is str:
                         column_formats[col] = slicer
@@ -198,7 +204,7 @@ class CasaTable(radiopadre.file.FileBase):
         for icol, colname in enumerate(column_selection):
             style = None
             shape_suffix = ""
-            formatter = None
+            formatter = error = None
 
             # figure out formatting of measures/quanta columns
             colkw = tab.getcolkeywords(colname)
@@ -208,6 +214,8 @@ class CasaTable(radiopadre.file.FileBase):
 
             if units:
                 formatter = lambda value:self._render_quantity(value, units=units, format=column_formats.get(colname))
+                if units and meastype != 'direction':
+                    labels[icol+1] += ", {}".format(units[0])
 
             try:
                 colvalues[icol] = colval = tab.getcol(colname, firstrow, nrows)
@@ -223,11 +231,12 @@ class CasaTable(radiopadre.file.FileBase):
                 except IndexError:
                     colvalues[icol] = ["index error"]*nrows
                     style = "color: red"
+                    error = IndexError
                 if desc:
                     shape_suffix += " " + desc
-            if formatter:
+            if formatter and not error:
 #                try:
-                    colvalues[icol] = map(formatter, colvalues[icol])
+                colvalues[icol] = map(formatter, colvalues[icol])
 #                except Exception:
 #                    colvalues[icol] = ["format error"]*nrows
 #                    style = "color: red"

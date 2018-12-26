@@ -178,8 +178,8 @@ if not _setup_done:
 
     _setup_done = True
 
-    # TODO: remove this when done debugging
-    display_setup()
+    # Uncomment this when debugging paths setup
+    # display_setup()
 
 
 def get_cache_dir(path, subdir=None):
