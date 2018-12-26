@@ -129,15 +129,13 @@ class CasaTable(radiopadre.file.FileBase):
             elif format[0] == "{":
                 return format.format(*value)
         # >1 unit: include in render
-        if len(units) > 1:
+        if type(units) is not str:
             qqs = [casacore.quanta.quantity(x, unit).formatted(format or '') for x, unit in zip(value, itertools.cycle(units))]
-            single_unit = False
         else:
-            unit = units[0]
-            qqs = [casacore.quanta.quantity(x, unit).formatted(format or '') for x in value]
-            single_unit = all([qq.endswith(unit) for qq in qqs])
+            qqs = [casacore.quanta.quantity(x, units).formatted(format or '') for x in value]
+            single_unit = all([qq.endswith(units) for qq in qqs])
             if single_unit:
-                qqs = [qq[:-len(unit)].strip() for qq in qqs]
+                qqs = [qq[:-len(units)].strip() for qq in qqs]
         return " ".join(qqs)
 
     @staticmethod
@@ -152,7 +150,7 @@ class CasaTable(radiopadre.file.FileBase):
         else:
             return str(slc)
 
-    def render_html(self, native=False, firstrow=0, nrows=100, all=False, **columns):
+    def render_html(self, native=False, firstrow=0, nrows=100, allcols=False, **columns):
         html = render_title("{}: {} rows".format(self._title, self.nrows)) + \
                render_refresh_button(full=self._parent and self._parent.is_updated())
         tab = self.table
@@ -191,7 +189,7 @@ class CasaTable(radiopadre.file.FileBase):
                     else:
                         desc = ""
                     column_slicers[col] = slicer, desc
-        if not columns or all:
+        if not columns or allcols:
             column_selection = self.columns
 
         # else use ours
@@ -213,10 +211,12 @@ class CasaTable(radiopadre.file.FileBase):
             meastype = measinfo.get('type')
 
             if units:
+                same_units = all([u==units[0] for u in units[1:]])
+                if same_units:
+                    units = units[0]
                 formatter = lambda value:self._render_quantity(value, units=units, format=column_formats.get(colname))
-                if units and meastype != 'direction':
-                    labels[icol+1] += ", {}".format(units[0])
-
+                if same_units and meastype != 'direction':
+                    labels[icol+1] += ", {}".format(units)
             try:
                 colvalues[icol] = colval = tab.getcol(colname, firstrow, nrows)
 #                print colname, colvalues[icol]
