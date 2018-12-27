@@ -117,6 +117,7 @@ class NumberedLineList(ItemBase):
             border_bottom = border_style if line_num == firstlast[1] else "none"
             border_rl = border_style if line_num != "..." else "none"
             background = "#f2f2f2" if line_num != "..." else "none"
+            line = unicode(line, "utf-8").encode("ascii", "xmlcharrefreplace")
             return """
                 <DIV style="display: table-row">
                     <DIV style="display: table-cell; border-top: {border_top}; border-bottom: {border_bottom};
