@@ -8,7 +8,7 @@ import itertools
 
 
 from .file import FileBase
-from .render import render_table, render_preamble, render_refresh_button, render_url, render_title
+from .render import render_table, render_preamble, render_refresh_button, render_url, rich_string
 
 import radiopadre
 from radiopadre import settings
@@ -16,8 +16,8 @@ from radiopadre import settings
 class FileList(FileBase, list):
     @staticmethod
     def list_to_string(filelist):
-        return "Contents of %s:\n" % filelist._title + "\n".join(
-            ["%d: %s" % (i, d.path) or '.' for i, d in enumerate(filelist)])
+        return "{}:\n{}".format(filelist._header_text(), "\n".join(
+                            ["{}: {}".format(i, d.path) for i, d in enumerate(filelist)]))
 
     def __init__(self, content=None, path="", extcol=False, showpath=False,
                  classobj=None, title=None, parent=None,
@@ -60,23 +60,23 @@ class FileList(FileBase, list):
         self._reset_summary()
 
     def _reset_summary(self):
-        self._description = "{} files".format(self.nfiles)
+        self.description = "{} files".format(self.nfiles)
         if self.ndirs:
-            self._description += ", {} dirs".format(self.ndirs)
-        self._summary = "{}: {}".format(self._title, self._description)
+            self.description = self.description + ", {} dirs".format(self.ndirs)
+        self.size = self.description
 
     def _call_collective_method(self, method, **kw):
         display(HTML(render_refresh_button(full=self._parent and self._parent.is_updated())))
         if not self:
             display(HTML("<p>0 files</p>"))
             return None
-        kw.setdefault('title', self._title + ": %d file%s" % (len(self), "s" if len(self) > 1 else ""))
+        kw.setdefault('title', self.title + ": %d file%s" % (len(self), "s" if len(self) > 1 else ""))
         kw.setdefault('showpath', self._showpath)
         method(self, **kw)
 
     def render_html(self, ncol=None, **kw):
         self._load()
-        html = render_preamble() + render_title("{}: {}".format(self._title, self.description)) + \
+        html = render_preamble() + self._header_html() + \
                render_refresh_button(full=self._parent and self._parent.is_updated())
 
         arrow = "&uarr;" if "r" in self._sort else "&darr;"
@@ -105,7 +105,7 @@ class FileList(FileBase, list):
                       "{}size".format(arrow if primary_sort == "s" else ""),
                       "{}modified".format(arrow if primary_sort == "t" else ""))
             data = [((df.basepath if self._showpath else df.basename), ext(df),
-                     df.description, df.mtime_str)
+                     df.size, df.mtime_str)
                     for df in self]
             links = [(render_url(df.fullpath), render_url(df.fullpath), None, None) for df in self]
         else:
@@ -114,7 +114,7 @@ class FileList(FileBase, list):
                       "{}size".format(arrow if primary_sort == "s" else ""),
                       "{}modified".format(arrow if primary_sort == "t" else ""))
             data = [((df.basepath if self._showpath else df.basename) + ext(df),
-                     df.description, df.mtime_str) for df in self]
+                     df.size, df.mtime_str) for df in self]
             links = [(render_url(df.fullpath), None, None) for df in self]
         # get "action buttons" associated with each file
         preamble = OrderedDict()
@@ -160,7 +160,7 @@ class FileList(FileBase, list):
             else:
                 files += [f for f in self if fnmatch.fnmatch((f.path if self._showpath else f.name), patt)]
                 accepted_patterns.append(patt)
-        title = self._title
+        title = str(self._title)
         if accepted_patterns:
             if os.path.samefile(self.fullpath, radiopadre.ROOTDIR):
                 title = ",".join(accepted_patterns)
@@ -186,15 +186,25 @@ class FileList(FileBase, list):
     #         return thumbs(self[:max], **kw)
     #     display(HTML("<p>%d files. Don't know how to make thumbnails for this collection.</p>" % len(self)))
 
-    def __getslice__(self, *slc):
+    def __getitem__(self, item):
         self._load()
-        slice_str = ":".join([str(s) if s is not None and s < 2**31 else "" for s in slc])
-        title = "{}[{}]".format(self._title, slice_str)
-        return FileList(list.__getslice__(self, *slc),
-                        path=self.fullpath, extcol=self._extcol, showpath=self._showpath,
-                        sort=self._sort,
-                        classobj=self._classobj,
-                        title=title, parent=self._parent)
+        if type(item) is slice:
+            slice_str = "{}:{}".format(item.start if item.start else '',
+                                       item.stop if item.stop is not None and item.stop < 2**31 else "")
+            if item.step:
+                slice_str += ":{}".format(item.step)
+            title = rich_string("{}[{}]".format(self.title.text, slice_str),
+                                "{}[{}]".format(self.title.html, slice_str))
+            return FileList(list.__getitem__(self, item),
+                            path=self.fullpath, extcol=self._extcol, showpath=self._showpath,
+                            sort=self._sort,
+                            classobj=self._classobj,
+                            title=title, parent=self._parent)
+        else:
+            return list.__getitem__(self, item)
+
+    def __getslice__(self, start, stop):
+        return self.__getitem__(slice(start, stop))
 
     def sort(self, opt="dxnt"):
         self._load()

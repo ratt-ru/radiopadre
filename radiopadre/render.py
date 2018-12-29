@@ -12,9 +12,13 @@ class RichString(object):
     A rich_string object contains a plain string and an HTML version of itself, and will render itself
     in a notebook front-end appropriately
     """
-    def __init__(self, text, html=None):
+    def __init__(self, text, html=None, bold=False):
         self._text = text
-        self._html = html or text
+        if html:
+            self._html = html
+        else:
+            text = cgi.escape(text)
+            self._html = "<B>{}</B>".format(text) if bold else text
 
     @property
     def text(self):
@@ -23,6 +27,12 @@ class RichString(object):
     @property
     def html(self):
         return self._html
+
+    def __nonzero__(self):
+        return bool(self.text)
+
+    def __bool__(self):
+        return bool(self.text)
 
     def __str__ (self):
         return self._text
@@ -41,7 +51,7 @@ class RichString(object):
         if type(other) is RichString:
             return RichString(self.text + other.text, self.html + other.html)
         else:
-            return RichString(self.text + str(other), self.html + str(other))
+            return RichString(self.text + str(other), self.html + cgi.escape(str(other)))
 
     def __iadd__ (self, other):
         if type(other) is RichString:
@@ -55,12 +65,22 @@ class RichString(object):
         display(HTML(self.html))
 
 
-def rich_string(text, html=None):
-    if type(text) is RichString:
+def htmlize(text):
+    if text is None:
+        return ''
+    elif type(text) is RichString:
+        return text.html
+    else:
+        return cgi.escape(str(text))
+
+def rich_string(text, html=None, bold=False):
+    if text is None:
+        return RichString('')
+    elif type(text) is RichString:
         if html is not None:
             raise TypeError("can't call rich_string(RichString,html): this is a bug")
         return text
-    return RichString(text, html)
+    return RichString(text, html, bold=bold)
 
 
 def render_preamble():
@@ -85,7 +105,7 @@ def render_url(fullpath): # , prefix="files"):
 
 
 def render_title(title):
-    return "<b>%s</b>" % cgi.escape(title)
+    return title.html if type(title) is RichString else "<b>{}</b>".format(cgi.escape(str(title)))
 
 
 def render_status_message(msg, bgcolor='lightblue'):
@@ -127,7 +147,7 @@ def render_table(data, labels, html=set(), ncol=1, links=None,
     # configuring the table rows, row by row
     nrow = int(math.ceil(len(data) / float(ncol)))
     for irow in range(nrow):
-        txt += """<tr style="border: 0px; text-align: left; {}">\n""".format(styles.get(irow, ''))
+        txt += """<tr style="border: 0px; text-align: left; line-height=.8em; {}">\n""".format(styles.get(irow, ''))
         for icol, idatum in enumerate(range(irow, len(data), nrow)):
             datum = data[idatum]    
             # data is a list containing (name,extension,size and modification date) for files

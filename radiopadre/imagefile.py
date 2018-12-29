@@ -5,7 +5,7 @@ from IPython.display import HTML, Image, display
 
 import radiopadre
 import radiopadre.file
-from radiopadre.render import render_title, render_url, render_preamble
+from radiopadre.render import render_title, render_url, render_preamble, rich_string
 from radiopadre import settings
 
 
@@ -109,3 +109,9 @@ class ImageFile(radiopadre.file.FileBase):
 
     def show(self, width=None, **kw):
         display(Image(self.fullpath, width=width and width * 100))
+
+    def _scan_impl(self):
+        radiopadre.file.FileBase._scan_impl(self)
+        img = PIL.Image.open(self.fullpath)
+        size = "{} {}&times;{}".format(img.format, img.width, img.height)
+        self.size = self.description = rich_string(size.replace("&times;", "x"), size)

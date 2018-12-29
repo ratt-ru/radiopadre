@@ -25,9 +25,7 @@ class CasaTable(radiopadre.file.FileBase):
         self._table = table
         self._subtables_obj = None
         self._parent = parent
-        if title:
-            self._title = title
-        radiopadre.file.FileBase.__init__(self, name)
+        radiopadre.file.FileBase.__init__(self, name, title=title)
 
 
     @property
@@ -48,8 +46,7 @@ class CasaTable(radiopadre.file.FileBase):
         tab = self.table
         if isinstance(tab, Exception):
             msg = "CasaTable error: {}".format(tab)
-            self._description = self._error = self._summary = rich_string(msg, render_status_message(msg, 'yellow'))
-
+            self.description = self.size = self._error = rich_string(msg, render_status_message(msg, 'yellow'))
         else:
             self.nrows = tab.nrows()
             self.rownumbers = tab.rownumbers()
@@ -57,9 +54,9 @@ class CasaTable(radiopadre.file.FileBase):
             self.keywords = tab.getkeywords()
             self._subtables = list(tab.getsubtables())
             self._error = None
-            self._description = "{} rows, {} columns".format(self.nrows, len(self.columns))
-            self._summary = "{}: {} rows, {} columns, {} keywords, {} subtables".format(
-                    self._title, self.nrows, len(self.columns), len(self.keywords), len(self._subtables))
+            self.size = "{} rows, {} cols".format(self.nrows, len(self.columns))
+            self.description = "{} rows, {} columns, {} keywords, {} subtables".format(
+                                self.nrows, len(self.columns), len(self.keywords), len(self._subtables))
             # make attributes for each subtable
             self._subtables_dict = OrderedDict()
             self._subtables_obj = None
@@ -151,7 +148,7 @@ class CasaTable(radiopadre.file.FileBase):
             return str(slc)
 
     def render_html(self, native=False, firstrow=0, nrows=100, allcols=False, **columns):
-        html = render_title("{}: {} rows".format(self._title, self.nrows)) + \
+        html = self._header_html() + \
                render_refresh_button(full=self._parent and self._parent.is_updated())
         tab = self.table
         if isinstance(tab, Exception):
@@ -260,7 +257,7 @@ class CasaTable(radiopadre.file.FileBase):
             tab = tab.selectrows(rows)
         if columns is not None:
             tab = tab.select(columns)
-        return CasaTable(self.fullpath, title="{} [{}]".format(self._title, desc), table=tab)
+        return CasaTable(self.fullpath, title="{} [{}]".format(self.title, desc), table=tab)
 
 
     def __getitem__(self, item):
@@ -303,7 +300,7 @@ class CasaTable(radiopadre.file.FileBase):
         if self._error:
             return self._error
         tab = self.table.query(taql, sortlist=sortlist,columns=columns, limit=limit, offset=offset)
-        return CasaTable(self.fullpath, title="{} ({})".format(self._title, taql), table=tab)
+        return CasaTable(self.fullpath, title="{} ({})".format(self.title, taql), table=tab)
 
     def __call__(self, taql, sortlist='', columns='', limit=0, offset=0):
         return self.query(taql, sortlist, columns, limit, offset)

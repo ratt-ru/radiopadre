@@ -297,47 +297,40 @@ def unprotect():
     display(HTML(render_status_message("""This notebook is now unprotected.
         All users can treat it as read-write.""")))
 
-def ls(pattern=None):
+def _ls(sort='dxnt', basedir='.', *args):
     """Creates a DirList from '.' non-recursively, optionally applying a pattern.
 
     Args:
         pattern: if specified, a wildcard pattern
     """
-    dd = DataDir('.')
-    return DataDir(pattern) if pattern else dd
+    include = []
+    for arg in args:
+        if arg[0] == '-':
+            sort = arg[1:]
+        elif '*' in arg or '?' in arg:
+            include.append(arg)
+        else:
+            basedir = arg
+    return DataDir(basedir, include=include or None, sort=sort)
 
-def lst(pattern=None):
+def ls(*args):
     """Creates a DirList from '.' non-recursively, optionally applying a pattern.
 
     Args:
         pattern: if specified, a wildcard pattern
     """
-    dd = DataDir('.', sort="dtnx")
-    return DataDir(pattern) if pattern else dd
+    return _ls('-dxnt', '.', *args)
 
-def lsrt(pattern=None):
+def lst(*args):
     """Creates a DirList from '.' non-recursively, optionally applying a pattern.
 
     Args:
         pattern: if specified, a wildcard pattern
     """
-    dd = DataDir('.', sort="dtnxr")
-    return DataDir(pattern) if pattern else dd
+    return _ls('-dtxn', '.', *args)
 
-
-
-def latest(*args):
-    """Creates a DirList from '.' recursively, optionally applying a pattern.
-
-    Args:
-        pattern (str):  if specified, a wildcard pattern
-        num (int):      use 2 for second-latest, 3 for third-latest, etc.
-    """
-    args = dict([(type(arg), arg) for arg in args])
-    dl = lsd(pattern=args.get(str), sort='txn')
-    if not dl:
-        raise (IOError, "no subdirectories here")
-    return dl[-args.get(int, -1)].lsr()
+def lsrt(*args):
+    return _ls('-rtdxn', '.', *args)
 
 
 def copy_current_notebook(oldpath, newpath, cell=0, copy_dirs='dirs', copy_root='root'):

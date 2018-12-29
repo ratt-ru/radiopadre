@@ -2,13 +2,14 @@ import IPython
 from IPython.display import display, HTML, Javascript
 import os
 import fnmatch
-import time
+import subprocess
 
 from .file import FileBase, autodetect_file_type
 from .filelist import FileList
 from .fitsfile import FITSFile
 from .imagefile import ImageFile
 from .casatable import CasaTable
+from .textfile import NumberedLineList
 from .render import render_table, render_preamble, render_refresh_button, rich_string, render_url, render_title
 
 import radiopadre
@@ -155,5 +156,22 @@ class DataDir(FileList):
         self._load()
         return FileList.__iter__(self, *args, **kw)
 
+    def sh(self, command, exception=False):
+        cmd = "cd {}; {}".format(self.fullpath, command)
+        try:
+            output = subprocess.check_output(cmd, shell=True, stderr=subprocess.STDOUT)
+            retcode = 0
+        except subprocess.CalledProcessError,exc:
+            if exception:
+                raise
+            retcode = exc.returncode
+            output = exc.output
+        title = rich_string( "[{}$ {}]{}".format(self.path, command, " (return code {})".format(retcode) if retcode else ""),
+                             "[{}$ <B>{}</B>]{}".format(self.path, command,
+                                               " <SPAN style='color: red;'>(return code {})</SPAN>".format(retcode) if retcode else ""))
+        return NumberedLineList(output.rstrip(), title=title)
+
+    def shx(self, command):
+        return self.sh(command, exception=True)
 
 

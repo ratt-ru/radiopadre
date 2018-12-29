@@ -13,6 +13,7 @@ import radiopadre.file
 from radiopadre.render import rich_string, render_title, render_table
 
 from radiopadre import js9, settings
+from radiopadre.textfile import NumberedLineList
 
 def read_html_template(filename, subs):
     js9_source = os.path.join(js9.DIRNAME, filename)
@@ -45,26 +46,33 @@ class FITSFile(radiopadre.file.FileBase):
                           COMPLEX=["real", "imag", "weight"])
 
     def __init__(self, *args, **kw):
-        self._header = self._shape = self._image_data = None
-        self._description = "FITS image"
+        self._header = self._hdrobj = self._shape = self._image_data = None
         radiopadre.file.FileBase.__init__(self, *args, **kw)
-        self._summary = rich_string(self._description)
 
     @property
     def fitsobj(self):
         return pyfits.open(self.fullpath)
 
     @property
-    def header(self):
-        if not self._header or self.is_updated():
-            self._header = self.fitsobj[0].header
+    def hdrobj(self):
+        """Returns the FITS header object"""
+        if not self._hdrobj or self.is_updated():
+            self._hdrobj = self.fitsobj[0].header
             self.update_mtime()
-        return self.fitsobj[0].header
+        return self._hdrobj
+
+    @property
+    def header(self):
+        """Returns the FITS header object as a rich string"""
+        if not self._header or self.is_updated():
+            lines = [x.strip() for x in repr(self.hdrobj).split("\n")]
+            self._header = NumberedLineList(enumerate(lines), title=self.title + " FITS header")
+        return self._header
 
     @property
     def shape(self):
         if self._shape is None:
-            hdr = self.header
+            hdr = self.hdrobj
             self._shape = [ hdr["NAXIS%d" % i] for i in range(1, hdr["NAXIS"] + 1)]
         return self._shape
 
@@ -77,7 +85,7 @@ class FITSFile(radiopadre.file.FileBase):
         size = resolution = axes = "?"
         extensions = False
         try:
-            hdr = self.header
+            hdr = self.hdrobj
             extensions = hdr.get("EXTEND", 'F') == 'T'
             naxis = hdr.get("NAXIS")
             if naxis:
@@ -108,14 +116,22 @@ class FITSFile(radiopadre.file.FileBase):
         return name, size, resolution, axes, self.mtime_str
 
     def _scan_impl(self):
-        data = [ self._get_summary_items() ]
+        radiopadre.file.FileBase._scan_impl(self)
+        data = [ list(self._get_summary_items()) ]
         preamble = OrderedDict()
         postscript = OrderedDict()
         div_id = uuid.uuid4().hex
         actions = [ self._action_buttons_(preamble=preamble, postscript=postscript, div_id=div_id) ]
-        self._description = data[0][1]
-        self._summary = rich_string(" ".join(map(str,data[0])),
-                    render_table(data, html=("size", "axes", "res"), labels=("name", "size", "res", "axes", "modified"),
+        self.size = rich_string(data[0][1].replace("&times;", "x"), data[0][1])
+        data[0][0] += ":"
+        self.summary = rich_string(" ".join(map(str,data[0])),
+                                   render_table(data, html=("size", "axes", "res"), labels=("name", "size", "res", "axes", "modified"),
+                                        styles=dict(name="font-weight: bold"),
+                                        header=False, numbering=False, actions=actions,
+                                        preamble=preamble, postscript=postscript, div_id=div_id))
+        data[0] = data[0][1:]
+        self.description = rich_string(" ".join(map(str,data[0])),
+                                render_table(data, html=("size", "axes", "res"), labels=("size", "res", "axes", "modified"),
                                      header=False, numbering=False, actions=actions,
                                      preamble=preamble, postscript=postscript, div_id=div_id))
 
@@ -470,9 +486,9 @@ class FITSFile(radiopadre.file.FileBase):
         </script>""".format(**subs)
 
         code = """
-            <button title="display all images using an inline JS9 window"
+            <button title="display all images using an inline JS9 window" style="font-size: 0.8em; height=0.8em;"
                     onclick="JS9p._pd_{display_id}_load_all()">&#8595;JS9 all</button>
-            <button title="display all images using JS9 in a new browser tab"
+            <button title="display all images using JS9 in a new browser tab" style="font-size: 0.8em;  height=0.8em;"
                     onclick="window.open('{js9.JS9_SCRIPT_PREFIX_HTTP}{newtab_html}', '_blank')">&#8663;JS9 all</button>
         """.format(**subs)
         return code
@@ -508,9 +524,9 @@ class FITSFile(radiopadre.file.FileBase):
         </script>""".format(**subs)
 
         code = """
-            <button id="JS9load-{element_id}" title="display using an inline JS9 window"
+            <button id="JS9load-{element_id}" title="display using an inline JS9 window" style="font-size: 0.9em;"
                     onclick="JS9p._pd_{element_id}_load()">&#8595;JS9</button>
-            <button id="" title="display using JS9 in a new browser tab"
+            <button id="" title="display using JS9 in a new browser tab" style="font-size: 0.9em;"
                     onclick="window.open('{js9.JS9_SCRIPT_PREFIX_HTTP}{newtab_html}', '_blank')">&#8663;JS9</button>
         """.format(**subs)
         return code
