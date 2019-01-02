@@ -6,13 +6,14 @@ from IPython.display import display, HTML
 
 import radiopadre
 from radiopadre import settings
-from radiopadre.render import render_refresh_button, rich_string
+from radiopadre.render import render_refresh_button, rich_string, render_url
 from collections import OrderedDict
 from radiopadre import casacore_tables
 
 
 class ItemBase(object):
     """Base class referring to an abstract displayable data item.
+
 
     Properties:
         summary:        short summary of item content
@@ -21,39 +22,65 @@ class ItemBase(object):
 
     """
     def __init__(self, title=None):
-        if title is not None:
-            self._title = title
-        # init default attributes, if not already set by parent class when calling
-        for attr in '_title', '_summary', '_description':
-            if not hasattr(self, attr):
-                setattr(self, attr, '')
+        self.title = title
+        self.summary = self.info = self.description = self.size = rich_string(None)
+        self._summary_set = None
 
-    def rescan(self):
+    def rescan(self, load=False):
         """
-        Calling rescan() ensures that the item is fully loaded into memory (i.e. any long I/O
-        deferred from construction time is executed).
+        Calling rescan() ensures that the item info is updated from disk.
+        If load=True, it is also loaded into memory (i.e. any long I/O deferred from construction time is executed).
         """
         pass
 
     @property
     def title(self):
-        self.rescan()
-        return rich_string(self._title) if self._title else ""
+        return self._title
+
+    @title.setter
+    def title(self, value):
+        self._title = rich_string(value, bold=True)
+
+    @property
+    def size(self):
+        self.rescan(load=False)
+        return self._size
+
+    @size.setter
+    def size(self, value):
+        self._size = rich_string(value)
 
     @property
     def description(self):
-        self.rescan()
-        return rich_string(self._description)
+        self.rescan(load=False)
+        return self._description
+
+    @description.setter
+    def description(self, value):
+        self._description = rich_string(value)
+        if not self._summary_set:
+            self._summary = rich_string("{}: {}".format(self._title.text, self._description.text),
+                                        "{}: {}".format(self._title.html, self._description.html))
 
     @property
     def summary(self):
-        self.rescan()
-        return rich_string(self._summary)
+        self.rescan(load=False)
+        return self._summary or self._title
+
+    @summary.setter
+    def summary(self, value):
+        self._summary_set = True
+        self._summary = rich_string(value)
 
     @property
     def info(self):
         """info is an alias for summary"""
-        return self.summary
+        self.rescan(load=True)
+        return self._info or self._summary or self._title
+
+    @info.setter
+    def info(self, value):
+        self._info = rich_string(value)
 
     def __str__(self):
         """str() returns the plain-text version of the file content. Calls self.render_text()."""
@@ -110,6 +137,22 @@ class ItemBase(object):
         """
         return rich_string(self.summary).html
 
+    def _header_text(self, subtitle=None):
+        """Helper method, returns standard header line based on title, subtitle and description"""
+        if self.title or self.description:
+            if self.title:
+                return "{}{}: {}\n".format(str(self.title), subtitle or '',self.description)
+            else:
+                return "{}\n".format(self.description)
+        return ""
+
+    def _header_html(self, subtitle=None):
+        if self.title or self.description:
+            if self.title:
+                return "{}{}: {}\n".format(self.title.html, rich_string(subtitle).html, self.description.html)
+            else:
+                return "{}\n".format(self.description.html)
+        return ""
 
 
 
@@ -129,8 +172,7 @@ class FileBase(ItemBase):
         basepath:       path+filename sans extension, e.g. dir1/file1
         mtime:          modification time
         mtime_str:      string version of mtime
-        size:           size in bytes
-        size_str:       human-readable size string
+        size:           human-readable size string
         description:    short human-readable description (e.g. size, content, etc.)
 
         _title:         displayed title (usually same as path, but ./ will be stripped off)
@@ -173,11 +215,24 @@ class FileBase(ItemBase):
         """
         self.fullpath = path
         self.path = FileBase.get_display_path(path)
-        ItemBase.__init__(self, title=self.path if title is None else title)
+        if title is None:
+            if os.path.isdir(self.fullpath):
+                title = rich_string(self.path, bold=True)
+            else:
+                title = rich_string(self.path,
+                        "<A HREF='{}' target='_blank'><B>{}</B></A>".format(render_url(self.fullpath), self.path))
+
+        ItemBase.__init__(self, title=title)
 
         self.name = os.path.basename(self.fullpath)
         self.basepath, self.ext = os.path.splitext(self.path)
         self.basename = os.path.basename(self.basepath)
+
+        # directory key set up for sorting purposes
+        # directories sort themselves before files
+        isdir = int(os.path.isdir(self.fullpath))
+        self._dirkey = 1-isdir, os.path.dirname(self.fullpath)
+
         self._scan_impl()
         # timestamp of file last time content was loaded
         self._loaded_mtime = None
@@ -217,19 +272,18 @@ class FileBase(ItemBase):
         """
         self.update_mtime()
         # get filesize
-        self.size = os.path.getsize(self.fullpath)
+        size = self._byte_size = os.path.getsize(self.fullpath)
         # human-friendly size
-        if self.size > 0:
-            exponent = min(int(math.log(self.size, 1024)),
+        if size > 0:
+            exponent = min(int(math.log(size, 1024)),
                            len(self._unit_list) - 1)
-            quotient = float(self.size) / 1024 ** exponent
+            quotient = float(size) / 1024 ** exponent
             unit, num_decimals = self._unit_list[exponent]
             format_string = '{:.%sf}{}' % (num_decimals)
-            self.size_str = format_string.format(quotient, unit)
+            self.size = format_string.format(quotient, unit)
         else:
-            self.size_str = '0'
-        self._description = rich_string(self.size_str)
-        self._summary = rich_string("{}: {} {}".format(self.basename, self.size_str, self.mtime_str))
+            self.size = '0'
+        self.description = rich_string("{} {}".format(self.size, self.mtime_str))
 
     def _load_impl(self):
         """
@@ -258,38 +312,31 @@ class FileBase(ItemBase):
         """
         Sort a list of FileBase objects by directory first, eXtension, Time, Size, optionally Reverse
         """
-        opt = opt.lower()
         # build up order of comparison
-        reverse = 'r' in opt
         comparisons = []
+        reverse = 1
         for key in opt:
-            if key == "d":
-                comparisons.append(FileBase._sort_directories_first)
+            if key in 'rR':
+                reverse = -1
             else:
+                if key.upper() == key:
+                    key = key.lower()
+                    reverse = -1
                 attr = FileBase._sort_attributes.get(key)
                 if attr:
-                    comparisons.append(lambda a,b,reverse: FileBase._sort_by_attribute(a, b, attr, reverse))
+                    comparisons.append(lambda a,b,rev=reverse,x=attr: rev*cmp(getattr(a, x), getattr(b, x)))
+                reverse = 1
 
         def compare(a, b):
             for comp in comparisons:
-                result = comp(a, b, reverse)
+                result = comp(a, b)
                 if result:
                     return result
             return 0
 
         return sorted(filelist, cmp=compare)
 
-    @staticmethod
-    def _sort_directories_first(a, b, reverse):
-        result = int(os.path.isdir(b.fullpath)) - int(os.path.isdir(a.fullpath))
-        return -result if reverse else result
-
-    @staticmethod
-    def _sort_by_attribute(a, b, attr, reverse):
-        result = cmp(getattr(a, attr), getattr(b, attr))
-        return -result if reverse else result
-
-    _sort_attributes = dict(x="ext", n="basepath", s="size", t="mtime")
+    _sort_attributes = dict(d="_dirkey", x="ext", n="basepath", s="_byte_size", t="mtime")
 
 
 def autodetect_file_type(path):
@@ -312,7 +359,7 @@ def autodetect_file_type(path):
         return FITSFile
     elif ext in [".png", ".jpg", ".jpeg"]:
         return ImageFile
-    elif ext in [".txt", ".log"]:
+    elif ext in [".txt", ".log", ".py", ".sh"]:
         return TextFile
     return FileBase
 
