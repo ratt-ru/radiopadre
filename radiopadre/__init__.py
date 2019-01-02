@@ -143,28 +143,41 @@ _setup_done = False
 
 def display_setup():
     data = [ ("cwd", os.getcwd()) ]
-    for varname in "DISPLAY_ROOTDIR", "ROOTDIR", "CACHEBASE", "URLBASE", "CACHEURLBASE":
+    for varname in "SERVER_BASEDIR", "DISPLAY_ROOTDIR", "ROOTDIR", "CACHEBASE", "URLBASE", "CACHEURLBASE":
         data.append((varname, globals()[varname]))
 
     display(HTML(render_table(data, ["", ""], numbering=False)))
 
+def _strip_slash(path):
+    return path if path == "/" or path is None else path.rstrip("/")
+
 if not _setup_done:
-    RADIOPADRE_ROOT_MOUNT = os.environ.get("RADIOPADRE_ROOT_MOUNT")
+    SERVER_BASEDIR = _strip_slash(os.environ.get('RADIOPADRE_SERVERDIR') or os.getcwd())
+
+    RADIOPADRE_ROOT_MOUNT = _strip_slash(os.environ.get("RADIOPADRE_ROOT_MOUNT"))
     CONTAINER_MODE = bool(RADIOPADRE_ROOT_MOUNT)
 
-    DISPLAY_ROOTDIR = os.environ.get("RADIOPADRE_ROOTDIR") or os.getcwd()
+    DISPLAY_ROOTDIR = _strip_slash(os.environ.get("RADIOPADRE_REALROOT") or os.getcwd())
 
     ROOTDIR = RADIOPADRE_ROOT_MOUNT or DISPLAY_ROOTDIR
     os.chdir(ROOTDIR)
-    os.path.split(ROOTDIR.rstrip("/"))
 
-    HOME_MOUNT = os.environ.get("RADIOPADRE_HOME_MOUNT") or os.path.expanduser("~")
-    FAKEROOT = os.environ.get("RADIOPADRE_FAKEROOT") or None
-    URLBASE = ""
-    CACHEURLBASE = ".radiopadre"
+    HOME_MOUNT = _strip_slash(os.environ.get("RADIOPADRE_HOME_MOUNT") or os.path.expanduser("~"))
+    FAKEROOT = _strip_slash(os.environ.get("RADIOPADRE_FAKEROOT", "")) or None
 
     if not FAKEROOT:
-        CACHEURLBASE = ".radiopadre"
+        # if the webserver is running in a parent directory, adjust URL bases
+        if not os.path.samefile(ROOTDIR, SERVER_BASEDIR):
+            if not ROOTDIR.startswith(SERVER_BASEDIR+"/"):
+                raise RuntimeError(
+                    "Current directory {} is not a subdirectory of the notebook server base dir {}. This is a bug!".format(
+                        ROOTDIR, SERVER_BASEDIR
+                    ))
+            URLBASE = ROOTDIR[len(SERVER_BASEDIR)+1:]
+            CACHEURLBASE = os.path.join(URLBASE, ".radiopadre")
+        else:
+            URLBASE = ""
+            CACHEURLBASE = ".radiopadre"
         CACHEBASE    = os.path.join(ROOTDIR, ".radiopadre")
     else:
         content = os.path.basename(FAKEROOT.rstrip("/"))
@@ -179,7 +192,7 @@ if not _setup_done:
 
     _setup_done = True
 
-    # Uncomment this when debugging paths setup
+    ## Uncomment the line below when debugging paths setup
     # display_setup()
 
 
