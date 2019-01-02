@@ -11,6 +11,7 @@ from radiopadre.notebook_utils import _notebook_save_hook
 from radiopadre.notebook_utils import scrub_cell
 
 import radiopadre.settings_manager
+from radiopadre.render import render_error
 
 _startup_warnings = []
 
@@ -36,7 +37,7 @@ from .filelist import FileList
 from .fitsfile import FITSFile
 from .imagefile import ImageFile
 from .casatable import CasaTable
-from .render import render_table, render_preamble, render_refresh_button, render_status_message, render_url, render_title
+from .render import render_table, render_preamble, render_refresh_button, render_status_message, rich_string, render_url, render_title
 
 try:
     __version__ = pkg_resources.require("radiopadre")[0].version
@@ -297,40 +298,69 @@ def unprotect():
     display(HTML(render_status_message("""This notebook is now unprotected.
         All users can treat it as read-write.""")))
 
-def _ls(sort='dxnt', basedir='.', *args):
-    """Creates a DirList from '.' non-recursively, optionally applying a pattern.
+def _ls(sort='dxnt', recursive=False, *args):
+    """Creates a DirList from the given arguments (name and/or patterns)
 
     Args:
         pattern: if specified, a wildcard pattern
     """
+    basedir = None
     include = []
+
     for arg in args:
+        # arguments starting with "-" are sort keys. 'R' foreces recursive mode
         if arg[0] == '-':
             sort = arg[1:]
+            if 'R' in sort:
+                recursive = True
+        # arguments with *? are include patterns. A slash forces recursive mode
         elif '*' in arg or '?' in arg:
             include.append(arg)
+            if '/' in arg:
+                recursive = True
+        # other arguments is a directory name
         else:
-            basedir = arg
-    return DataDir(basedir, include=include or None, sort=sort)
+            if basedir is None:
+                if not os.path.isdir(arg):
+                    return render_error("No such directory: {}".format(arg))
+                basedir = arg
+            else:
+                return render_error("Directory specified more than once: {} and {}".format(basedir, arg))
+    basedir = basedir or '.'
+    title = rich_string(os.path.abspath(basedir) if basedir == '.' else basedir, bold=True)
+    if recursive:
+        title.prepend("[R]")
+
+    return DataDir(basedir or '.', include=include or None, recursive=recursive, title=title, sort=sort)
 
 def ls(*args):
-    """Creates a DirList from '.' non-recursively, optionally applying a pattern.
-
-    Args:
-        pattern: if specified, a wildcard pattern
     """
-    return _ls('-dxnt', '.', *args)
+    Creates a DirList from '.' non-recursively, optionally applying a file selection pattern.
+    Sorts in default order (directory, extension, name, mtime)
+    """
+    return _ls('dxnt', False, *args)
+
+def lsR(*args):
+    """
+    Creates a DirList from '.' recursively, optionally applying a file selection pattern.
+    Sorts in default order (directory, extension, name, mtime)
+    """
+    return _ls('dxnt', True, *args)
+
 
 def lst(*args):
-    """Creates a DirList from '.' non-recursively, optionally applying a pattern.
-
-    Args:
-        pattern: if specified, a wildcard pattern
     """
-    return _ls('-dtxn', '.', *args)
+    Creates a DirList from '.' non-recursively, optionally applying a file selection pattern.
+    Sorts in time order (directory, mtime, extension, name)
+    """
+    return _ls('dtxn', False, *args)
 
 def lsrt(*args):
-    return _ls('-rtdxn', '.', *args)
+    """
+    Creates a DirList from '.' non-recursively, optionally applying a file selection pattern.
+    Sorts in reverse time order (directory, -mtime, extension, name)
+    """
+    return _ls('rtdxn', False, *args)
 
 
 def copy_current_notebook(oldpath, newpath, cell=0, copy_dirs='dirs', copy_root='root'):

@@ -61,7 +61,7 @@ class ImageFile(radiopadre.file.FileBase):
             filelist_row = filelist[row * ncol:(row + 1) * ncol]
             for name, image in filelist_row:
                 html += """<td style="border: 0px; text-align: center">"""
-                html += "<a href=%s target='_blank'>%s</a>" % (render_url(image), name)
+                html += "<a href='%s' target='_blank'>%s</a>" % (render_url(image), name)
                 html += "</td>\n"
             html += """</tr><tr style="border: 0px; text-align: left">\n"""
             for _, image in filelist_row:
@@ -81,10 +81,10 @@ class ImageFile(radiopadre.file.FileBase):
                         thumb = None
                 html += """<td style="border: 0px; text-align: left">"""
                 if thumb:
-                    html += "<a href=%s target='_blank'><img src=%s alt='?'></a>" % (
+                    html += "<a href='%s' target='_blank'><img src='%s' alt='?'></a>" % (
                         render_url(image), render_url(thumb))
                 else:
-                    html += "<a href=%s target='_blank'><img src=%s width=%d alt='?'></a>" % (
+                    html += "<a href='%s' target='_blank'><img src='%s' width=%d alt='?'></a>" % (
                         render_url(image), render_url(image), npix)
                 html += "</td>\n"
             html += "</tr>\n"

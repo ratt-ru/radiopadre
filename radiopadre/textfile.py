@@ -190,10 +190,7 @@ class TextFile(FileBase, NumberedLineList):
     def __init__(self, *args, **kw):
         FileBase.__init__(self, *args, **kw)
         NumberedLineList.__init__(self, [])
-        self.title = rich_string(self.path,
-                                 "<A HREF={} target='_blank'><B>{}</B></A>".format(
-                                    render_url(self.fullpath), self.path))
-        # needed to overrid stuff set by NumberedLineList.__init__()
+        # needed to override stuff set by NumberedLineList.__init__()
         self._scan_impl()
 
     def _load_impl(self):

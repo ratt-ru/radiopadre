@@ -128,7 +128,8 @@ class RadiopadreSettingsManager(SettingsManager):
 
         files = self.add_section("files", "file settings")  # generic settings
 
-        files.include       = "*.jpg *.png *.fits *.txt *.log", D("filename patterns to include in the listings. If None, all files will be included")
+#        files.include       = "*.jpg *.png *.fits *.txt *.log", D("filename patterns to include in the listings. If None, all files will be included")
+        files.include       = None, D("filename patterns to include in the listings. If None, all files will be included")
         files.exclude       = None, D("patterns to explicitly exclude from the listings")
         files.include_dir   = None, D("subdirectory patterns to include in the listings. If None, all subdirectories will be included")
         files.exclude_dir   = None, D("subdirectory patterns to explicitly exclude from the listings")

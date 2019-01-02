@@ -94,17 +94,17 @@ else:
 DEVZERO = open("/dev/zero")
 DEVNULL = open("/dev/null", "w")
 
-SSH_MUX_OPTS = [] # "-o ControlMaster=auto -o ControlPersist=1h -o ControlPath=/tmp/ssh_mux_%C".split()
+SSH_MUX_OPTS = "-o ControlPath=/tmp/ssh_mux_radiopadre_%C -o ControlMaster=auto -o ControlPersist=1h".split()
 
 SCP_OPTS = ["scp"] + SSH_MUX_OPTS
 SSH_OPTS = ["ssh","-tt"] + SSH_MUX_OPTS + [host]
 #SSH_OPTS = ["ssh"] + SSH_MUX_OPTS + [host]
 
 # master ssh connection, to be closed when we exit
-print "radiopadre: opening initial master connection to {}. You may be prompted for your password.".format(host)
+print "radiopadre: opening initial master connection to {} {}. You may be prompted for your password.".format(host, " ".join(SSH_OPTS))
 ssh_master = subprocess.check_call(SSH_OPTS + ["exit"]) # stdin=sys.stdin, stdout=sys.stdout, stderr=sys.stderr)
 
-#raw_input("Continue?")
+# raw_input("Continue?")
 
 def ssh_remote(command, fail_retcode=None, stderr=DEVNULL):
     """Runs command on remote host. Returns its output if the exit status is 0, or None if the exit status matches fail_retcode.
@@ -318,7 +318,7 @@ while True:
                     remote_jupyter_port, remote_js9helper_port, remote_http_port = remote_ports = match.groups()
                     print "radiopadre: Detected remote ports %s:%s:%s\r" % tuple(remote_ports)
 
-                    ssh2_args = list(SSH_OPTS)
+                    ssh2_args = ["ssh"] + SSH_MUX_OPTS + ["-O", "forward", host]
                     local_ports = []
                     starting_local_port = 10000+os.getuid()
                     for remoteport in remote_ports:
@@ -329,8 +329,8 @@ while True:
                         print "radiopadre: remote port %s, selecting local port %s\r" % (remoteport, localport)
                         ssh2_args += [ "-L", "localhost:%s:localhost:%s" % (localport, remoteport) ]
                     # start second ssh process to forward the port
-                    ssh2_args.append("sleep 100000d")
-                    ssh2 = subprocess.Popen(ssh2_args, stdin=DEVZERO, stdout=DEVNULL, stderr=DEVNULL)
+                    print "radiopadre: sending forward request to ssh mux process".format(ssh2_args)
+                    subprocess.call(ssh2_args)
 
                     # tell first ssh process the ports we have selected
                     print "radiopadre: Passing local port assignments to remote end"
@@ -356,11 +356,11 @@ while True:
                     print "Please surf to %s\n"%nb_root_path
     except KeyboardInterrupt:
         print "radiopadre: Ctrl+C caught"
-        subprocess.call(["ssh"] + SSH_MUX_OPTS + ["-O", "exit", host])
+#        print "radiopadre: sending exit request to ssh mux process..."
+#        raw_input("Continue?")
+#        subprocess.call(SSH_OPTS + ["-O", "exit", host])
+#        raw_input("Sent. Continue?")
         print "radiopadre: killing main ssh process..."
         ssh.kill()
-        if ssh2:
-            print "radiopadre: killing port-forwarding ssh process..."
-            ssh2.kill()
 
 os.system("reset")

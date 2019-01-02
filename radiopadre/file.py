@@ -6,7 +6,7 @@ from IPython.display import display, HTML
 
 import radiopadre
 from radiopadre import settings
-from radiopadre.render import render_refresh_button, rich_string, htmlize
+from radiopadre.render import render_refresh_button, rich_string, render_url
 from collections import OrderedDict
 from radiopadre import casacore_tables
 
@@ -35,7 +35,6 @@ class ItemBase(object):
 
     @property
     def title(self):
-        self.rescan(load=False)
         return self._title
 
     @title.setter
@@ -60,8 +59,8 @@ class ItemBase(object):
     def description(self, value):
         self._description = rich_string(value)
         if not self._summary_set:
-            self._summary = rich_string("{}: {}".format(self.title.text, self._description.text),
-                                       "{}: {}".format(self.title.html, self._description.html))
+            self._summary = rich_string("{}: {}".format(self._title.text, self._description.text),
+                                        "{}: {}".format(self._title.html, self._description.html))
 
     @property
     def summary(self):
@@ -216,11 +215,24 @@ class FileBase(ItemBase):
         """
         self.fullpath = path
         self.path = FileBase.get_display_path(path)
-        ItemBase.__init__(self, title=self.path if title is None else title)
+        if title is None:
+            if os.path.isdir(self.fullpath):
+                title = rich_string(self.path, bold=True)
+            else:
+                title = rich_string(self.path,
+                        "<A HREF='{}' target='_blank'><B>{}</B></A>".format(render_url(self.fullpath), self.path))
+
+        ItemBase.__init__(self, title=title)
 
         self.name = os.path.basename(self.fullpath)
         self.basepath, self.ext = os.path.splitext(self.path)
         self.basename = os.path.basename(self.basepath)
+
+        # directory key set up for sorting purposes
+        # directories sort themselves before files
+        isdir = int(os.path.isdir(self.fullpath))
+        self._dirkey = 1-isdir, os.path.dirname(self.fullpath)
+
         self._scan_impl()
         # timestamp of file last time content was loaded
         self._loaded_mtime = None
@@ -259,7 +271,6 @@ class FileBase(ItemBase):
         to be augmented by subclasses. Default version just gets filesize and mtime.
         """
         self.update_mtime()
-        self._is_directory = -int(os.path.isdir(self.fullpath))
         # get filesize
         size = self._byte_size = os.path.getsize(self.fullpath)
         # human-friendly size
@@ -325,7 +336,7 @@ class FileBase(ItemBase):
 
         return sorted(filelist, cmp=compare)
 
-    _sort_attributes = dict(d="_is_directory", x="ext", n="basepath", s="_byte_size", t="mtime")
+    _sort_attributes = dict(d="_dirkey", x="ext", n="basepath", s="_byte_size", t="mtime")
 
 
 def autodetect_file_type(path):

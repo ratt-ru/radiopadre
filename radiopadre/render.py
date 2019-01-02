@@ -60,6 +60,17 @@ class RichString(object):
         else:
             self._text += str(other)
             self._html += str(other)
+        return self
+
+    def prepend(self, other):
+        if type(other) is RichString:
+            self._text = other.text + self._text
+            self._html = other.html + self._html
+        else:
+            other = str(other)
+            self._text = other + self._text
+            self._html = other + self._html
+        return self
 
     def show(self):
         display(HTML(self.html))
@@ -107,6 +118,8 @@ def render_url(fullpath): # , prefix="files"):
 def render_title(title):
     return title.html if type(title) is RichString else "<b>{}</b>".format(cgi.escape(str(title)))
 
+def render_error(message):
+    return rich_string(message, "<SPAN style='color: red'>{}</SPAN>".format(message))
 
 def render_status_message(msg, bgcolor='lightblue'):
     return "<p style='background: {};'><b>{}</b></p>".format(bgcolor, cgi.escape(msg))
@@ -168,7 +181,7 @@ def render_table(data, labels, html=set(), ncol=1, links=None,
                 txt += "{}; {};".format(styles.get(labels[i], ""), styles.get((irow, labels[i]), ""))
                 link = links and links[idatum][i]
                 if link:
-                    txt += """"><A HREF=%s target='_blank'>%s</A></td>""" % (link, col)
+                    txt += """"><A HREF='%s' target='_blank'>%s</A></td>""" % (link, col)
                 else:
                     txt += """">%s</td>""" % col
 

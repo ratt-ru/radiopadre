@@ -60,10 +60,11 @@ class FileList(FileBase, list):
         self._reset_summary()
 
     def _reset_summary(self):
-        self.description = "{} files".format(self.nfiles)
+        desc = "{} files".format(self.nfiles)
         if self.ndirs:
-            self.description = self.description + ", {} dirs".format(self.ndirs)
-        self.size = self.description
+            desc += ", {} dirs".format(self.ndirs)
+        self.description = desc
+        self.size = desc
 
     def _call_collective_method(self, method, **kw):
         display(HTML(render_refresh_button(full=self._parent and self._parent.is_updated())))
@@ -160,7 +161,7 @@ class FileList(FileBase, list):
             else:
                 files += [f for f in self if fnmatch.fnmatch((f.path if self._showpath else f.name), patt)]
                 accepted_patterns.append(patt)
-        title = str(self._title)
+        title = self.title
         if accepted_patterns:
             if os.path.samefile(self.fullpath, radiopadre.ROOTDIR):
                 title = ",".join(accepted_patterns)
