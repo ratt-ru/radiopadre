@@ -89,10 +89,10 @@ class ItemBase(object):
 
     def _repr_pretty_(self, p, cycle):
         """
-        Implementation for the pretty-print method. Default uses the __str__() method.
+        Implementation for the pretty-print method. Default uses render_text(). Don't want to rescan!
         """
         if not cycle:
-            p.text(str(self))
+            p.text(self.render_text())
 
     def _repr_html_(self):
         """

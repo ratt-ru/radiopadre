@@ -105,10 +105,10 @@ def render_url(fullpath): # , prefix="files"):
     """Converts a path relative to the notebook (i.e. kernel) to a URL that
     can be served by the notebook server, by prepending the notebook
     directory"""
-    if fullpath.startswith(radiopadre.CACHEURLBASE):
-        url = os.path.normpath(os.path.join("/files", fullpath))
+    if fullpath.startswith('http://'):
+        url = fullpath
     else:
-        url = os.path.normpath(os.path.join("/files", radiopadre.URLBASE, fullpath))
+        url = os.path.normpath(os.path.join(radiopadre.URLBASE, fullpath))
     # print "{} URL is {}".format(fullpath, url)
     return url
 
@@ -121,8 +121,12 @@ def render_title(title):
 def render_error(message):
     return rich_string(message, "<SPAN style='color: red'>{}</SPAN>".format(message))
 
+def show_exception(message, exc_class=RuntimeError):
+    display(HTML("<SPAN style='color: red'>{}</SPAN>".format(message)))
+    return exc_class(message)
+
 def render_status_message(msg, bgcolor='lightblue'):
-    return "<p style='background: {};'><b>{}</b></p>".format(bgcolor, cgi.escape(msg))
+    return "<SPAN style='background: {};'><B>{}</B></SPAN>".format(bgcolor, cgi.escape(msg))
 
 
 def render_table(data, labels, html=set(), ncol=1, links=None,

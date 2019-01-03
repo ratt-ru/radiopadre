@@ -6,10 +6,12 @@ import subprocess
 import sys
 import glob
 import socket
+import shutil
 
 # get radiopadre install directory. __file__ is RADIOPADRE/bin/run-radiopadre, so take the dirname twice
 PADRE_PATH = os.path.abspath(os.path.dirname(os.path.dirname(__file__)))
-ROOTDIR = os.getcwd()
+ROOTDIR = os.path.abspath(os.getcwd())
+PADRE_WORKDIR = os.path.expanduser("~/.radiopadre")
 
 JUPYTER_OPTS = [
     "notebook",
@@ -91,44 +93,28 @@ message("  Using radiopadre install at {PADRE_PATH}")
 # check if a root directory needs to be faked
 # if not, make .radiopadre workdir
 if os.access(ROOTDIR, os.W_OK):
-    os.environ['RADIOPADRE_SERVERDIR'] = os.path.abspath(ROOTDIR)
-    os.environ['RADIOPADRE_FAKEROOT'] = ''
-    FAKEROOT = None
-    message("  Visualizing {ROOTDIR}, which is user-writeable, no fake")
-    PADRE_WORKDIR = os.path.join(ROOTDIR, ".radiopadre")
-    if os.path.exists(PADRE_WORKDIR):
-        if not os.access(PADRE_WORKDIR, os.W_OK):
-            print("WARNING: {} is not user-writeable, re-creating".format(PADRE_WORKDIR))
-            os.system("rm -fr {}".format(PADRE_WORKDIR))
-            os.mkdir(PADRE_WORKDIR)
-    else:
-        os.mkdir(PADRE_WORKDIR)
-# else fake a root dir
+    os.environ['RADIOPADRE_SERVER_BASEDIR'] = os.path.abspath(ROOTDIR)
+    shadowdir = orig_rootdir = None
 else:
+    orig_rootdir = ROOTDIR
+    shadowdir = os.path.join(PADRE_WORKDIR, ROOTDIR)
     # if ROOTDIR is /path/to/directory, split into /path/to and directory
-    absroot = os.path.abspath(ROOTDIR).rstrip("/")
-    content = os.path.basename(absroot)
-    os.environ['RADIOPADRE_FAKEROOT'] = FAKEROOT = os.path.expanduser("~/.radiopadre" + absroot)
-    os.environ['RADIOPADRE_REALROOT'] = ROOTDIR
-    message("  Visualizing {ROOTDIR}, which is not user-writeable, fake root directory needed:")
-    message("       running under {FAKEROOT}")
-    if not os.path.exists(FAKEROOT):
-        os.system("mkdir -p {}".format(FAKEROOT))
-    elif not os.access(FAKEROOT, os.W_OK):
-        bye("{} is not user-writeable. Try deleting it?".format(FAKEROOT))
-    PADRE_WORKDIR = os.path.join(FAKEROOT, ".radiopadre")
-    content = os.path.join(FAKEROOT, content)
-    if os.path.exists(content):
-        os.unlink(content)
-    os.symlink(ROOTDIR, content)
-    if not os.path.exists(PADRE_WORKDIR):
-        os.mkdir(PADRE_WORKDIR)
-    elif not os.access(PADRE_WORKDIR, os.W_OK):
-        bye("{} is not user-writeable. Try deleting it?".format(PADRE_WORKDIR))
-    os.chdir(FAKEROOT)
-    os.environ['RADIOPADRE_SERVERDIR'] = os.path.abspath(FAKEROOT)
+    message("  Target is {ROOTDIR}, which is not user-writeable. Will use a shadow directory instead.")
+    message("  Shadow directory is {shadowdir}")
+    if not os.path.exists(shadowdir):
+        os.system("mkdir -p {}".format(shadowdir))
+    os.chdir(shadowdir)
+    os.environ['RADIOPADRE_SERVER_BASEDIR'] = ROOTDIR = shadowdir
 
 ALL_NOTEBOOKS = glob.glob("*.ipynb")
+
+if shadowdir and not ALL_NOTEBOOKS:
+    orig_notebooks = glob.glob(os.path.join(orig_rootdir, "*.ipynb"))
+    if orig_notebooks:
+        message("  Copying {} notebooks from {}".format(len(orig_notebooks), orig_rootdir))
+        for nb in orig_notebooks:
+            shutil.copyfile(nb, '.')
+        ALL_NOTEBOOKS = glob.glob("*.ipynb")
 
 message("  Available notebooks: " + " ".join(ALL_NOTEBOOKS))
 
@@ -268,12 +254,12 @@ if LOAD_NOTEBOOK:
 
 child_processes = []
 
-os.environ['RADIOPADRE_HTTP_PORT'] = str(forwarded_http_port)
+os.environ['RADIOPADRE_SHADOW_URLBASE'] = "http://localhost:{}".format(forwarded_http_port)
 
 if js9dir:
     os.environ['RADIOPADRE_JS9_HELPER_PORT'] = str(forwarded_helper_port)
-    os.environ['RADIOPADRE_JS9_HTTP'] = "http://localhost:{}/".format(forwarded_http_port)
-    open(PADRE_WORKDIR + "/js9prefs.js", "w").write("JS9Prefs.globalOpts.helperPort = {};\n".format(forwarded_helper_port))
+    # os.environ['RADIOPADRE_JS9_HTTP'] = "http://localhost:{}/".format(forwarded_http_port)
+    open(PADRE_WORKDIR + ROOTDIR + "/.js9prefs.js", "w").write("JS9Prefs.globalOpts.helperPort = {};\n".format(forwarded_helper_port))
 
 try:
     helper_proc = None
@@ -284,17 +270,25 @@ try:
             try:
                 nodejs = subprocess.check_output("which nodejs || which node", shell=True)
             except subprocess.CalledProcessError:
+                nodejs = None
                 bye("Unable to find nodejs or node -- can't run js9helper. You need to apt-get install nodejs perhaps?")
-            child_processes.append(subprocess.Popen([nodejs.strip(), js9helper,
-                '{{"helperPort": {}}}'.format(helper_port)],
-                stdin=DEVZERO, stdout=sys.stdout, stderr=sys.stderr))
+            try:
+                os.chdir(PADRE_WORKDIR)
+                child_processes.append(subprocess.Popen([nodejs.strip(), js9helper,
+                    '{{"helperPort": {}}}'.format(helper_port)],
+                    stdin=DEVZERO, stdout=sys.stdout, stderr=sys.stderr))
+            finally:
+                os.chdir(ROOTDIR)
 
-    CWD = os.getcwd()
-    message("Starting HTTP server process in {CWD} on port {http_port}")
+    message("Starting HTTP server process in {PADRE_WORKDIR} on port {http_port}")
     args = [PADRE_VENV+"/bin/python", PADRE_PATH+"/bin/http_server.py", str(http_port)]
 #    if FAKEROOT:
 #        args.append("/.radiopadre/={}/".format(PADRE_WORKDIR))
-    child_processes.append(subprocess.Popen(args, stdin=DEVZERO, stdout=sys.stdout, stderr=sys.stderr))
+    try:
+        os.chdir(PADRE_WORKDIR)
+        child_processes.append(subprocess.Popen(args, stdin=DEVZERO, stdout=sys.stdout, stderr=sys.stderr))
+    finally:
+        os.chdir(ROOTDIR)
 
     message("Starting: jupyter notebook "+" ".join(JUPYTER_OPTS))
 
