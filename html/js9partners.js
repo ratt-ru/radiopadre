@@ -173,9 +173,11 @@ JS9pPartneredDisplays.prototype.loadImage = function(path, xsz, ysz, bin, averag
     else {
         this._block_callbacks = true
         this._loading = path
+        var from = new RegExp("^.*/")
+        var basename = path.replace(from, "")
         this.imps[path] = imp = new JS9pImageProps(this, xsz, ysz, bin, this.zoomsize.x, this.zoomsize.y)
         if( imp.zoomable ) {
-            this.setStatus(`Loading ${path} (downsampled preview), please wait...`)
+            this.setStatus(`Loading ${basename} (downsampled preview), please wait...`)
             this.setStatusRebin("Loading preview...")
             var binopt = average ? `${bin}a` : `${bin}`
             var opts = {fits2fits:true, xcen:(xsz/2>>0), ycen:(ysz/2>>0), xdim:xsz, ydim:ysz, bin:binopt,
@@ -186,7 +188,7 @@ JS9pPartneredDisplays.prototype.loadImage = function(path, xsz, ysz, bin, averag
             JS9.Preload(path, opts, {display:this.disp_rebin});
             this.showPreviewPanel(true)
         } else {
-            this.setStatus(`Loading ${path}, please wait...`)
+            this.setStatus(`Loading ${basename}, please wait...`)
             this.setStatusRebin('---') // empty text screws up sizes
             var opts = {fits2fits:false,
                         onload: im => this.onLoadNonzoomable(im, imp),
@@ -516,7 +518,7 @@ JS9pPartneredDisplays.prototype._updateZoomedSection = function(im, imp, zoom_ce
          }
     this.setDefaultImageOpts(opts)
     JS9p.log("  preloading", opts)
-    JS9.Preload(im.id, opts, {display: this.disp_zoom});
+    JS9.Preload(im.parentFile, opts, {display: this.disp_zoom});
 }
 
 // checkZoomRegion(im, xreg)

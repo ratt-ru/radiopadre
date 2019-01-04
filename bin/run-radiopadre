@@ -282,14 +282,15 @@ if LOAD_NOTEBOOK:
 child_processes = []
 
 os.environ['RADIOPADRE_SESSION_ID'] = session_id = uuid.uuid4().hex
-os.environ['RADIOPADRE_SHADOW_URLBASE'] = urlbase = "http://localhost:{}/".format(forwarded_http_port)
-#os.environ['RADIOPADRE_SHADOW_URLBASE'] = urlbase = "http://localhost:{}/{}/".format(forwarded_http_port, session_id)
+#os.environ['RADIOPADRE_SHADOW_URLBASE'] = urlbase = "http://localhost:{}/".format(forwarded_http_port)
+os.environ['RADIOPADRE_SHADOW_URLBASE'] = urlbase = "http://localhost:{}/{}/".format(forwarded_http_port, session_id)
 
 if js9dir:
     os.environ['RADIOPADRE_JS9_HELPER_PORT'] = str(forwarded_helper_port)
     # create JS9 settings file for session
     open(".radiopadre/js9prefs.js", "w").write(
-        "JS9Prefs.globalOpts.helperPort = {};\n".format(forwarded_helper_port))
+        "JS9Prefs.globalOpts.helperPort = {};\n".format(forwarded_helper_port)
+    )
     # URL to local settings file for this session
     os.environ['RADIOPADRE_JS9_SETTINGS'] = "{}{}/.radiopadre/js9prefs.js".format(urlbase, ABSROOTDIR.lstrip("/"))
 try:
@@ -308,7 +309,8 @@ try:
             try:
                 os.chdir(PADRE_WORKDIR)
                 child_processes.append(subprocess.Popen([nodejs.strip(), js9helper,
-                    '{{"helperPort": {}, "debug": {} }}'.format(helper_port, 1 if options.verbose else 0)],
+                    '{{"helperPort": {}, "debug": {}, "fileTranslate": ["^http://localhost:{}/[0-9a-f]+/", ""] }}'.format(
+                        helper_port, 1 if options.verbose else 0, http_port)],
                     stdin=DEVZERO, stdout=sys.stdout, stderr=sys.stderr))
             finally:
                 os.chdir(ROOTDIR)
