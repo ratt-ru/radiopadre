@@ -274,7 +274,7 @@ if options.remote:
 
 JUPYTER_OPTS.append("--port={}".format(jupyter_port))
 if not browser:
-    JUPYTER_OPTS.append("--no-browser --browser /dev/null") # --no-browser alone seems to be ignored
+    JUPYTER_OPTS.append("--no-browser --browser=/dev/null") # --no-browser alone seems to be ignored
 
 if LOAD_NOTEBOOK:
     JUPYTER_OPTS.append(LOAD_NOTEBOOK)
