@@ -65,10 +65,10 @@ if options.command in ["install", "reinstall", "js9"] and not options.no_js9:
             open(PADRE_VENV + "/js9status", "w").write("nodejs missing")
         bye("Unable to find nodejs or node -- can't install JS9. Try apt-get install nodejs perhaps, or run with --no-js9")
 
-# Create workdir
-if not os.path.exists(PADRE_WORKDIR):
-    message("Creating {PADRE_WORKDIR}")
-    os.mkdir(PADRE_WORKDIR)
+if options.command == "reinstall":
+    message("reinstall: burning it all down and starting over")
+    if os.path.exists(PADRE_WORKDIR):
+        shutil.rmtree(PADRE_WORKDIR)
 
 # Look for virtualenv. Burn it down if it needs a refresh.
 
@@ -77,14 +77,17 @@ complete_cookie = os.path.join(PADRE_VENV, ".complete")
 
 if os.path.exists(activation_script):
     message("Found existing radiopadre virtualenv in {PADRE_VENV}")
-    if options.command == "reinstall":
-        message("reinstall: burning it down and starting over")
-        shutil.rmtree(PADRE_WORKDIR)
-    elif options.command == "install":
+    if options.command == "install":
         if os.path.exists(complete_cookie):
             bye("Nothing to be installed. Re-run with 'reinstall' to reinstall everything from scratch instead.", 0)
         message("The installation appears to be incomplete. Burning it down and starting over.")
         shutil.rmtree(PADRE_WORKDIR)
+
+# Create workdir if needed
+if not os.path.exists(PADRE_WORKDIR):
+    message("Creating {PADRE_WORKDIR}")
+    os.mkdir(PADRE_WORKDIR)
+
 
 # check again, maybe we burned it down
 if not os.path.exists(activation_script):
