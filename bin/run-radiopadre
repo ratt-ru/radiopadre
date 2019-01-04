@@ -9,6 +9,58 @@ import socket
 import shutil
 import uuid
 
+import argparse
+
+def message(x, prefix='run-radiopadre: '):
+    print(prefix + x.format(**globals()))
+
+def bye(x, code=1):
+    message(x)
+    sys.exit(code)
+
+def shell(cmd):
+    return subprocess.call(cmd.format(**globals()), shell=True)
+
+
+
+parser = argparse.ArgumentParser(description="Runs radiopadre")
+
+# parser.add_option("--port-query",type=int,metavar="N",
+#                   help="looks for N unused ports and reports them. For internal use.");
+parser.add_argument("--bootstrap", action="store_true",
+                  help="automatically initialize radiopadre virtual environment, if missing.")
+parser.add_argument("--reinstall", action="store_true",
+                  help="reinstall radiopadre virtual environment before running.")
+parser.add_argument("--remote", action="store_true",
+                  help="runs script in remote mode. Normally used by run-remote-padre -- not to be invoked directly.")
+parser.add_argument("-b","--browser", action="store_true",
+                  help="open a browser session, even if running under ssh.")
+parser.add_argument("-n","--no-browser",action="store_true",
+                  help="do not open a browser session, even if running locally.")
+parser.add_argument("--no-default",action="store_true",
+                  help="do not create a default notebook automatically. Default is to create.")
+parser.add_argument("--no-casacore", action="store_true",
+                  help="Ignore casacore installation errors, if bootstrapping.")
+parser.add_argument("--no-js9", action="store_true",
+                  help="Ignore JS9 installation errors, if bootstrapping.")
+parser.add_argument("--verbose", action="store_true",
+                  help="Enable verbose output.")
+parser.add_argument("notebook", nargs="?",
+                  help="notebook to load, if given")
+
+options = parser.parse_args()
+
+# if explicit notebook directory is given, change into it before doing anything else
+if options.notebook:
+    if not os.path.exists(options.notebook):
+        bye("{} doesn't exist".format(options.notebook))
+    if os.path.isdir(options.notebook):
+        os.chdir(options.notebook)
+        options.notebook = '.'
+    else:
+        os.chdir(os.path.dirname(options.notebook))
+        options.notebook = os.path.basename(options.notebook)
+
 # get radiopadre install directory. __file__ is RADIOPADRE/bin/run-radiopadre, so take the dirname twice
 PADRE_PATH = os.path.abspath(os.path.dirname(os.path.dirname(__file__)))
 # cache and shadow dir base
@@ -47,46 +99,10 @@ JUPYTER_OPTS = [
     # "--NotebookApp.allow_origin='*'",
 ]
 
-import argparse
-parser = argparse.ArgumentParser(description="Runs radiopadre")
 
-# parser.add_option("--port-query",type=int,metavar="N",
-#                   help="looks for N unused ports and reports them. For internal use.");
-parser.add_argument("--bootstrap", action="store_true",
-                  help="automatically initialize radiopadre virtual environment, if missing.")
-parser.add_argument("--reinstall", action="store_true",
-                  help="reinstall radiopadre virtual environment before running.")
-parser.add_argument("--remote", action="store_true",
-                  help="runs script in remote mode. Normally used by run-remote-padre -- not to be invoked directly.")
-parser.add_argument("-b","--browser", action="store_true",
-                  help="open a browser session, even if running under ssh.")
-parser.add_argument("-n","--no-browser",action="store_true",
-                  help="do not open a browser session, even if running locally.")
-parser.add_argument("--no-default",action="store_true",
-                  help="do not create a default notebook automatically. Default is to create.")
-parser.add_argument("--no-casacore", action="store_true",
-                  help="Ignore casacore installation errors, if bootstrapping.")
-parser.add_argument("--no-js9", action="store_true",
-                  help="Ignore JS9 installation errors, if bootstrapping.")
-parser.add_argument("--verbose", action="store_true",
-                  help="Enable verbose output.")
-parser.add_argument("notebook", nargs="?",
-                  help="notebook to load, if given")
-
-options = parser.parse_args()
 
 DEVZERO = open("/dev/zero")
 DEVNULL = open("/dev/null", "w")
-
-def message(x, prefix='run-radiopadre: '):
-    print(prefix + x.format(**globals()))
-
-def bye(x, code=1):
-    message(x)
-    sys.exit(code)
-
-def shell(cmd):
-    return subprocess.call(cmd.format(**globals()), shell=True)
 
 activation_script = os.path.join(PADRE_VENV, "bin/activate_this.py")
 complete_cookie = os.path.join(PADRE_VENV, ".complete")
@@ -284,15 +300,18 @@ child_processes = []
 os.environ['RADIOPADRE_SESSION_ID'] = session_id = uuid.uuid4().hex
 #os.environ['RADIOPADRE_SHADOW_URLBASE'] = urlbase = "http://localhost:{}/".format(forwarded_http_port)
 os.environ['RADIOPADRE_SHADOW_URLBASE'] = urlbase = "http://localhost:{}/{}/".format(forwarded_http_port, session_id)
+js9prefs = None
 
 if js9dir:
     os.environ['RADIOPADRE_JS9_HELPER_PORT'] = str(forwarded_helper_port)
     # create JS9 settings file for session
-    open(".radiopadre/js9prefs.js", "w").write(
+    js9prefs = ".radiopadre/js9prefs.js"
+    open(js9prefs, "w").write(
         "JS9Prefs.globalOpts.helperPort = {};\n".format(forwarded_helper_port)
     )
     # URL to local settings file for this session
-    os.environ['RADIOPADRE_JS9_SETTINGS'] = "{}{}/.radiopadre/js9prefs.js".format(urlbase, ABSROOTDIR.lstrip("/"))
+    os.environ['RADIOPADRE_JS9_DIR'] = "{}js9-www/".format(urlbase)
+    os.environ['RADIOPADRE_JS9_SETTINGS'] = "{}{}/{}".format(urlbase, ABSROOTDIR.lstrip("/"), js9prefs)
 try:
     helper_proc = None
     if js9dir:
@@ -309,7 +328,8 @@ try:
             try:
                 os.chdir(PADRE_WORKDIR)
                 child_processes.append(subprocess.Popen([nodejs.strip(), js9helper,
-                    '{{"helperPort": {}, "debug": {}, "fileTranslate": ["^http://localhost:{}/[0-9a-f]+/", ""] }}'.format(
+                    ('{{"helperPort": {}, "debug": {}, ' +
+                     '"fileTranslate": ["^(http://localhost:{}/[0-9a-f]+/|/static/)", ""] }}').format(
                         helper_port, 1 if options.verbose else 0, http_port)],
                     stdin=DEVZERO, stdout=sys.stdout, stderr=sys.stderr))
             finally:

@@ -1,8 +1,6 @@
 import os
 import os.path
 import traceback
-import radiopadre
-from radiopadre.render import render_status_message
 
 # init JS9 configuration
 
@@ -12,6 +10,10 @@ DIRNAME = os.path.dirname(__file__)
 JS9_ERROR = os.environ.get("RADIOPADRE_JS9_ERROR") or None
 
 def init_js9():
+    global radiopadre
+    import radiopadre
+    from radiopadre.render import render_status_message
+
     global JS9_ERROR
     if JS9_ERROR:
         return

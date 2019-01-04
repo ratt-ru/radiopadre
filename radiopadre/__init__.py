@@ -9,7 +9,7 @@ from IPython.display import display, HTML, Javascript
 
 from radiopadre_utils.notebook_utils import scrub_cell
 
-import radiopadre.settings_manager
+from radiopadre import settings_manager
 from radiopadre.render import render_error, show_exception
 
 _startup_warnings = []
@@ -19,7 +19,7 @@ def add_startup_warning(message):
     _startup_warnings.append(message)
 
 # init settings
-settings = radiopadre.settings_manager.RadiopadreSettingsManager()
+settings = settings_manager.RadiopadreSettingsManager()
 
 try:
     import casacore.tables as casacore_tables
@@ -165,9 +165,6 @@ def init(rootdir=None, verbose=True):
     else:
         CACHE_URLBASE = SHADOW_URLBASE + ABSROOTDIR
 
-    import radiopadre.js9
-    radiopadre.js9.init_js9()
-
     ## Uncomment the line below when debugging paths setup
     if verbose:
         display_setup()
@@ -250,18 +247,22 @@ def _init_js_side():
 
     def reset():
         display(Javascript(reset_code))
-    settings.display.reset = reset, radiopadre.settings_manager.DocString("call this to reset sizes after e.g. a browser resize")
+
+    settings.display.reset = reset, settings_manager.DocString("call this to reset sizes after e.g. a browser resize")
 
     global _startup_warnings
     warns = "\n".join([render_status_message(msg, bgcolor='yellow') for msg in _startup_warnings])
 
+    import radiopadre.js9
 
-    display(HTML("""{}
-                    <script type='text/javascript'>
-                    document.radiopadre.register_user('{}');
-                    {}
-                    </script>
-                 """.format(warns, os.environ['USER'], reset_code, __version__)))
+    html = """{}
+            <script type='text/javascript'>
+            document.radiopadre.register_user('{}');
+            {}
+            </script>
+         """.format(warns, os.environ['USER'], reset_code)
+
+    display(HTML(html))
 
 
 def set_window_sizes(cell_width,window_width,window_height):
@@ -397,5 +398,8 @@ def copy_current_notebook(oldpath, newpath, cell=0, copy_dirs='dirs', copy_root=
 
 if ROOTDIR is None:
     init(os.getcwd(), False)
+    import radiopadre.js9
+    radiopadre.js9.init_js9()
     _init_js_side()
+
 
