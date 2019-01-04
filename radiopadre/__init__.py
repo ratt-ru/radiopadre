@@ -206,7 +206,7 @@ def get_cache_dir(path, subdir=None):
             raise RuntimeError("Trying to view non-writeable directory, but access to the shadow tree is not set up. This is a bug.")
         cachedir = SHADOW_HOME + basedir + "/.radiopadre"
         if not os.path.exists(cachedir):
-            os.mkdir(cachedir)
+            os.system("mkdir -p {}".format(cachedir))
 
     if not os.access(cachedir, os.W_OK):
         raise RuntimeError("Cache directory {} not user-writeable. Try removing it?".format(cachedir))
