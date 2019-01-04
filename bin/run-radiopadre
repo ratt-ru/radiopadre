@@ -21,7 +21,21 @@ ABSROOTDIR = ROOTDIR = os.path.abspath(os.getcwd())              # e.g. /home/ot
 SHADOWDIR = PADRE_WORKDIR + ROOTDIR                 # e.g. ~/.radiopadre/home/other/path
 if not os.path.exists(SHADOWDIR):
     os.system("mkdir -p {}".format(SHADOWDIR))
+
+# make .radiopadre in target dir, or in shadow dir
+cachedir = ABSROOTDIR+"/.radiopadre"
 cachelink = SHADOWDIR + "/.radiopadre"
+if os.access(ABSROOTDIR, os.W_OK):
+    if not os.path.exists(cachedir):
+        os.mkdir(cachedir)
+    if not os.path.exists(cachelink):
+        os.symlink(cachedir, cachelink)
+else:
+    if os.path.islink(cachelink):
+        os.unlink(cachelink)
+    if not os.path.exists(cachelink):
+        os.mkdir(cachelink)
+
 if not os.path.exists(cachelink):
     os.symlink(ABSROOTDIR+"/.radiopadre", cachelink)
 
