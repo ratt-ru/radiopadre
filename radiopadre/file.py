@@ -195,8 +195,8 @@ class FileBase(ItemBase):
         # if path not fully qualified, use it as is
         if not path.startswith("/"):
             return path
-        # if fully qualified, it must start with ROOTDIR/
-        rootdir = radiopadre.ROOTDIR + "/"
+        # if fully qualified, it must start with ABSROOTDIR/
+        rootdir = radiopadre.ABSROOTDIR + "/"
         if not path.startswith(rootdir):
             raise RuntimeError("Trying to access {}, which is outside the {} hierarchy".format(path, radiopadre.ROOTDIR))
         # which we strip
