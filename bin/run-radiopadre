@@ -274,7 +274,7 @@ if options.remote:
 
 JUPYTER_OPTS.append("--port={}".format(jupyter_port))
 if not browser:
-    JUPYTER_OPTS.append("--no-browser")
+    JUPYTER_OPTS.append("--no-browser --browser /dev/null") # --no-browser alone seems to be ignored
 
 if LOAD_NOTEBOOK:
     JUPYTER_OPTS.append(LOAD_NOTEBOOK)
@@ -282,7 +282,8 @@ if LOAD_NOTEBOOK:
 child_processes = []
 
 os.environ['RADIOPADRE_SESSION_ID'] = session_id = uuid.uuid4().hex
-os.environ['RADIOPADRE_SHADOW_URLBASE'] = urlbase = "http://localhost:{}/{}/".format(forwarded_http_port, session_id)
+os.environ['RADIOPADRE_SHADOW_URLBASE'] = urlbase = "http://localhost:{}/".format(forwarded_http_port)
+#os.environ['RADIOPADRE_SHADOW_URLBASE'] = urlbase = "http://localhost:{}/{}/".format(forwarded_http_port, session_id)
 
 if js9dir:
     os.environ['RADIOPADRE_JS9_HELPER_PORT'] = str(forwarded_helper_port)
@@ -294,9 +295,11 @@ if js9dir:
 try:
     helper_proc = None
     if js9dir:
+        os.environ['JS9_LOCAL_URL_PREFIX'] = urlbase
+        os.environ['JS9_LOCAL_FS_PREFIX'] = PADRE_WORKDIR + "/"
         js9helper = js9dir +"/js9Helper.js"
         if os.path.exists(js9helper):
-            message("Starting JS9 helper process on port {helper_port}")
+            message("Starting {js9helper} on port {helper_port}")
             try:
                 nodejs = subprocess.check_output("which nodejs || which node", shell=True)
             except subprocess.CalledProcessError:
@@ -305,15 +308,14 @@ try:
             try:
                 os.chdir(PADRE_WORKDIR)
                 child_processes.append(subprocess.Popen([nodejs.strip(), js9helper,
-                    '{{"helperPort": {}}}'.format(helper_port)],
+                    '{{"helperPort": {}, "debug": {} }}'.format(helper_port, 1 if options.verbose else 0)],
                     stdin=DEVZERO, stdout=sys.stdout, stderr=sys.stderr))
             finally:
                 os.chdir(ROOTDIR)
 
     message("Starting HTTP server process in {PADRE_WORKDIR} on port {http_port}")
     args = [PADRE_VENV+"/bin/python", PADRE_PATH+"/bin/http_server.py", str(http_port)]
-#    if FAKEROOT:
-#        args.append("/.radiopadre/={}/".format(PADRE_WORKDIR))
+
     try:
         os.chdir(PADRE_WORKDIR)
         child_processes.append(subprocess.Popen(args, stdin=DEVZERO,

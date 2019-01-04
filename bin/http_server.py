@@ -11,7 +11,8 @@ except ImportError: # Python 2
     from SimpleHTTPServer import SimpleHTTPRequestHandler
 
 path_id = "{}/{}".format(os.getcwd(), os.environ['RADIOPADRE_SESSION_ID'])
-path_rewrites = [(path_id, os.getcwd())]
+path_rewrites = []
+#path_rewrites = [(path_id, os.getcwd())]
 
 class CORSRequestHandler (SimpleHTTPRequestHandler):
     def end_headers (self):
@@ -20,9 +21,9 @@ class CORSRequestHandler (SimpleHTTPRequestHandler):
 
     def translate_path(self, path):
         path = SimpleHTTPRequestHandler.translate_path(self, path)
-        if not path.startswith(path_id):
-            print("HTTPServer: ignoring request for {}".format(path), file=sys.stderr)
-            return "/dev/null"
+#        if not path.startswith(path_id):
+#            print("HTTPServer: ignoring request for {}".format(path), file=sys.stderr)
+#            return "/dev/null"
         for src, dest in path_rewrites:
             if path.startswith(src):
                 newpath = dest + path[len(src):]
