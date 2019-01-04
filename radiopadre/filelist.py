@@ -100,6 +100,9 @@ class FileList(FileBase, list):
         def ext(df):
             return df.ext+"/" if os.path.isdir(df.path) else df.ext
 
+        def link(df):
+            return None if os.path.isdir(df.fullpath) else render_url(df.fullpath)
+
         if self._extcol:
             labels = ("{}name".format(arrow if primary_sort == "n" else ""),
                       "{}ext".format(arrow  if primary_sort == "x" else ""),
@@ -108,7 +111,7 @@ class FileList(FileBase, list):
             data = [((df.basepath if self._showpath else df.basename), ext(df),
                      df.size, df.mtime_str)
                     for df in self]
-            links = [(render_url(df.fullpath), render_url(df.fullpath), None, None) for df in self]
+            links = [(link(df), link(df), None, None) for df in self]
         else:
             labels = (arrow+"name" if primary_sort == "n" else
                           ("name {}ext".format(arrow) if primary_sort == "x" else "name"),
@@ -116,7 +119,7 @@ class FileList(FileBase, list):
                       "{}modified".format(arrow if primary_sort == "t" else ""))
             data = [((df.basepath if self._showpath else df.basename) + ext(df),
                      df.size, df.mtime_str) for df in self]
-            links = [(render_url(df.fullpath), None, None) for df in self]
+            links = [(link(df), None, None) for df in self]
         # get "action buttons" associated with each file
         preamble = OrderedDict()
         postscript = OrderedDict()

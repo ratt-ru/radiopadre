@@ -24,11 +24,13 @@ def init_js9():
     global JS9_HELPER_PORT
     global JS9_INIT_HTML_HTTP
     global JS9_SCRIPT_PREFIX
+    global JS9_LOCAL_SETTINGS
 
     RADIOPADRE_INSTALL_PREFIX = _prefix + "/radiopadre-www" # URL used to access radiopadre code
     RADIOPADRE_LOCAL_PREFIX = os.path.join(_prefix, radiopadre.ABSROOTDIR, ".radiopadre")                     # URL used to access radiopadre aux dir
     JS9_INSTALL_PREFIX = _prefix+"/js9-www"  # URL used to access JS9 code
     JS9_SCRIPT_PREFIX = _prefix
+    JS9_LOCAL_SETTINGS = os.environ["RADIOPADRE_JS9_SETTINGS"]
 
     try:
         JS9_HELPER_PORT = int(os.environ["RADIOPADRE_JS9_HELPER_PORT"])

@@ -1,4 +1,5 @@
 #!/usr/bin/env python
+from __future__ import print_function
 import sys
 import os
 
@@ -9,7 +10,8 @@ except ImportError: # Python 2
     from BaseHTTPServer import HTTPServer
     from SimpleHTTPServer import SimpleHTTPRequestHandler
 
-path_rewrites = []
+path_id = "{}/{}".format(os.getcwd(), os.environ['RADIOPADRE_SESSION_ID'])
+path_rewrites = [(path_id, os.getcwd())]
 
 class CORSRequestHandler (SimpleHTTPRequestHandler):
     def end_headers (self):
@@ -18,10 +20,13 @@ class CORSRequestHandler (SimpleHTTPRequestHandler):
 
     def translate_path(self, path):
         path = SimpleHTTPRequestHandler.translate_path(self, path)
+        if not path.startswith(path_id):
+            print("HTTPServer: ignoring request for {}".format(path), file=sys.stderr)
+            return "/dev/null"
         for src, dest in path_rewrites:
             if path.startswith(src):
                 newpath = dest + path[len(src):]
-                print("Rewriting {}->{}".format(path, newpath))
+                print("HTTPServer: rewriting {}->{}".format(path, newpath), file=sys.stderr)
                 return newpath
         return path
 
@@ -31,9 +36,11 @@ if __name__ == '__main__':
             src, dest = arg.split("=", 1)
             src = os.getcwd() + src
             path_rewrites.append((src, dest))
-            print("Will rewrite {}->{}".format(src, dest))
+            print("HTTPServer: will rewrite {}->{}".format(src, dest))
+    port = int(sys.argv[1])
+    print("HTTPServer: starting on port {}".format(port))
 
-    server_address = ('localhost', int(sys.argv[1]))
+    server_address = ('localhost', port)
     httpd = HTTPServer(server_address, CORSRequestHandler)
     httpd.serve_forever()
 

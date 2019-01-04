@@ -359,20 +359,25 @@ class FITSFile(radiopadre.file.FileBase):
                 plt.ylim(*ylim)
         return status
 
+    def _make_cache_symlink(self):
+        """Makes a symlink from the cache directory to the FITS file. Needed for JS9 to load it."""
+        cachedir, cachedir_url = radiopadre.get_cache_dir(self.fullpath, "js9-launch")
+        symlink = "{}/{}".format(cachedir, self.name)
+        if not os.path.exists(symlink):
+            os.symlink(os.path.abspath(self.fullpath), symlink)
+        return "{}/{}".format(cachedir_url, self.name)
+
     def _make_js9_launch_command(self, display_id):
         """Internal method: formats up Javascript statement to load the image into a JS9pPartneredDisplay"""
         xsize, ysize = self.shape[:2]
         bin = math.ceil(max(self.shape[:2])/float(settings.fits.js9_preview_size))
-        return "JS9p._pd_{display_id}.loadImage('{self.fullpath}', {xsize}, {ysize}, {bin}, true);".format(**locals())
+        image_link = self._make_cache_symlink()
+        return "JS9p._pd_{display_id}.loadImage('{image_link}', {xsize}, {ysize}, {bin}, true);".format(**locals())
 
     @staticmethod
     def _make_js9_external_window_script(fits_files, basename, subs, **kw):
         # creates an HTML script per each image, by replacing various arguments in a templated bit of html
         cachedir, cachedir_url = radiopadre.get_cache_dir(fits_files[0].fullpath, "js9-launch")
-        for ff in fits_files:
-            symlink = "{}/{}".format(cachedir, ff.name)
-            if not os.path.exists(symlink):
-                os.symlink(os.path.abspath(ff.fullpath), symlink)
         js9_target = "{cachedir}/js9-{basename}-newtab.html".format(**locals())
 
         subs['xzoom'] = int(settings.fits.max_js9_slice * settings.display.window_width/float(settings.display.window_height))

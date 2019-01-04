@@ -4,12 +4,10 @@ import nbformat
 import astropy
 import os
 import pkg_resources
-import radiopadre.notebook_utils
 import traceback
 from IPython.display import display, HTML, Javascript
 
-from radiopadre.notebook_utils import _notebook_save_hook
-from radiopadre.notebook_utils import scrub_cell
+from radiopadre_utils.notebook_utils import scrub_cell
 
 import radiopadre.settings_manager
 from radiopadre.render import render_error, show_exception
@@ -48,97 +46,7 @@ except pkg_resources.DistributionNotFound:
 ## various notebook-related init
 astropy.log.setLevel('ERROR')
 
-# We need to be able to look at both the user's own files, and other users' files. We also need to be able to run
-# in a container. Consider also that:
-#
-#   1. Jupyter will only serve files under the directory it is started in (as /files/xxx)
-#   2. The notebook should reside in the Jupyter starting directory, and be writeable by the user
-#   3. We need a user-writeable cache directory to store thumbnails, JS9 launch scripts, etc. This must also reside
-#      under the starting directory (to be servable by Jupyter). Ideally, we want to use .radiopadre inside
-#      the actual subdirectory being viewed, but what if we don't own it?
-#   4. If running in a container, the data directory might be mounted under some funny prefix (e.g. /mnt/data) that the user
-#      doesn't recognize, this needs to be stripped out from pathnames
-#
-# Point (1) means we have to select a directory to be visualized in advance, and we can't go outside of that hierarchy.
-# So let's say the user wants to be looking at /path/to/directory. We call this
-#
-#       DISPLAY_ROOTDIR = /path/to/directory
-#
-# Let's then assume the user is displaying the content of dir=/path/to/directory/foo/bar/.
-#
-# We have two ways of running radiopadre: native (or in a virtual environment), or in a container. The following
-# scenarios then arise:
-#
-# I.   Native, /path/to/directory is user-writeable
-#
-#       Jupyter starting dir is /path/to/directory
-#       ROOTDIR      = CWD = DISPLAY_ROOTDIR = /path/to/directory
-#       CACHEBASE    = ROOTDIR/.radiopadre
-#       URLBASE      =
-#       CACHEURLBASE = .radiopadre
-#       FAKEROOT     = False
-#
-# II.  Native, /path/to/directory is not user-writeable. We have to fake a directory in the user's $HOME.
-#
-#       Startup script will create a "fake" directory ~/.radiopadre/path/to/directory if needed, populate
-#       it with a default notebook, and make a symlink "content" -> /path/to/directory
-#       Jupyter starting dir is the fake dir, ~/.radiopadre/path/to/directory
-#
-#       ROOTDIR       = CWD = DISPLAY_ROOTDIR = /path/to/directory
-#       CACHEBASE     = ~/.radiopadre/path/to/directory/cache
-#       URLBASE       = content
-#       CACHEURLBASE  = cache
-#       FAKEROOT      = ~/.radiopadre/path/to/directory/
-#
-# III. Running in container, /path/to/directory is user-writeable, mounted under ROOT_MOUNT
-#
-#       DISPLAY_ROOTDIR = /path/to/directory
-#       ROOTDIR      = CWD = ROOT_MOUNT
-#       CACHEBASE    = ROOTDIR/.radiopadre
-#       URLBASE      =
-#       CACHEURLBASE = .radiopadre
-#       FAKEROOT     = False
-#
-# IV.  Running in container, /path/to/directory is not user-writeable, mounted under ROOT_MOUNT.
-#      User's directory will be mounted under HOME_MOUNT.
-#      Startup script will create a "fake" directory HOME_MOUNT/.radiopadre/path/to/directory if needed, populate
-#      it with a default notebook, and make a symlink "content" -> ROOT_MOUNT
-#      Jupyter starting dir is the fake dir, HOME_MOUNT/.radiopadre/path/to/directory
-#
-#       DISPLAY_ROOTDIR = /path/to/directory
-#       ROOTDIR      = CWD = ROOT_MOUNT
-#       CACHEBASE    = HOME_MOUNT/.radiopadre/path/to/directory/cache
-#       URLBASE      = content
-#       CACHEURLBASE = cache
-#       FAKEROOT     = HOME_MOUNT/.radiopadre/path/to/directory/
-#
-# Summarizing this into rules on variable setup:
-#
-#       DISPLAY_ROOTDIR = /path/to/directory        # always
-#       ROOTDIR = CWD = DISPLAY_ROOTDIR             # in native mode
-#                     = $RADIOPADRE_ROOT_MOUNT      # in container mode
-#       HOME_MOUNT    = ~                           # in native mode
-#                     = $RADIOPADRE_HOME_MOUNT      # in container mode
-#       CACHEBASE     = ROOTDIR/.radiopadre         # if not FAKEROOT
-#                       HOME_MOUNT/.radiopadre/path/to/directory/  # if FAKEROOT
-#       URLBASE       =                             # if not FAKEROOT
-#                     = content                     # if FAKEROOT
-#       CACHEURLBASE  = .radiopadre                 # if not FAKEROOT
-#                     = .radiopadre/content         # if FAKEROOT
-#
 # NONE OF THE DIR NAMES ABOVE SHALL HAVE A TRALING SLASH!!!
-#
-# Cache dir rules are as follows:
-#       When looking at dir=/path/to/directory/foo/bar, if dir is user-writeable, use
-#       /path/to/directory/foo/bar/.radiopadre for cache (URLBASE/foo/bar/.radiopadre is the URL), else
-#       CACHEBASE/foo/bar (CACHEURLBASE/foo/bar is the URL)
-#
-# Rewriting rules are as follows:
-#
-#       1. Displayed paths always replace a leading ROOTDIR with DISPLAY_ROOTDIR
-#       2. URLs for the native HTTP server (for e.g. JS9) replace /files with ""
-#
-# When starting up, we check if RADIOPADRE_ROOT_MOUNT is set, and assume container mode if so
 
 def display_setup():
     data = [ ("cwd", os.getcwd()) ]
@@ -167,6 +75,9 @@ def _make_symlink(source, link_name):
         show_exception("""
             Error creating {} symlink. This is a permissions problem, or a bug!""".format(link_name))
 
+# NONE OF THE DIR NAMES BELOW SHALL HAVE A TRALING SLASH!!!
+# Use _strip_slash() when in doubt.
+
 ABSROOTDIR = None       # absolute path to "root" directory, e.g. /home/user/path/to
 ROOTDIR = None          # relative path to "root" diretcory (normally .)
 DISPLAY_ROOTDIR = None  # what the root directory should be rewritten as, for display purposes
@@ -175,7 +86,8 @@ SERVER_BASEDIR = None   # base dir where the Jupyter server is running, e.g. /ho
 SHADOW_ROOTDIR = None   # "root" directory in shadow tree, e.g. ~/.radiopadre/home/user/path/to
 SHADOW_URLBASE = None   # base URL for HTTP server serving shadow tree (e.g. http://localhost:port/xxx)
 URLBASE = None          # base URL for accessing files through Jupyter (e.g. /files/to)
-CACHE_URLBASE = None    # base URL for cache, e.g. http://localhost:port/home/user/path
+SESSION_ID = None       # session ID, used to access cache server etc.
+CACHE_URLBASE = None    # base URL for cache, e.g. http://localhost:port/{SESSION_ID}/home/user/path
 
 def init(rootdir=None, verbose=True):
     global ABSROOTDIR
@@ -186,6 +98,7 @@ def init(rootdir=None, verbose=True):
     global SHADOW_ROOTDIR
     global SHADOW_URLBASE
     global URLBASE
+    global SESSION_ID
     global CACHE_URLBASE
 
     rootdir =_strip_slash(os.path.abspath(rootdir or '.'))
@@ -197,28 +110,25 @@ def init(rootdir=None, verbose=True):
     SERVER_BASEDIR  = _strip_slash(os.path.abspath(os.environ.get('RADIOPADRE_SERVER_BASEDIR') or os.getcwd()))
     DISPLAY_ROOTDIR = _strip_slash(os.environ.get("RADIOPADRE_DISPLAY_ROOT") or '.')
     SHADOW_URLBASE  = _strip_slash(os.environ.get('RADIOPADRE_SHADOW_URLBASE'))
+    SESSION_ID      = os.environ.get('RADIOPADRE_SESSION_ID')
 
     ALIEN_MODE = _is_subdir(SERVER_BASEDIR, SHADOW_HOME)
 
     # if our rootdir is ~/.radiopadre/home/alien/path/to, then change it to /home/alien/path/to
     if _is_subdir(ABSROOTDIR, SHADOW_HOME):
-        ABSROOTDIR = ABSROOTDIR[:len(SHADOW_HOME)]
+        ABSROOTDIR = ABSROOTDIR[len(SHADOW_HOME):]
     # and this will be ~/.radiopadre/home/alien/path/to
     SHADOW_ROOTDIR = SHADOW_HOME + ABSROOTDIR
 
     # setup for alien mode. Browsing /home/alien/path/to, where "alien" is a different user
     if ALIEN_MODE:
-        # if not SHADOW_URLBASE:
-        #     raise show_exception("""Radiopadre alien mode is not set up properly (SHADOW_URLBASE is not specified).
-        #                          This is a bug!""")
-
         # for a Jupyter basedir of ~/.radiopadre/home/alien/path, this becomes /home/alien/path
-        unshadowed_server_base = SERVER_BASEDIR[:len(SHADOW_HOME)]
+        unshadowed_server_base = SERVER_BASEDIR[len(SHADOW_HOME):]
         # Otherwise it'd better have been /home/alien/path/to to begin with!
         if not _is_subdir(ABSROOTDIR, unshadowed_server_base):
             raise show_exception("""
-                The requested directory {ABSROOTDIR} is not under {unshadowed_server_base}.
-                This is probably a bug! """.format(**locals()))
+                The requested directory {} is not under {}.
+                This is probably a bug! """.format(ABSROOTDIR, unshadowed_server_base))
         # Since Jupyter is running under ~/.radiopadre/home/alien/path, we can serve alien's files from
         # /home/alien/path/to as /files/to/.content
         subdir = SHADOW_ROOTDIR[len(SERVER_BASEDIR):]   # this becomes "/to" (or "" if paths are the same)
@@ -357,10 +267,6 @@ def _init_js_side():
 def set_window_sizes(cell_width,window_width,window_height):
     settings.display.cell_width, settings.display.window_width, settings.display.window_height = cell_width, window_width, window_height
 
-# call this once
-_init_js_side()
-
-
 
 def protect(author=None):
     """Makes current notebook protected with the given author name. Protected notebooks won't be saved
@@ -491,4 +397,5 @@ def copy_current_notebook(oldpath, newpath, cell=0, copy_dirs='dirs', copy_root=
 
 if ROOTDIR is None:
     init(os.getcwd(), False)
+    _init_js_side()
 

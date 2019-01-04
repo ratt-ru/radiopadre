@@ -53,12 +53,19 @@ class DataDir(FileList):
         self._browse_mode = include is None
 
         # use global settings for some parameters that are not specified
+        self._default_include_empty, self._default_show_hidden = include_empty, show_hidden
+        self._default_include, self._default_exclude = include, exclude
+        self._default_include_dir, self._default_exclude_dir = include_dir, exclude_dir
+        # the line below only serves to keep pycharm happy (otherwise it thinks the attributes are not initialized)
         self._include = self._exclude = self._include_dir = self._exclude_dir = None
+
         self._include_empty, self._show_hidden = settings.files.get(include_empty=include_empty, show_hidden=show_hidden)
         for option in 'include', 'exclude', 'include_dir', 'exclude_dir':
+            # store keyword args to be passed to subdirs
+            argvalue = getattr(self,"_default_"+option)
             # this will set value to the value of the given keyword arg, or global setting if None, or default if None
             default = "*" if option[:3] == "inc" else ""
-            value = settings.files.get(default, **{option: locals()[option]})
+            value = settings.files.get(default, **{option: argvalue})
             if type(value) is str:
                 value = value.split(", ")
             value = list(value)
@@ -140,9 +147,10 @@ class DataDir(FileList):
         content = []
         for filetype, path in self:
             if filetype is DataDir:
-                object = DataDir(path, include=self._include, exclude=self._exclude,
-                                 include_dir=self._include_dir, exclude_dir=self._exclude_dir,
-                                 include_empty=self._include_empty, show_hidden=self._show_hidden, sort=self._sort)
+                object = DataDir(path, include=self._default_include, exclude=self._default_exclude,
+                                 include_dir=self._default_include_dir, exclude_dir=self._default_exclude_dir,
+                                 include_empty=self._default_include_empty, show_hidden=self._default_show_hidden,
+                                 sort=self._sort)
 #                                 _skip_js_init=self._skip_js_init)
             else:
                 object = filetype(path)

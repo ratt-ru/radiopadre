@@ -7,15 +7,28 @@ import sys
 import glob
 import socket
 import shutil
+import uuid
 
 # get radiopadre install directory. __file__ is RADIOPADRE/bin/run-radiopadre, so take the dirname twice
 PADRE_PATH = os.path.abspath(os.path.dirname(os.path.dirname(__file__)))
-ROOTDIR = os.path.abspath(os.getcwd())
+# cache and shadow dir base
 PADRE_WORKDIR = os.path.expanduser("~/.radiopadre")
+# virtual environment
+PADRE_VENV = PADRE_WORKDIR + "/venv"
+# target directory
+ABSROOTDIR = ROOTDIR = os.path.abspath(os.getcwd())              # e.g. /home/other/path
+# shadow of target directory
+SHADOWDIR = PADRE_WORKDIR + ROOTDIR                 # e.g. ~/.radiopadre/home/other/path
+if not os.path.exists(SHADOWDIR):
+    os.system("mkdir -p {}".format(SHADOWDIR))
+cachelink = SHADOWDIR + "/.radiopadre"
+if not os.path.exists(cachelink):
+    os.symlink(ABSROOTDIR+"/.radiopadre", cachelink)
+
 
 JUPYTER_OPTS = [
     "notebook",
-    "--ContentsManager.pre_save_hook=radiopadre.notebook_utils._notebook_save_hook",
+    "--ContentsManager.pre_save_hook=radiopadre_utils.notebook_utils._notebook_save_hook",
     "--ContentsManager.allow_hidden=True",
     # "--NotebookApp.allow_origin='*'",
 ]
@@ -48,8 +61,6 @@ options = parser.parse_args()
 
 DEVZERO = open("/dev/zero")
 DEVNULL = open("/dev/null", "w")
-
-PADRE_VENV = os.path.expanduser("~/.radiopadre-venv")
 
 def message(x, prefix='run-radiopadre: '):
     print(prefix + x.format(**globals()))
@@ -94,26 +105,26 @@ message("  Using radiopadre install at {PADRE_PATH}")
 # if not, make .radiopadre workdir
 if os.access(ROOTDIR, os.W_OK):
     os.environ['RADIOPADRE_SERVER_BASEDIR'] = os.path.abspath(ROOTDIR)
-    shadowdir = orig_rootdir = None
+    orig_rootdir = None
 else:
-    orig_rootdir = ROOTDIR
-    shadowdir = os.path.join(PADRE_WORKDIR, ROOTDIR)
-    # if ROOTDIR is /path/to/directory, split into /path/to and directory
     message("  Target is {ROOTDIR}, which is not user-writeable. Will use a shadow directory instead.")
-    message("  Shadow directory is {shadowdir}")
-    if not os.path.exists(shadowdir):
-        os.system("mkdir -p {}".format(shadowdir))
-    os.chdir(shadowdir)
-    os.environ['RADIOPADRE_SERVER_BASEDIR'] = ROOTDIR = shadowdir
+    message("  Shadow directory is {SHADOWDIR}")
+    orig_rootdir = ROOTDIR
+    os.environ['RADIOPADRE_SERVER_BASEDIR'] = ROOTDIR = SHADOWDIR
+    os.chdir(SHADOWDIR)
+
+if not os.path.exists(".radiopadre"):
+    os.mkdir(".radiopadre")
 
 ALL_NOTEBOOKS = glob.glob("*.ipynb")
 
-if shadowdir and not ALL_NOTEBOOKS:
+if orig_rootdir and not ALL_NOTEBOOKS:
     orig_notebooks = glob.glob(os.path.join(orig_rootdir, "*.ipynb"))
     if orig_notebooks:
+        message("  No notebooks in shadow directory, will copy notebooks from target.")
         message("  Copying {} notebooks from {}".format(len(orig_notebooks), orig_rootdir))
         for nb in orig_notebooks:
-            shutil.copyfile(nb, '.')
+            shutil.copyfile(nb, './' + os.path.basename(nb))
         ALL_NOTEBOOKS = glob.glob("*.ipynb")
 
 message("  Available notebooks: " + " ".join(ALL_NOTEBOOKS))
@@ -250,17 +261,20 @@ if not browser:
     JUPYTER_OPTS.append("--no-browser")
 
 if LOAD_NOTEBOOK:
-    JUPYTER_OPTS.append(os.path.abspath(LOAD_NOTEBOOK))
+    JUPYTER_OPTS.append(LOAD_NOTEBOOK)
 
 child_processes = []
 
-os.environ['RADIOPADRE_SHADOW_URLBASE'] = "http://localhost:{}".format(forwarded_http_port)
+os.environ['RADIOPADRE_SESSION_ID'] = session_id = uuid.uuid4().hex
+os.environ['RADIOPADRE_SHADOW_URLBASE'] = urlbase = "http://localhost:{}/{}/".format(forwarded_http_port, session_id)
 
 if js9dir:
     os.environ['RADIOPADRE_JS9_HELPER_PORT'] = str(forwarded_helper_port)
-    # os.environ['RADIOPADRE_JS9_HTTP'] = "http://localhost:{}/".format(forwarded_http_port)
-    open(PADRE_WORKDIR + ROOTDIR + "/.js9prefs.js", "w").write("JS9Prefs.globalOpts.helperPort = {};\n".format(forwarded_helper_port))
-
+    # create JS9 settings file for session
+    open(".radiopadre/js9prefs.js", "w").write(
+        "JS9Prefs.globalOpts.helperPort = {};\n".format(forwarded_helper_port))
+    # URL to local settings file for this session
+    os.environ['RADIOPADRE_JS9_SETTINGS'] = "{}{}/.radiopadre/js9prefs.js".format(urlbase, ABSROOTDIR.lstrip("/"))
 try:
     helper_proc = None
     if js9dir:
@@ -286,11 +300,11 @@ try:
 #        args.append("/.radiopadre/={}/".format(PADRE_WORKDIR))
     try:
         os.chdir(PADRE_WORKDIR)
-        child_processes.append(subprocess.Popen(args, stdin=DEVZERO, stdout=sys.stdout, stderr=sys.stderr))
+        child_processes.append(subprocess.Popen(args, stdin=DEVZERO, stdout=DEVNULL, stderr=DEVNULL))
     finally:
         os.chdir(ROOTDIR)
 
-    message("Starting: jupyter notebook "+" ".join(JUPYTER_OPTS))
+    message("Starting: jupyter "+" ".join(JUPYTER_OPTS))
 
     ## start jupyter process
 

@@ -32,7 +32,8 @@ parser.add_argument("--cfitsio-path", metavar="DIR", type=str, default="/usr",
 
 options = parser.parse_args()
 
-PADRE_VENV = os.path.expanduser("~/.radiopadre-venv")
+PADRE_WORKDIR = os.path.expanduser("~/.radiopadre")
+PADRE_VENV = os.path.expanduser("~/.radiopadre/venv")
 
 def message(x, prefix='install-radiopadre: '):
     print(prefix + x.format(**globals()))
@@ -60,11 +61,14 @@ if options.command in ["install", "reinstall", "js9"] and not options.no_js9:
     try:
         nodejs = subprocess.check_output("which nodejs || which node", shell=True)
     except subprocess.CalledProcessError:
-        if os.path.exists((PADRE_VENV):)
+        if os.path.exists(PADRE_VENV):
             open(PADRE_VENV + "/js9status", "w").write("nodejs missing")
         bye("Unable to find nodejs or node -- can't install JS9. Try apt-get install nodejs perhaps, or run with --no-js9")
-    nodejs = subprocess.check_output("which nodejs || which node", shell=True)
 
+# Create workdir
+if not os.path.exists(PADRE_WORKDIR):
+    message("Creating {PADRE_WORKDIR}")
+    os.mkdir(PADRE_WORKDIR)
 
 # Look for virtualenv. Burn it down if it needs a refresh.
 
@@ -75,12 +79,12 @@ if os.path.exists(activation_script):
     message("Found existing radiopadre virtualenv in {PADRE_VENV}")
     if options.command == "reinstall":
         message("reinstall: burning it down and starting over")
-        shutil.rmtree(PADRE_VENV)
+        shutil.rmtree(PADRE_WORKDIR)
     elif options.command == "install":
         if os.path.exists(complete_cookie):
             bye("Nothing to be installed. Re-run with 'reinstall' to reinstall everything from scratch instead.", 0)
         message("The installation appears to be incomplete. Burning it down and starting over.")
-        shutil.rmtree(PADRE_VENV)
+        shutil.rmtree(PADRE_WORKDIR)
 
 # check again, maybe we burned it down
 if not os.path.exists(activation_script):
@@ -94,6 +98,7 @@ if not os.path.exists(activation_script):
     message("Creating radiopadre virtualenv in {PADRE_VENV}")
     if shell("virtualenv " + PADRE_VENV):
         bye("Failed to create virtualenv")
+
 
 message("Activating virtualenv")
 execfile(activation_script, dict(__file__=activation_script))
@@ -139,6 +144,7 @@ if options.command in ["install", "reinstall", "reqs"]:
     colormap_js = notebook_dir + "/notebook/static/js9colormaps.js"
     message("creating colormap definitions in {colormap_js}")
     shell("{PADRE_PATH}/bin/install-js9-colormaps {colormap_js}")
+    shutil.copy(colormap_js, PADRE_WORKDIR)
 
 if options.command in ["install", "reinstall", "js9"] and not options.no_js9:
     js9status = open(PADRE_VENV + "/js9status", "w")
