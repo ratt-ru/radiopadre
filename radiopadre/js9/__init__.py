@@ -18,17 +18,17 @@ def init_js9():
 
     global _prefix
     _prefix = radiopadre.SHADOW_URLBASE
-    global RADIOPADRE_INSTALL_PREFIX_HTTP
-    global RADIOPADRE_LOCAL_PREFIX_HTTP
-    global JS9_INSTALL_PREFIX_HTTP
+    global RADIOPADRE_INSTALL_PREFIX
+    global RADIOPADRE_LOCAL_PREFIX
+    global JS9_INSTALL_PREFIX
     global JS9_HELPER_PORT
     global JS9_INIT_HTML_HTTP
-    global JS9_SCRIPT_PREFIX_HTTP
+    global JS9_SCRIPT_PREFIX
 
-    RADIOPADRE_INSTALL_PREFIX_HTTP = _prefix + "/radiopadre-www" # URL used to access radiopadre code
-    RADIOPADRE_LOCAL_PREFIX_HTTP = os.path.join(_prefix, radiopadre.ABSROOTDIR, ".radiopadre")                     # URL used to access radiopadre aux dir
-    JS9_INSTALL_PREFIX_HTTP = _prefix+"/js9-www"  # URL used to access JS9 code
-    JS9_SCRIPT_PREFIX_HTTP = _prefix
+    RADIOPADRE_INSTALL_PREFIX = _prefix + "/radiopadre-www" # URL used to access radiopadre code
+    RADIOPADRE_LOCAL_PREFIX = os.path.join(_prefix, radiopadre.ABSROOTDIR, ".radiopadre")                     # URL used to access radiopadre aux dir
+    JS9_INSTALL_PREFIX = _prefix+"/js9-www"  # URL used to access JS9 code
+    JS9_SCRIPT_PREFIX = _prefix
 
     try:
         JS9_HELPER_PORT = int(os.environ["RADIOPADRE_JS9_HELPER_PORT"])
@@ -41,10 +41,7 @@ def init_js9():
         try:
             with open(os.path.join(DIRNAME, "js9-init-template.html")) as inp:
                 source = inp.read()
-            JS9_INIT_HTML_HTTP = source.format(JS9_INSTALL_PREFIX=JS9_INSTALL_PREFIX_HTTP,
-                                               RADIOPADRE_INSTALL_PREFIX=RADIOPADRE_INSTALL_PREFIX_HTTP,
-                                               RADIOPADRE_LOCAL_PREFIX=RADIOPADRE_LOCAL_PREFIX_HTTP,
-                                               **globals())
+            JS9_INIT_HTML_HTTP = source.format(**globals())
 
         except Exception, exc:
             traceback.print_exc()

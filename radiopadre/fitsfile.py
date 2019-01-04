@@ -403,7 +403,7 @@ class FITSFile(radiopadre.file.FileBase):
         subs['window_title'] = kw.get("window_title", "JS9: {} images".format(len(fits_files)))
         subs['js9_target'] = FITSFile._make_js9_external_window_script(fits_files, uuid.uuid4().hex, subs, **kw)
 
-        code = """window.open('{js9.JS9_SCRIPT_PREFIX_HTTP}{js9_target}', '_blank')""".format(**subs)
+        code = """window.open('{js9.JS9_SCRIPT_PREFIX}{js9_target}', '_blank')""".format(**subs)
         display(Javascript(code))
 
     @staticmethod
@@ -489,7 +489,7 @@ class FITSFile(radiopadre.file.FileBase):
             <button title="display all images using an inline JS9 window" style="font-size: 0.8em; height=0.8em;"
                     onclick="JS9p._pd_{display_id}_load_all()">&#8595;JS9 all</button>
             <button title="display all images using JS9 in a new browser tab" style="font-size: 0.8em;  height=0.8em;"
-                    onclick="window.open('{js9.JS9_SCRIPT_PREFIX_HTTP}{newtab_html}', '_blank')">&#8663;JS9 all</button>
+                    onclick="window.open('{newtab_html}', '_blank')">&#8663;JS9 all</button>
         """.format(**subs)
         return code
 
@@ -527,6 +527,6 @@ class FITSFile(radiopadre.file.FileBase):
             <button id="JS9load-{element_id}" title="display using an inline JS9 window" style="font-size: 0.9em;"
                     onclick="JS9p._pd_{element_id}_load()">&#8595;JS9</button>
             <button id="" title="display using JS9 in a new browser tab" style="font-size: 0.9em;"
-                    onclick="window.open('{js9.JS9_SCRIPT_PREFIX_HTTP}{newtab_html}', '_blank')">&#8663;JS9</button>
+                    onclick="window.open('{newtab_html}', '_blank')">&#8663;JS9</button>
         """.format(**subs)
         return code
