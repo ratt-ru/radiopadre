@@ -68,6 +68,8 @@ parser.add_argument("--no-casacore", action="store_true",
                   help="Ignore casacore installation errors, if bootstrapping.")
 parser.add_argument("--no-js9", action="store_true",
                   help="Ignore JS9 installation errors, if bootstrapping.")
+parser.add_argument("--verbose", action="store_true",
+                  help="Enable verbose output.")
 parser.add_argument("notebook", nargs="?",
                   help="notebook to load, if given")
 
@@ -314,7 +316,9 @@ try:
 #        args.append("/.radiopadre/={}/".format(PADRE_WORKDIR))
     try:
         os.chdir(PADRE_WORKDIR)
-        child_processes.append(subprocess.Popen(args, stdin=DEVZERO, stdout=DEVNULL, stderr=DEVNULL))
+        child_processes.append(subprocess.Popen(args, stdin=DEVZERO,
+                      stdout=sys.stdout if options.verbose else DEVNULL,
+                      stderr=sys.stderr if options.verbose else DEVNULL))
     finally:
         os.chdir(ROOTDIR)
 
