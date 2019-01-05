@@ -87,9 +87,6 @@ class DataDir(FileList):
         if include:
             self.title += "/{}".format(','.join(include))
 
-        # subsets of content
-        self._fits = self._others = self._images = self._dirs = self._tables = None
-
         # any list manipulations will cause a call to self._load()
         for method in 'append', 'extend', 'insert', 'pop', 'remove','reverse':
             list_method = getattr(FileList, method)
@@ -99,6 +96,9 @@ class DataDir(FileList):
             setattr(self, method, lambda method=method, *args, **kw: wrap_method(method=method, *args, **kw))
 
     def _scan_impl(self):
+        # subsets of content
+        self._fits = self._others = self._images = self._dirs = self._tables = None
+
         # init our file list
         self[:] = []
         self.ndirs = self.nfiles = 0

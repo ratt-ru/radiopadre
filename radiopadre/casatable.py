@@ -59,11 +59,11 @@ class CasaTable(radiopadre.file.FileBase):
                                 self.nrows, len(self.columns), len(self.keywords), len(self._subtables))
             # make attributes for each column
             for name in tab.colnames():
-                def get_column(col=name):
-                    return self.table.getcol(col)
+                def getcol(col=name, *args, **kw):
+                    return self.table.getcol(col, *args, **kw)
                 while hasattr(self, name):
                     name = name + "_"
-                setattr(self, name, get_column)
+                setattr(self, name, getcol)
 
             # make attributes for each subtable
             self._subtables_dict = OrderedDict()
