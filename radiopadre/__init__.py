@@ -254,6 +254,7 @@ def _init_js_side():
 
     reset_code = """
         var width = $(".rendered_html")[0].clientWidth;
+        console.log("reset display, width is", window.innerWidth, window.innerHeight);
         Jupyter.notebook.kernel.execute(`import radiopadre; radiopadre.set_window_sizes(
                                                 ${width}, 
                                                 ${window.innerWidth}, ${window.innerHeight})`);
