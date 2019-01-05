@@ -365,14 +365,19 @@ class FITSFile(radiopadre.file.FileBase):
         symlink = "{}/{}".format(cachedir, self.name)
         if not os.path.exists(symlink):
             os.symlink(os.path.abspath(self.fullpath), symlink)
-        return "{}/{}".format(cachedir_url, self.name)
+        # Cache dir is in the shadow hierarchy, so symlink will always be something like e.g.
+        #    /home/user/.radiopadre/home/user/path/to/.radiopadre/js9-launch/x.fits
+        # ...and if padre was started in /home/user/path, then jS9helper runs in its shadow equivalent,
+        # so what we really want to return is the relative path "to/.radiopadre/js9-launch/x.fits"
+        assert symlink.startswith(radiopadre.SHADOW_BASEDIR)
+        return symlink[len(radiopadre.SHADOW_BASEDIR)+1:]
 
     def _make_js9_launch_command(self, display_id):
         """Internal method: formats up Javascript statement to load the image into a JS9pPartneredDisplay"""
         xsize, ysize = self.shape[:2]
         bin = math.ceil(max(self.shape[:2])/float(settings.fits.js9_preview_size))
         image_link = self._make_cache_symlink()
-        return "JS9p._pd_{display_id}.loadImage('{image_link}', {xsize}, {ysize}, {bin}, true);".format(**locals())
+        return "console.log(JS9p,'{image_link}'); JS9p._pd_{display_id}.loadImage('{image_link}', {xsize}, {ysize}, {bin}, true);".format(**locals())
 
     @staticmethod
     def _make_js9_external_window_script(fits_files, basename, subs, **kw):
@@ -464,6 +469,7 @@ class FITSFile(radiopadre.file.FileBase):
                 """<script type='text/javascript'>
                         JS9p._pd_{display_id} = new JS9pPartneredDisplays('{display_id}', {settings.fits.max_js9_slice}, {settings.fits.max_js9_slice})
                         JS9p._pd_{display_id}.defaults = {defaults}
+                        JS9p.imageUrlPrefixNative = '/files/'
                    </script>
                 """.format(**subs1)
 

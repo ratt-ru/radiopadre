@@ -133,10 +133,13 @@ else:
 message("Welcome to Radiopadre!")
 message("  Using radiopadre install at {PADRE_PATH}")
 
+# directory where we were originally run
+os.environ['RADIOPADRE_ABSROOTDIR'] = ABSROOTDIR
+
 # check if a root directory needs to be faked
 # if not, make .radiopadre workdir
 if os.access(ROOTDIR, os.W_OK):
-    os.environ['RADIOPADRE_SERVER_BASEDIR'] = os.path.abspath(ROOTDIR)
+    os.environ['RADIOPADRE_SERVER_BASEDIR'] = ABSROOTDIR
     orig_rootdir = None
 else:
     message("  Target is {ROOTDIR}, which is not user-writeable. Will use a shadow directory instead.")
@@ -326,11 +329,11 @@ try:
                 nodejs = None
                 bye("Unable to find nodejs or node -- can't run js9helper. You need to apt-get install nodejs perhaps?")
             try:
-                os.chdir(PADRE_WORKDIR)
+                os.chdir(SHADOWDIR)
                 child_processes.append(subprocess.Popen([nodejs.strip(), js9helper,
                     ('{{"helperPort": {}, "debug": {}, ' +
-                     '"fileTranslate": ["^(http://localhost:[0-9]+/[0-9a-f]+/|/static/)", ""] }}').format(
-                        helper_port, 1 if options.verbose else 0)],
+                     '"fileTranslate": ["^(http://localhost:[0-9]+/[0-9a-f]+{}|/static/)", ""] }}').format(
+                        helper_port, 1 if options.verbose else 0, ABSROOTDIR)],
                     stdin=DEVZERO, stdout=sys.stdout, stderr=sys.stderr))
             finally:
                 os.chdir(ROOTDIR)

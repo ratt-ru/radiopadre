@@ -194,7 +194,7 @@ JS9pPartneredDisplays.prototype.loadImage = function(path, xsz, ysz, bin, averag
                         onload: im => this.onLoadNonzoomable(im, imp),
                         zoom: 'T'}
             this.setDefaultImageOpts(opts)
-            JS9.Preload(path, opts, {display:this.disp_zoom});
+            JS9.Preload(JS9p.imageUrlPrefixNative + path, opts, {display:this.disp_zoom});
             this.showPreviewPanel(false)
         }
     }
@@ -619,6 +619,9 @@ JS9pPartneredDisplays.prototype.onImageDisplay = function(im, imp)
 var JS9p = {
     // if True, various stuff is logged to console.log()
     debug: true,
+
+    // prepended to image paths (for fits2fits=False loads)
+    imageUrlPrefixNative: '',
 
     // log(...)
     //      logs stuff to console (if debug==True), else does nothing

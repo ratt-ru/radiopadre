@@ -108,7 +108,7 @@ def render_url(fullpath): # , prefix="files"):
     if fullpath.startswith('http://'):
         url = fullpath
     else:
-        url = os.path.normpath(os.path.join(radiopadre.URLBASE, fullpath))
+        url = os.path.normpath(os.path.join(radiopadre.FILE_URL_ROOT, fullpath))
     # print "{} URL is {}".format(fullpath, url)
     return url
 

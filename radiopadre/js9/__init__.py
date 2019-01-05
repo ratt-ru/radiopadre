@@ -19,7 +19,7 @@ def init_js9():
         return
 
     global _prefix
-    _prefix = radiopadre.SHADOW_URLBASE
+    _prefix = radiopadre.SHADOW_URL_PREFIX
     global RADIOPADRE_INSTALL_PREFIX
     global RADIOPADRE_LOCAL_PREFIX
     global JS9_INSTALL_PREFIX

@@ -48,14 +48,6 @@ astropy.log.setLevel('ERROR')
 
 # NONE OF THE DIR NAMES ABOVE SHALL HAVE A TRALING SLASH!!!
 
-def display_setup():
-    data = [ ("cwd", os.getcwd()) ]
-    for varname in """ROOTDIR ABSROOTDIR DISPLAY_ROOTDIR SHADOW_HOME 
-                    SERVER_BASEDIR SHADOW_ROOTDIR URLBASE SHADOW_URLBASE CACHE_URLBASE""".split():
-        data.append((varname, globals()[varname]))
-
-    display(HTML(render_table(data, ["", ""], numbering=False)))
-
 def _strip_slash(path):
     return path if path == "/" or path is None else path.rstrip("/")
 
@@ -79,15 +71,29 @@ def _make_symlink(source, link_name):
 # Use _strip_slash() when in doubt.
 
 ABSROOTDIR = None       # absolute path to "root" directory, e.g. /home/user/path/to
-ROOTDIR = None          # relative path to "root" diretcory (normally .)
+ROOTDIR = None          # relative path to "root" directory (normally .)
 DISPLAY_ROOTDIR = None  # what the root directory should be rewritten as, for display purposes
 SHADOW_HOME = None      # base dir for the shadow directory tree
-SERVER_BASEDIR = None   # base dir where the Jupyter server is running, e.g. /home/user/path
+
+SERVER_BASEDIR = None   # dir where the Jupyter server is running, e.g. /home/user/path (or ~/.radiopadre/home/user/path)
+SHADOW_BASEDIR = None   # shadow equivalent of above, i.e. ~/.radiopadre/home/user/path in both cases
 SHADOW_ROOTDIR = None   # "root" directory in shadow tree, e.g. ~/.radiopadre/home/user/path/to
-SHADOW_URLBASE = None   # base URL for HTTP server serving shadow tree (e.g. http://localhost:port/xxx)
-URLBASE = None          # base URL for accessing files through Jupyter (e.g. /files/to)
-SESSION_ID = None       # session ID, used to access cache server etc.
-CACHE_URLBASE = None    # base URL for cache, e.g. http://localhost:port/{SESSION_ID}/home/user/path
+
+SHADOW_URL_PREFIX = None   # URL prefix for HTTP server serving shadow tree (e.g. http://localhost:port/{SESSION_ID})
+FILE_URL_ROOT = None       # root URL for accessing files through Jupyter (e.g. /files/to)
+CACHE_URL_BASE = None      # base URL for cache, e.g. http://localhost:port/{SESSION_ID}/home/user/path
+CACHE_URL_ROOT = None      # URL for cache of root dir, e.g. http://localhost:port/{SESSION_ID}/home/user/path/to
+
+def display_setup():
+    data = [ ("cwd", os.getcwd()) ]
+    for varname in """ROOTDIR ABSROOTDIR DISPLAY_ROOTDIR SHADOW_HOME 
+                      SERVER_BASEDIR SHADOW_BASEDIR SHADOW_ROOTDIR 
+                      SHADOW_URL_PREFIX FILE_URL_ROOT CACHE_URL_BASE CACHE_URL_ROOT""".split():
+        data.append((varname, globals()[varname]))
+
+    display(HTML(render_table(data, ["", ""], numbering=False)))
+
+
 
 def init(rootdir=None, verbose=True):
     global ABSROOTDIR
@@ -95,22 +101,24 @@ def init(rootdir=None, verbose=True):
     global DISPLAY_ROOTDIR
     global SHADOW_HOME
     global SERVER_BASEDIR
+    global SHADOW_BASEDIR
     global SHADOW_ROOTDIR
-    global SHADOW_URLBASE
-    global URLBASE
+
+    global SHADOW_URL_PREFIX
+    global FILE_URL_ROOT
     global SESSION_ID
-    global CACHE_URLBASE
+    global CACHE_URL_ROOT
+    global CACHE_URL_BASE
 
     rootdir =_strip_slash(os.path.abspath(rootdir or '.'))
     if ABSROOTDIR is not None and os.path.samefile(rootdir, ABSROOTDIR):
         return
 
-    ABSROOTDIR      = rootdir
-    SHADOW_HOME     = _strip_slash(os.path.abspath(os.environ.get('RADIOPADRE_SHADOW_HOME') or os.path.expanduser("~/.radiopadre")))
-    SERVER_BASEDIR  = _strip_slash(os.path.abspath(os.environ.get('RADIOPADRE_SERVER_BASEDIR') or os.getcwd()))
-    DISPLAY_ROOTDIR = _strip_slash(os.environ.get("RADIOPADRE_DISPLAY_ROOT") or '.')
-    SHADOW_URLBASE  = _strip_slash(os.environ.get('RADIOPADRE_SHADOW_URLBASE'))
-    SESSION_ID      = os.environ.get('RADIOPADRE_SESSION_ID')
+    ABSROOTDIR        = rootdir
+    SHADOW_HOME       = _strip_slash(os.path.abspath(os.environ.get('RADIOPADRE_SHADOW_HOME') or os.path.expanduser("~/.radiopadre")))
+    SERVER_BASEDIR    = _strip_slash(os.path.abspath(os.environ.get('RADIOPADRE_SERVER_BASEDIR') or os.getcwd()))
+    DISPLAY_ROOTDIR   = _strip_slash(os.environ.get("RADIOPADRE_DISPLAY_ROOT") or '.')
+    SHADOW_URL_PREFIX = _strip_slash(os.environ.get('RADIOPADRE_SHADOW_URLBASE'))
 
     ALIEN_MODE = _is_subdir(SERVER_BASEDIR, SHADOW_HOME)
 
@@ -124,6 +132,7 @@ def init(rootdir=None, verbose=True):
     if ALIEN_MODE:
         # for a Jupyter basedir of ~/.radiopadre/home/alien/path, this becomes /home/alien/path
         unshadowed_server_base = SERVER_BASEDIR[len(SHADOW_HOME):]
+        SHADOW_BASEDIR = SERVER_BASEDIR
         # Otherwise it'd better have been /home/alien/path/to to begin with!
         if not _is_subdir(ABSROOTDIR, unshadowed_server_base):
             raise show_exception("""
@@ -132,7 +141,7 @@ def init(rootdir=None, verbose=True):
         # Since Jupyter is running under ~/.radiopadre/home/alien/path, we can serve alien's files from
         # /home/alien/path/to as /files/to/.content
         subdir = SHADOW_ROOTDIR[len(SERVER_BASEDIR):]   # this becomes "/to" (or "" if paths are the same)
-        URLBASE = "/files{}/.radiopadre.content".format(subdir)
+        FILE_URL_ROOT = "/files{}/.radiopadre.content".format(subdir)
         # but do make sure that the .content symlink is in place!
         _make_symlink(ABSROOTDIR, SHADOW_ROOTDIR + "/.radiopadre.content")
     # else running in native mode
@@ -143,14 +152,15 @@ def init(rootdir=None, verbose=True):
                 This is probably a bug! """.format(**globals()))
         # for a server dir of /home/user/path, and an ABSROOTDIR of /home/oms/path/to, get the subdir
         subdir = ABSROOTDIR[len(SERVER_BASEDIR):]   # this becomes "/to" (or "" if paths are the same)
-        URLBASE = "/files" + subdir
+        FILE_URL_ROOT = "/files" + subdir
+        SHADOW_BASEDIR = SHADOW_HOME + SERVER_BASEDIR
 
     os.chdir(ABSROOTDIR)
     ROOTDIR = '.'
 
     # check if we have a URL to access the shadow tree directly. If not, we can use "limp-home" mode
     # (i.e. the Jupyter server itself to access cache), but some things won't work
-    if SHADOW_URLBASE is None:
+    if SHADOW_URL_PREFIX is None:
         if not os.access(ABSROOTDIR, os.W_OK):
             raise show_exception("""
                 The notebook is in a non-writeable directory {ABSROOTDIR}. Radiopadre needs a shadow HTTP
@@ -161,9 +171,11 @@ def init(rootdir=None, verbose=True):
         else:
             display(HTML(render_error("""Warning: the radiopadre shadow HTTP server does not appear to be set up properly.
                                       Running with restricted functionality (e.g. JS9 will not work).""")))
-        CACHE_URLBASE = "/files" + subdir
+        CACHE_URL_BASE = "/files"
+        CACHE_URL_ROOT = "/files" + subdir
     else:
-        CACHE_URLBASE = SHADOW_URLBASE + ABSROOTDIR
+        CACHE_URL_ROOT = SHADOW_URL_PREFIX + ABSROOTDIR
+        CACHE_URL_BASE = CACHE_URL_ROOT[:-len(subdir)] if subdir else CACHE_URL_ROOT
 
     ## Uncomment the line below when debugging paths setup
     if verbose:
@@ -173,7 +185,7 @@ def get_cache_dir(path, subdir=None):
     """
     Creates directory for caching radiopadre stuff associated with the given file.
 
-    Returns tuple of (real_path, url_path). The former is the real filesystem location of the directory.
+    Returns tuple of (real_path, url_path). The former is the (shadow) filesystem location of the directory.
     The latter is the URL to this directory.
     """
     if ABSROOTDIR is None:
@@ -183,7 +195,8 @@ def get_cache_dir(path, subdir=None):
         raise RuntimeError("Trying to access {}, which is outside the {} hierarchy".format(basedir, ABSROOTDIR))
     # if in a subdirectory off the root, this becomes the relative path to it, else ""
     reldir = basedir[len(ABSROOTDIR):]
-    cacheurl = CACHE_URLBASE + reldir + "/.radiopadre"
+    cacheurl = CACHE_URL_ROOT + reldir + "/.radiopadre"
+    shadowdir = SHADOW_HOME + basedir
     cachedir = None
 
     # if we can write to the basedir, make a .radiopadre dir within, and make a symlink to it in the shadow tree.
@@ -192,19 +205,20 @@ def get_cache_dir(path, subdir=None):
         if not os.path.exists(cachedir):
             os.mkdir(cachedir)
         if os.access(cachedir, os.W_OK):
-            shadow_dir = SHADOW_HOME + basedir
-            if not os.path.exists(shadow_dir):
-                os.system("mkdir -p {}".format(shadow_dir))
-            _make_symlink(cachedir, shadow_dir + "/.radiopadre")
+            if not os.path.exists(shadowdir):
+                os.system("mkdir -p {}".format(shadowdir))
+            shadowdir += "/.radiopadre"
+            _make_symlink(cachedir, shadowdir)
+            cachedir = shadowdir
         else:
             cachedir = None
 
     # if cachedir remains None, we weren't able to make a writeable one in the main tree -- use shadow tree
     # if this fails, we're stuck, so may as well bomb out
     if cachedir is None:
-        if not SHADOW_URLBASE:
+        if not SHADOW_URL_PREFIX:
             raise RuntimeError("Trying to view non-writeable directory, but access to the shadow tree is not set up. This is a bug.")
-        cachedir = SHADOW_HOME + basedir + "/.radiopadre"
+        cachedir = shadowdir + "/.radiopadre"
         if not os.path.exists(cachedir):
             os.system("mkdir -p {}".format(cachedir))
 
