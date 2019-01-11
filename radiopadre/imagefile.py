@@ -97,8 +97,11 @@ class ImageFile(radiopadre.file.FileBase):
 
     @staticmethod
     def _show_thumbs(images, **kw):
-        html = ImageFile._render_thumbs(images, **kw)
-        display(HTML(html))
+        if images:
+            images[0].message("Rendering thumbnails, please wait...", timeout=0)
+            html = ImageFile._render_thumbs(images, **kw)
+            images[0].clear_message()
+            display(HTML(html))
 
     @property
     def thumb(self):

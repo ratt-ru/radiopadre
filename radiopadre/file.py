@@ -6,7 +6,7 @@ from IPython.display import display, HTML
 
 import radiopadre
 from radiopadre import settings
-from radiopadre.render import render_refresh_button, rich_string, render_url
+from radiopadre.render import render_refresh_button, rich_string, render_url, TransientMessage
 from collections import OrderedDict
 from radiopadre import casacore_tables
 
@@ -22,9 +22,11 @@ class ItemBase(object):
 
     """
     def __init__(self, title=None):
-        self.title = title
-        self.summary = self.info = self.description = self.size = rich_string(None)
         self._summary_set = None
+        self._message = None
+        self._summary = self._info = self._description = self._size = rich_string(None)
+        # use setter method for this, since it'll update the summary
+        self.title = title
 
     def rescan(self, load=False):
         """
@@ -40,6 +42,7 @@ class ItemBase(object):
     @title.setter
     def title(self, value):
         self._title = rich_string(value, bold=True)
+        self._auto_update_summary()
 
     @property
     def size(self):
@@ -58,9 +61,14 @@ class ItemBase(object):
     @description.setter
     def description(self, value):
         self._description = rich_string(value)
+        self._auto_update_summary()
+
+    def _auto_update_summary(self):
         if not self._summary_set:
-            self._summary = rich_string("{}: {}".format(self._title.text, self._description.text),
-                                        "{}: {}".format(self._title.html, self._description.html))
+            self._summary = self._title
+            if self._description:
+                self._summary = self._summary + rich_string(": {}".format(self._description.text),
+                                                            ": {}".format(self._description.html))
 
     @property
     def summary(self):
@@ -101,6 +109,7 @@ class ItemBase(object):
         _load() to load content, then _render_html() to render it
         """
         self.rescan()
+        self.clear_message()
         return self.render_html()
 
     def show(self, *args, **kw):
@@ -112,6 +121,7 @@ class ItemBase(object):
         """
         self.rescan()
         html = self.render_html(*args, **kw)
+        self.clear_message()
         display(HTML(html))
 
     def watch(self, *args, **kw):
@@ -154,6 +164,16 @@ class ItemBase(object):
                 return "{}\n".format(self.description.html)
         return ""
 
+    def message(self, msg, timeout=3, color='blue'):
+        """Displays a transient message associated with this object. Timeout=0 for indefinite message.
+        Note that show(), above, will clear the message."""
+        self.clear_message()
+        self._message = TransientMessage(msg, timeout=timeout, color=color)
+
+    def clear_message(self):
+        if self._message is not None:
+            self._message.hide()
+            self._message = None
 
 
 class FileBase(ItemBase):

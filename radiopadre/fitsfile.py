@@ -170,24 +170,26 @@ class FITSFile(radiopadre.file.FileBase):
                      max=100,
                      showpath=False,
                      **kw):
-        if not fits_files:
-            return None
-        fits_files = fits_files[:max]
-        if title:
-            display(HTML(radiopadre.render_title(title)))
-        nrow, ncol, width = radiopadre.file.compute_thumb_geometry(len(fits_files),
-                                                                   ncol, mincol,
-                                                                   maxcol, width,
-                                                                   maxwidth)
-        plt.figure(figsize=(width * ncol, width * nrow), dpi=settings.plot.screen_dpi)
-        for iplot, ff in enumerate(fits_files):
-            ax = plt.subplot(nrow, ncol, iplot + 1)
-            ax.tick_params(labelsize=kw.get('fs_axis', fs))
-            ff.show(index=[0] * 10,
-                    unroll=None,
-                    filename_in_title=True,
-                    make_figure=False,
-                    fs_title='small', **kw)
+        if fits_files:
+            fits_files[0].message("Rendering thumbnails, please wait...", timeout=0)
+            fits_files = fits_files[:max]
+            if title:
+                display(HTML(radiopadre.render_title(title)))
+            nrow, ncol, width = radiopadre.file.compute_thumb_geometry(len(fits_files),
+                                                                       ncol, mincol,
+                                                                       maxcol, width,
+                                                                       maxwidth)
+            plt.figure(figsize=(width * ncol, width * nrow), dpi=settings.plot.screen_dpi)
+            for iplot, ff in enumerate(fits_files):
+                ax = plt.subplot(nrow, ncol, iplot + 1)
+                ax.tick_params(labelsize=kw.get('fs_axis', fs))
+                ff.show(index=[0] * 10,
+                        unroll=None,
+                        filename_in_title=True,
+                        make_figure=False,
+                        fs_title='small', **kw)
+
+            fits_files[0].clear_message()
 
     def show(self,
              index=0,

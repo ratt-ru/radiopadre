@@ -60,14 +60,14 @@ class FileList(FileBase, list):
         self._reset_summary()
 
     def _reset_summary(self):
-        desc = "{} files".format(self.nfiles)
+        desc = "{} file{}".format(self.nfiles, "s" if self.nfiles != 1 else "")
         if self.ndirs:
-            desc += ", {} dirs".format(self.ndirs)
+            desc += ", {} dir{}".format(self.ndirs, "s" if self.ndirs != 1 else "")
         self.description = desc
         self.size = desc
 
     def _call_collective_method(self, method, **kw):
-        display(HTML(render_refresh_button(full=self._parent and self._parent.is_updated())))
+        # display(HTML(render_refresh_button(full=self._parent and self._parent.is_updated())))
         if not self:
             display(HTML("<p>0 files</p>"))
             return None
@@ -77,8 +77,8 @@ class FileList(FileBase, list):
 
     def render_html(self, ncol=None, **kw):
         self._load()
-        html = render_preamble() + self._header_html() + \
-               render_refresh_button(full=self._parent and self._parent.is_updated())
+        html = render_preamble() + self._header_html()
+               # + render_refresh_button(full=self._parent and self._parent.is_updated())
 
         arrow = "&uarr;" if "r" in self._sort else "&darr;"
         # find primary sort key ("d" and "r" excepted)
@@ -142,16 +142,16 @@ class FileList(FileBase, list):
     #     self.show_all(*args,**kw)
 
     def show_all(self, *args, **kw):
-        display(HTML(render_refresh_button(full=self._parent and self._parent.is_updated())))
+        # display(HTML(render_refresh_button(full=self._parent and self._parent.is_updated())))
         if not self:
-            display(HTML("<p>0 files</p>"))
+            display(HTML("<DIV>0 files</DIV>"))
         for f in self:
             f.show(*args, **kw)
 
     def __call__(self, *patterns):
         """Returns a FileList os files from this list that match a pattern. Use !pattern to invert the meaning.
         Use -flags to apply a sort order (where flags is one or more of xntr, to sort by extension, name, time, and reverse)"""
-        self._load()
+        self.rescan()
         sort = None
         files = []
         accepted_patterns = []
@@ -164,12 +164,13 @@ class FileList(FileBase, list):
             else:
                 files += [f for f in self if fnmatch.fnmatch((f.path if self._showpath else f.name), patt)]
                 accepted_patterns.append(patt)
-        title = self.title
+        title = self.title.copy()
         if accepted_patterns:
             if os.path.samefile(self.fullpath, radiopadre.ROOTDIR):
                 title = ",".join(accepted_patterns)
             else:
                 title += "/{}".format(",".join(accepted_patterns))
+            self.message(title + ": {} match{}".format(len(files), "es" if len(files) !=1 else ""))
         if sort is not None:
             title += " [sort: {}]".format(sort)
 
@@ -204,6 +205,17 @@ class FileList(FileBase, list):
                             sort=self._sort,
                             classobj=self._classobj,
                             title=title, parent=self._parent)
+        elif type(item) is str:
+            newlist = self.__call__(item)
+            if not newlist:
+                self.message("{}: no match".format(item), color="red")
+                return None
+            else:
+                if len(newlist) > 1:
+                    self.message("{}: {} matches, returning the first".format(item, len(newlist)), color="red")
+                else:
+                    self.clear_message()
+                return newlist[0]
         else:
             return list.__getitem__(self, item)
 
