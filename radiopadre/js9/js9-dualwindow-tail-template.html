@@ -5,7 +5,10 @@
         handle: "#rebin-{display_id}-JS9_Menubar",
         opacity: 0.35
         }});
-        JS9p._pd_{display_id} = new JS9pPartneredDisplays('{display_id}', {xzoom}, {yzoom})
+        JS9p.imageUrlPrefixNative = '{radiopadre.CACHE_URL_BASE}/'
+        console.log("display ,size is", window.innerWidth, window.innerHeight);
+
+        JS9p._pd_{display_id} = new JS9pPartneredDisplays('{display_id}', window.innerWidth*{yzoom}/window.innerHeight, {yzoom})
 
         JS9p._pd_{display_id}.defaults = {defaults}
 

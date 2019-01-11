@@ -359,20 +359,30 @@ class FITSFile(radiopadre.file.FileBase):
                 plt.ylim(*ylim)
         return status
 
+    def _make_cache_symlink(self):
+        """Makes a symlink from the cache directory to the FITS file. Needed for JS9 to load it."""
+        cachedir, cachedir_url = radiopadre.get_cache_dir(self.fullpath, "js9-launch")
+        symlink = "{}/{}".format(cachedir, self.name)
+        if not os.path.exists(symlink):
+            os.symlink(os.path.abspath(self.fullpath), symlink)
+        # Cache dir is in the shadow hierarchy, so symlink will always be something like e.g.
+        #    /home/user/.radiopadre/home/user/path/to/.radiopadre/js9-launch/x.fits
+        # ...and if padre was started in /home/user/path, then jS9helper runs in its shadow equivalent,
+        # so what we really want to return is the relative path "to/.radiopadre/js9-launch/x.fits"
+        assert symlink.startswith(radiopadre.SHADOW_BASEDIR)
+        return symlink[len(radiopadre.SHADOW_BASEDIR)+1:]
+
     def _make_js9_launch_command(self, display_id):
         """Internal method: formats up Javascript statement to load the image into a JS9pPartneredDisplay"""
         xsize, ysize = self.shape[:2]
         bin = math.ceil(max(self.shape[:2])/float(settings.fits.js9_preview_size))
-        return "JS9p._pd_{display_id}.loadImage('{self.fullpath}', {xsize}, {ysize}, {bin}, true);".format(**locals())
+        image_link = self._make_cache_symlink()
+        return "console.log(JS9p,'{image_link}'); JS9p._pd_{display_id}.loadImage('{image_link}', {xsize}, {ysize}, {bin}, true);".format(**locals())
 
     @staticmethod
     def _make_js9_external_window_script(fits_files, basename, subs, **kw):
         # creates an HTML script per each image, by replacing various arguments in a templated bit of html
         cachedir, cachedir_url = radiopadre.get_cache_dir(fits_files[0].fullpath, "js9-launch")
-        for ff in fits_files:
-            symlink = "{}/{}".format(cachedir, ff.name)
-            if not os.path.exists(symlink):
-                os.symlink(os.path.abspath(ff.fullpath), symlink)
         js9_target = "{cachedir}/js9-{basename}-newtab.html".format(**locals())
 
         subs['xzoom'] = int(settings.fits.max_js9_slice * settings.display.window_width/float(settings.display.window_height))
@@ -403,7 +413,7 @@ class FITSFile(radiopadre.file.FileBase):
         subs['window_title'] = kw.get("window_title", "JS9: {} images".format(len(fits_files)))
         subs['js9_target'] = FITSFile._make_js9_external_window_script(fits_files, uuid.uuid4().hex, subs, **kw)
 
-        code = """window.open('{js9.JS9_SCRIPT_PREFIX_HTTP}{js9_target}', '_blank')""".format(**subs)
+        code = """window.open('{js9.JS9_SCRIPT_PREFIX}{js9_target}', '_blank')""".format(**subs)
         display(Javascript(code))
 
     @staticmethod
@@ -459,6 +469,7 @@ class FITSFile(radiopadre.file.FileBase):
                 """<script type='text/javascript'>
                         JS9p._pd_{display_id} = new JS9pPartneredDisplays('{display_id}', {settings.fits.max_js9_slice}, {settings.fits.max_js9_slice})
                         JS9p._pd_{display_id}.defaults = {defaults}
+                        JS9p.imageUrlPrefixNative = '/files/'
                    </script>
                 """.format(**subs1)
 
@@ -489,7 +500,7 @@ class FITSFile(radiopadre.file.FileBase):
             <button title="display all images using an inline JS9 window" style="font-size: 0.8em; height=0.8em;"
                     onclick="JS9p._pd_{display_id}_load_all()">&#8595;JS9 all</button>
             <button title="display all images using JS9 in a new browser tab" style="font-size: 0.8em;  height=0.8em;"
-                    onclick="window.open('{js9.JS9_SCRIPT_PREFIX_HTTP}{newtab_html}', '_blank')">&#8663;JS9 all</button>
+                    onclick="window.open('{newtab_html}', '_blank')">&#8663;JS9 all</button>
         """.format(**subs)
         return code
 
@@ -527,6 +538,6 @@ class FITSFile(radiopadre.file.FileBase):
             <button id="JS9load-{element_id}" title="display using an inline JS9 window" style="font-size: 0.9em;"
                     onclick="JS9p._pd_{element_id}_load()">&#8595;JS9</button>
             <button id="" title="display using JS9 in a new browser tab" style="font-size: 0.9em;"
-                    onclick="window.open('{js9.JS9_SCRIPT_PREFIX_HTTP}{newtab_html}', '_blank')">&#8663;JS9</button>
+                    onclick="window.open('{newtab_html}', '_blank')">&#8663;JS9</button>
         """.format(**subs)
         return code

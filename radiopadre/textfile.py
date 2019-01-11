@@ -112,7 +112,7 @@ class NumberedLineList(ItemBase):
 
     def render_html(self, head=None, tail=None, full=None, grep=None, fs=None, slicer=None, subtitle=None):
         self.rescan(load=False)
-        txt = render_preamble() + self._header_html()
+        txt = render_preamble()
         fs = settings.text.get(fs=fs)
         # read file, unless head and tail is already passed in
         if type(head) is not list or type(tail) is not list:
@@ -120,6 +120,11 @@ class NumberedLineList(ItemBase):
             head = settings.text.get(head=head)
             tail = settings.text.get(tail=tail)
             head, tail = self._get_lines(head, tail, full, grep, slicer)
+        # for up title
+        if grep:
+            txt += "grep '{}' {}: {} matching lines".format(grep, self.title.html, len(head))
+        else:
+            txt += self._header_html()
         # empty head and tail: return just the title
         if not head and not tail:
             return txt
@@ -188,8 +193,8 @@ class NumberedLineList(ItemBase):
 
 class TextFile(FileBase, NumberedLineList):
     def __init__(self, *args, **kw):
-        FileBase.__init__(self, *args, **kw)
         NumberedLineList.__init__(self, [])
+        FileBase.__init__(self, *args, **kw)
         # needed to override stuff set by NumberedLineList.__init__()
         self._scan_impl()
 

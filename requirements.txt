@@ -1,6 +1,7 @@
 APLpy
-astropy
+astropy<2.0.11   # avoiding https://github.com/kernsuite/packaging/issues/176
 jupyter
+notebook<5.7.3   # 5.7.3 has bug, see https://github.com/jupyter/notebook/issues/4303
 #pixiedust
 #requests
 #pandas
