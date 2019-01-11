@@ -369,6 +369,9 @@ def autodetect_file_type(path):
     from .datadir import DataDir
     from .casatable import CasaTable
 
+    if not os.path.exists(path):
+        return None
+
     ext = os.path.splitext(path)[1].lower()
     if os.path.isdir(path):
         if casacore_tables and casacore_tables.tableexists(path):

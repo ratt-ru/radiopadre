@@ -180,7 +180,7 @@ class CasaTable(radiopadre.file.FileBase):
             desc = ""
         return slicer, desc, colformat
 
-    def render_html(self, native=False, firstrow=0, nrows=100, allcols=False, _=None, **columns):
+    def render_html(self, firstrow=0, nrows=100, native=False, allcols=False, _=None, **columns):
         html = self._header_html() + "\n\n"
         #       render_refresh_button(full=self._parent and self._parent.is_updated())
         tab = self.table

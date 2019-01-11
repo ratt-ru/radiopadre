@@ -308,45 +308,55 @@ def _ls(recursive=False, *args):
     Args:
         pattern: if specified, a wildcard pattern
     """
-    basedir = sort = None
-    include = []
+    sort = None
+    patterns = []
+    fixed_names = []
 
     # split all arguments on whitespace and form one big list
     arguments = list(itertools.chain(*[arg.split() for arg in args]))
 
     for arg in arguments:
-        # arguments starting with "-" are sort keys. 'R' foreces recursive mode
+        # arguments starting with "-" are sort keys. 'R' forces recursive mode
         if arg[0] == '-':
             sort = arg[1:]
             if 'R' in sort:
                 recursive = True
         # arguments with *? are include patterns. A slash forces recursive mode
         elif '*' in arg or '?' in arg:
-            include.append(arg)
+            patterns.append(arg)
             if '/' in arg:
                 recursive = True
         # arguments without *? are a directory name, or a static pattern
         else:
-            arg.rstrip("/")
-            if os.path.exists(arg):
-                ftype = autodetect_file_type(arg)
-                if ftype is DataDir:
-                    if basedir is None:
-                        basedir = arg
-                        continue
-                    else:
-                        raise ValueError("Directory specified more than once: {} and {}".format(basedir, arg))
-            include.append(arg)
-    basedir = basedir or '.'
+            fixed_names.append(arg)
+
+    single_file = False
+    basedir = '.'
+
+    # single directory specified -- this is what we want to scan
+    if len(fixed_names) == 1:
+        file_type = autodetect_file_type(fixed_names[0])
+        if file_type is DataDir:
+            basedir = fixed_names[0]
+    # else only one filename is specified: return that one file
+        elif not patterns:
+            if file_type is None:
+                return show_exception("{}: no such file or directory".format(fixed_names[0]), IOError)
+            single_file = True
+            patterns = fixed_names
+    # multiple things specified -- add them to patterns
+    else:
+        patterns += fixed_names
+
     title = rich_string(os.path.abspath(basedir) if basedir == '.' else basedir, bold=True)
-    if recursive:
-        title.prepend("[R]")
 
-    dd = DataDir(basedir or '.', include=include or None, recursive=recursive, title=title, sort=sort)
+    dd = DataDir(basedir or '.', include=patterns or None, recursive=recursive, title=title, sort=sort)
 
-    dd.message(dd.summary.html)
-
-    return dd
+    if single_file:
+        return dd[0]
+    else:
+        dd.message(dd.summary.html)
+        return dd
 
 def ls(*args):
     """
