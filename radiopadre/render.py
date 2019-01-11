@@ -216,11 +216,15 @@ class TransientMessage(object):
     Usage: create object. Message will disappear after a timeout (if set), or after the object is deleted.
     """
     last_message_id = None
+    #default_backgrounds = dict(blue='rgba(173,216,230,0.8)', red='rgba(255,255,224,0.8)')
+    default_backgrounds = dict(blue='rgba(255,255,240,0.8)', red='rgba(255,255,240,0.8)')
 
-    def __init__(self, message, timeout=2, color='blue'):
+    def __init__(self, message, timeout=2, color='blue', background=None):
         self.id = id = "message-{}".format(uuid.uuid4().get_hex())
+        if background is None:
+            background = TransientMessage.default_backgrounds.get(color, 'transparent')
         html = """
-            <DIV id={id} style="color: {color}; position: absolute; right: 0; top: 0;">{message}</DIV>
+            <DIV id={id} style="color: {color}; background-color: {background}; position: absolute; right: 0; top: 0;">&nbsp;{message}&nbsp;</DIV>
             """.format(**locals())
         self.timeout = timeout
         if timeout:

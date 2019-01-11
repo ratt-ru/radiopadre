@@ -10,7 +10,7 @@ from collections import OrderedDict
 
 import radiopadre
 import radiopadre.file
-from radiopadre.render import rich_string, render_title, render_table
+from radiopadre.render import rich_string, render_title, render_table, TransientMessage
 
 from radiopadre import js9, settings
 from radiopadre.textfile import NumberedLineList
@@ -220,6 +220,7 @@ class FITSFile(radiopadre.file.FileBase):
             print status
             traceback.print_exc()
             return status
+        msg = TransientMessage("Rendering {}, please wait...".format(self.fullpath), timeout=0)
 
         # make base slice with ":" for every axis
         naxis = hdr['NAXIS']
@@ -359,6 +360,7 @@ class FITSFile(radiopadre.file.FileBase):
                     cbar.ax.tick_params(labelsize=fs or fs_colorbar)
                 plt.xlim(*xlim)
                 plt.ylim(*ylim)
+        self.clear_message()
         return status
 
     def _make_cache_symlink(self):
