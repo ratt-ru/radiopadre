@@ -86,6 +86,7 @@ class DataDir(FileList):
 
         if include:
             self.title += "/{}".format(','.join(include))
+            self._reset_summary()
 
         # any list manipulations will cause a call to self._load()
         for method in 'append', 'extend', 'insert', 'pop', 'remove','reverse':
@@ -165,8 +166,10 @@ class DataDir(FileList):
         self._set_list(content, self._sort)
 
     def _typed_subset(self, filetype, title):
-        if not os.path.samefile(self.fullpath, radiopadre.ROOTDIR):
-            title = self.title + ", {}".format(self.fullpath)
+        if os.path.samefile(self.fullpath, radiopadre.ROOTDIR):
+            title = self.title + " [{}]".format(title)
+        else:
+            title = " [{}]".format(title)
         return FileList([f for f in self if type(f) is filetype], path=self.fullpath, classobj=filetype, title=title, parent=self)
 
     @property

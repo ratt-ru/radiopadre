@@ -7,7 +7,7 @@ import radiopadre
 from radiopadre import casacore_tables
 from .file import FileBase
 from .filelist import FileList
-from .render import render_table, rich_string, render_status_message, render_refresh_button, render_title
+from .render import render_table, rich_string, render_status_message, render_error, TransientMessage
 
 
 
@@ -144,7 +144,8 @@ class CasaTable(radiopadre.file.FileBase):
         return " ".join(qqs)
 
     @staticmethod
-    def _render_slice(slc):
+    def _slice_to_text(slc):
+        """Helper function to convert an index (slice, int, or list of ints) into a string"""
         if type(slc) is slice:
             txt = "{}:{}".format('' if slc.start is None else slc.start, '' if slc.stop is None else slc.stop)
             if slc.step is not None:
@@ -155,9 +156,35 @@ class CasaTable(radiopadre.file.FileBase):
         else:
             return str(slc)
 
-    def render_html(self, native=False, firstrow=0, nrows=100, allcols=False, **columns):
-        html = self._header_html() + \
-               render_refresh_button(full=self._parent and self._parent.is_updated())
+    @staticmethod
+    def _parse_column_argument(arg, for_what):
+        """Helper function to parse a column argument.
+        Returns tuple of slicer, description, format"""
+        colformat = None
+        if arg is True or arg is None:
+            return None, None, None
+        elif type(arg) is str:
+            return None, None, arg
+        elif type(arg) in (slice, int, list):
+            slicer = [arg]
+        elif type(arg) is tuple:
+            slicer = [s for s in arg if type(s) is not str]
+            formats = [s for s in arg if type(s) is str]
+            if formats:
+                colformat = formats[0]
+        else:
+            raise TypeError("unknown {} specifier of type {}".format(for_what, type(arg)))
+        if len(slicer):
+            desc = "[{}]".format(",".join(map(CasaTable._slice_to_text, slicer)))
+        else:
+            desc = ""
+        return slicer, desc, colformat
+
+    def render_html(self, firstrow=0, nrows=100, native=False, allcols=False, _=None, **columns):
+        msg = TransientMessage("Rendering {}, please wait...".format(self.fullpath), timeout=0)
+
+        html = self._header_html() + "\n\n"
+        #       render_refresh_button(full=self._parent and self._parent.is_updated())
         tab = self.table
         if isinstance(tab, Exception):
             return html + rich_string("Error accessing table {}: {}".format(self.basename, tab))
@@ -170,36 +197,27 @@ class CasaTable(radiopadre.file.FileBase):
         # get subset of columns to use, and slicer objects
         column_slicers = {}
         column_formats = {}
+        default_slicer = default_slicer_desc = None
+        # _ keyword sets up default column slicer
+        if _ is not None:
+            default_slicer, default_slicer_desc, _ = self._parse_column_argument(_, "default")
+        # any other optional keywords put us into column selection mode
         if columns:
             column_selection = []
-            for col in self.columns:
-                slicer = columns.get(col, None)
-                if slicer is not None:
-                    if col not in self.columns:
-                        raise NameError("no such column: {}".format(col))
-                    column_selection.append(col)
-                    if type(slicer) in (slice, int, list):
-                        slicer = [slicer]
-                    elif type(slicer) is tuple:
-                        slicer = list(slicer)
-                    elif type(slicer) is str:
-                        column_formats[col] = slicer
-                        slicer = []
-                    elif slicer is True:
-                        slicer = []
-                    else:
-                        raise TypeError("unknown slice of type {} for column {}".format(type(slicer), col))
-                    if len(slicer):
-                        desc = "[{}]".format(",".join(map(self._render_slice, slicer)))
-                    else:
-                        desc = ""
+            for col, slicer in columns.items():
+                if col in self.columns:
+                    slicer, desc, colformat = self._parse_column_argument(slicer, "column {}".format(col))
+                    column_formats[col] = colformat
                     column_slicers[col] = slicer, desc
+                    column_selection.append(col)
+                else:
+                    html += render_error("No such column: {}".format(col))
         if not columns or allcols:
             column_selection = self.columns
 
         # else use ours
         if firstrow > nrows-1:
-            return html + rich_string("Error accessing table {}: row {} out of range".format(self.basename, firstrow))
+            return html + render_error("Starting row {} out of range".format(firstrow))
         nrows = min(self.nrows-firstrow, nrows)
         labels = ["row"] + list(column_selection)
         colvalues = {}
@@ -224,23 +242,35 @@ class CasaTable(radiopadre.file.FileBase):
                     labels[icol+1] += ", {}".format(units)
             try:
                 colvalues[icol] = colval = tab.getcol(colname, firstrow, nrows)
-#                print colname, colvalues[icol]
-                if type(colval) is np.ndarray and colval.ndim > 1:
+                column_has_shape = type(colval) is np.ndarray and colval.ndim > 1
+                if column_has_shape:
                     shape_suffix = " ({})".format("x".join(map(str, colval.shape[1:])))
             except Exception, exc:
                 error = type(exc)
                 colvalues[icol] = ["(err)"]*nrows
-            if colname in column_slicers and not error:
-                slicer, desc = column_slicers[colname]
-                slicer = [slice(None)] + slicer
-                try:
-                    colvalues[icol] = colvalues[icol][tuple(slicer)]
-                except IndexError:
-                    colvalues[icol] = ["index error"]*nrows
-                    style = "color: red"
-                    error = IndexError
-                if desc:
-                    shape_suffix += " " + desc
+            if not error:
+                # apply slicer, if specified for this column. Render error if incorrect
+                if colname in column_slicers:
+                    slicer, desc = column_slicers[colname]
+                    slicer = [slice(None)] + slicer
+                    try:
+                        colvalues[icol] = colvalues[icol][tuple(slicer)]
+                    except IndexError:
+                        colvalues[icol] = ["index error"]*nrows
+                        style = "color: red"
+                        error = IndexError
+                    if desc:
+                        shape_suffix += " " + desc
+                # else try to apply default slicer, if applicable. Retain column on error
+                elif default_slicer and column_has_shape and colval.ndim > len(default_slicer):
+                    slicer = [slice(None)] + default_slicer
+                    try:
+                        colvalues[icol] = colvalues[icol][tuple(slicer)]
+                        if default_slicer_desc:
+                            shape_suffix += " " + default_slicer_desc
+                    except IndexError:
+                        pass
+
             if formatter and not error:
 #                try:
                 colvalues[icol] = map(formatter, colvalues[icol])
