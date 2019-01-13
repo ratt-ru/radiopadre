@@ -4,7 +4,7 @@
 		 "helperCGI":        "./cgi-bin/js9/js9Helper.cgi",
 		 "fits2png":         false,
 		 "debug":	     0,
-		 "loadProxy":	     true,
+		 "loadProxy":	     false,
 		 "workDir":	     "./tmp",
 		 "workDirQuota":     1000,
 		"fits2fits":        false,

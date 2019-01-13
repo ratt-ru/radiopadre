@@ -173,9 +173,11 @@ JS9pPartneredDisplays.prototype.loadImage = function(path, xsz, ysz, bin, averag
     else {
         this._block_callbacks = true
         this._loading = path
+        var from = new RegExp("^.*/")
+        var basename = path.replace(from, "")
         this.imps[path] = imp = new JS9pImageProps(this, xsz, ysz, bin, this.zoomsize.x, this.zoomsize.y)
         if( imp.zoomable ) {
-            this.setStatus(`Loading ${path} (downsampled preview), please wait...`)
+            this.setStatus(`Loading ${basename} (downsampled preview), please wait...`)
             this.setStatusRebin("Loading preview...")
             var binopt = average ? `${bin}a` : `${bin}`
             var opts = {fits2fits:true, xcen:(xsz/2>>0), ycen:(ysz/2>>0), xdim:xsz, ydim:ysz, bin:binopt,
@@ -186,13 +188,13 @@ JS9pPartneredDisplays.prototype.loadImage = function(path, xsz, ysz, bin, averag
             JS9.Preload(path, opts, {display:this.disp_rebin});
             this.showPreviewPanel(true)
         } else {
-            this.setStatus(`Loading ${path}, please wait...`)
+            this.setStatus(`Loading ${basename}, please wait...`)
             this.setStatusRebin('---') // empty text screws up sizes
             var opts = {fits2fits:false,
                         onload: im => this.onLoadNonzoomable(im, imp),
                         zoom: 'T'}
             this.setDefaultImageOpts(opts)
-            JS9.Preload(path, opts, {display:this.disp_zoom});
+            JS9.Preload(JS9p.imageUrlPrefixNative + path, opts, {display:this.disp_zoom});
             this.showPreviewPanel(false)
         }
     }
@@ -516,7 +518,7 @@ JS9pPartneredDisplays.prototype._updateZoomedSection = function(im, imp, zoom_ce
          }
     this.setDefaultImageOpts(opts)
     JS9p.log("  preloading", opts)
-    JS9.Preload(im.id, opts, {display: this.disp_zoom});
+    JS9.Preload(im.parentFile, opts, {display: this.disp_zoom});
 }
 
 // checkZoomRegion(im, xreg)
@@ -617,6 +619,9 @@ JS9pPartneredDisplays.prototype.onImageDisplay = function(im, imp)
 var JS9p = {
     // if True, various stuff is logged to console.log()
     debug: true,
+
+    // prepended to image paths (for fits2fits=False loads)
+    imageUrlPrefixNative: '',
 
     // log(...)
     //      logs stuff to console (if debug==True), else does nothing

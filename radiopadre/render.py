@@ -2,8 +2,9 @@ import math
 import cgi
 import os.path
 from collections import OrderedDict
+import uuid
 
-from IPython.display import display, HTML
+from IPython.display import display, HTML, Javascript
 
 import radiopadre
 
@@ -19,6 +20,9 @@ class RichString(object):
         else:
             text = cgi.escape(text)
             self._html = "<B>{}</B>".format(text) if bold else text
+
+    def copy(self):
+        return RichString(self._text, self._html)
 
     @property
     def text(self):
@@ -105,10 +109,10 @@ def render_url(fullpath): # , prefix="files"):
     """Converts a path relative to the notebook (i.e. kernel) to a URL that
     can be served by the notebook server, by prepending the notebook
     directory"""
-    if fullpath.startswith(radiopadre.CACHEURLBASE):
-        url = os.path.normpath(os.path.join("/files", fullpath))
+    if fullpath.startswith('http://'):
+        url = fullpath
     else:
-        url = os.path.normpath(os.path.join("/files", radiopadre.URLBASE, fullpath))
+        url = os.path.normpath(os.path.join(radiopadre.FILE_URL_ROOT, fullpath))
     # print "{} URL is {}".format(fullpath, url)
     return url
 
@@ -116,14 +120,17 @@ def render_url(fullpath): # , prefix="files"):
 
 
 def render_title(title):
-    return title.html if type(title) is RichString else "<b>{}</b>".format(cgi.escape(str(title)))
+    return title.html if type(title) is RichString else "<b>{}</b>".format(htmlize(title))
 
 def render_error(message):
-    return rich_string(message, "<SPAN style='color: red'>{}</SPAN>".format(message))
+    return "<SPAN style='color: red'><P>{}</P></SPAN>".format(htmlize(message))
+
+def show_exception(message, exc_class=RuntimeError):
+    display(HTML(render_error(message)))
+    return exc_class(message)
 
 def render_status_message(msg, bgcolor='lightblue'):
-    return "<p style='background: {};'><b>{}</b></p>".format(bgcolor, cgi.escape(msg))
-
+    return "<SPAN style='background: {};'><B>{}</B></SPAN>".format(bgcolor, htmlize(msg))
 
 def render_table(data, labels, html=set(), ncol=1, links=None,
                  header=True, numbering=True,
@@ -202,6 +209,52 @@ def render_table(data, labels, html=set(), ncol=1, links=None,
     txt += "</div>"
     return txt
 
+class TransientMessage(object):
+    """
+    Displays a transient message in the current cell.
+
+    Usage: create object. Message will disappear after a timeout (if set), or after the object is deleted.
+    """
+    last_message_id = None
+    #default_backgrounds = dict(blue='rgba(173,216,230,0.8)', red='rgba(255,255,224,0.8)')
+    default_backgrounds = dict(blue='rgba(255,255,240,0.8)', red='rgba(255,255,240,0.8)')
+
+    def __init__(self, message, timeout=2, color='blue', background=None):
+        self.id = id = "message-{}".format(uuid.uuid4().get_hex())
+        if background is None:
+            background = TransientMessage.default_backgrounds.get(color, 'transparent')
+        html = """
+            <DIV id={id} style="color: {color}; background-color: {background}; position: absolute; right: 0; top: 0;">&nbsp;{message}&nbsp;</DIV>
+            """.format(**locals())
+        self.timeout = timeout
+        if timeout:
+            timeout = timeout*1000
+            html += """
+            <SCRIPT type="text/javascript">
+            $('#{id}').delay({timeout}).fadeOut('slow');
+            </SCRIPT>
+            """.format(**locals())
+        # hide previous message
+        if TransientMessage.last_message_id:
+            html += """
+                <SCRIPT type="text/javascript">
+                $('#{}').hide();
+                </SCRIPT>
+            """.format(TransientMessage.last_message_id)
+        TransientMessage.last_message_id = self.id
+        # display
+        display(HTML(html))
+
+    def hide(self):
+        display(Javascript("$('#{}').hide()".format(self.id)))
+        # if TransientMessage.last_message_id == self.id:
+        #     TransientMessage.last_message_id = None
+
+    def __del__(self):
+        display(Javascript("$('#{}').fadeOut('slow')".format(self.id)))
+        self.hide()
+
+
 
 def render_refresh_button(full=False):
     """Renders a "refresh" button which re-executes the current cell.
@@ -212,8 +265,8 @@ def render_refresh_button(full=False):
             style="position: absolute; right: 0; top: 0;
     """;
     if full:
-        title = "The underlying directories have changed so it is probably wise to " + \
-                "rerun the notebook. Double-click to rerun the notebook up to and including " + \
+        title = "The underlying directories have changed so you might want to " + \
+                "rerun the whole notebook. Double-click to rerun the notebook up to and including " + \
                 "this cell, or click to rerun this cell only"
         txt += """color:red;"
             title="%s" ondblclick="document.radiopadre.execute_to_current_cell();"

@@ -19,6 +19,10 @@ from radiopadre import settings
 
 def _match_pattern(path, pattern):
     """Matches path to pattern. If pattern contains a directory, matches full path, else only the basename"""
+    if path.startswith("./"):
+        path = path[2:]
+    if pattern.startswith("./"):
+        pattern = pattern[2:]
     if '/' in pattern:
         return fnmatch.fnmatch(path, pattern)
     else:
@@ -53,15 +57,25 @@ class DataDir(FileList):
         self._browse_mode = include is None
 
         # use global settings for some parameters that are not specified
+        self._default_include_empty, self._default_show_hidden = include_empty, show_hidden
+        self._default_include, self._default_exclude = include, exclude
+        self._default_include_dir, self._default_exclude_dir = include_dir, exclude_dir
+        # the line below only serves to keep pycharm happy (otherwise it thinks the attributes are not initialized)
         self._include = self._exclude = self._include_dir = self._exclude_dir = None
+
         self._include_empty, self._show_hidden = settings.files.get(include_empty=include_empty, show_hidden=show_hidden)
         for option in 'include', 'exclude', 'include_dir', 'exclude_dir':
+            # store keyword args to be passed to subdirs
+            argvalue = getattr(self,"_default_"+option)
             # this will set value to the value of the given keyword arg, or global setting if None, or default if None
-            default = "*" if option[:3] == "inc" else ""
-            value = settings.files.get(default, **{option: locals()[option]})
-            if type(value) is str:
-                value = value.split(", ")
-            value = list(value)
+            default = "*" if option[:3] == "inc" else None
+            value = settings.files.get(default, **{option: argvalue})
+            if value is None:
+                value = []
+            else:
+                if type(value) is str:
+                    value = value.split(", ")
+                value = list(value)
             setattr(self, "_"+option, value)
         # if not showing hidden, add ".*" to exclude patterns
         if not self._show_hidden:
@@ -71,10 +85,8 @@ class DataDir(FileList):
         FileList.__init__(self, content=None, path=name, sort=sort, title=title, showpath=recursive)
 
         if include:
-            self.title += "/{}".format(include)
-
-        # subsets of content
-        self._fits = self._others = self._images = self._dirs = self._tables = None
+            self.title += "/{}".format(','.join(include))
+            self._reset_summary()
 
         # any list manipulations will cause a call to self._load()
         for method in 'append', 'extend', 'insert', 'pop', 'remove','reverse':
@@ -85,6 +97,9 @@ class DataDir(FileList):
             setattr(self, method, lambda method=method, *args, **kw: wrap_method(method=method, *args, **kw))
 
     def _scan_impl(self):
+        # subsets of content
+        self._fits = self._others = self._images = self._dirs = self._tables = None
+
         # init our file list
         self[:] = []
         self.ndirs = self.nfiles = 0
@@ -121,14 +136,14 @@ class DataDir(FileList):
             # Check for matching directories
             for name in dirs:
                 path = os.path.join(root, name)
+                filetype = autodetect_file_type(path)
                 if _matches(name if self._browse_mode else path, incdir, excdir) and \
                             (not self._browse_mode or self._include_empty or os.listdir(path)):
-                    filetype = autodetect_file_type(path)
                     list.append(self, (filetype, path))
                     self.ndirs += 1
-                    # Check for directories to descend into
-                    if self._recursive and filetype is DataDir and _matches(name, self._include_dir, self._exclude_dir):
-                        subdirs.append(name)
+                # Check for directories to descend into
+                if self._recursive and filetype is DataDir and _matches(name, self._include_dir, self._exclude_dir):
+                    subdirs.append(name)
             # Descend into specified subdirs
             dirs[:] = subdirs
 
@@ -140,9 +155,10 @@ class DataDir(FileList):
         content = []
         for filetype, path in self:
             if filetype is DataDir:
-                object = DataDir(path, include=self._include, exclude=self._exclude,
-                                 include_dir=self._include_dir, exclude_dir=self._exclude_dir,
-                                 include_empty=self._include_empty, show_hidden=self._show_hidden, sort=self._sort)
+                object = DataDir(path, include=self._default_include, exclude=self._default_exclude,
+                                 include_dir=self._default_include_dir, exclude_dir=self._default_exclude_dir,
+                                 include_empty=self._default_include_empty, show_hidden=self._default_show_hidden,
+                                 sort=self._sort)
 #                                 _skip_js_init=self._skip_js_init)
             else:
                 object = filetype(path)
@@ -150,8 +166,10 @@ class DataDir(FileList):
         self._set_list(content, self._sort)
 
     def _typed_subset(self, filetype, title):
-        if not os.path.samefile(self.fullpath, radiopadre.ROOTDIR):
-            title = self.title + ", {}".format(self.fullpath)
+        if os.path.samefile(self.fullpath, radiopadre.ROOTDIR):
+            title = self.title + " [{}]".format(title)
+        else:
+            title = " [{}]".format(title)
         return FileList([f for f in self if type(f) is filetype], path=self.fullpath, classobj=filetype, title=title, parent=self)
 
     @property

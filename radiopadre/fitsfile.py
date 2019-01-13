@@ -1,5 +1,5 @@
 import astropy.io.fits as pyfits
-import traceback
+import sys, traceback
 import os, os.path
 from IPython.display import HTML, display, Javascript
 import matplotlib.pyplot as plt
@@ -10,7 +10,7 @@ from collections import OrderedDict
 
 import radiopadre
 import radiopadre.file
-from radiopadre.render import rich_string, render_title, render_table
+from radiopadre.render import rich_string, render_title, render_table, TransientMessage, render_error
 
 from radiopadre import js9, settings
 from radiopadre.textfile import NumberedLineList
@@ -124,13 +124,13 @@ class FITSFile(radiopadre.file.FileBase):
         actions = [ self._action_buttons_(preamble=preamble, postscript=postscript, div_id=div_id) ]
         self.size = rich_string(data[0][1].replace("&times;", "x"), data[0][1])
         data[0][0] += ":"
-        self.summary = rich_string(" ".join(map(str,data[0])),
+        self.summary = rich_string(" ".join(map(str,data[0])).replace("&times;", "x"),
                                    render_table(data, html=("size", "axes", "res"), labels=("name", "size", "res", "axes", "modified"),
                                         styles=dict(name="font-weight: bold"),
                                         header=False, numbering=False, actions=actions,
                                         preamble=preamble, postscript=postscript, div_id=div_id))
         data[0] = data[0][1:]
-        self.description = rich_string(" ".join(map(str,data[0])),
+        self.description = rich_string(" ".join(map(str,data[0])).replace("&times;", "x"),
                                 render_table(data, html=("size", "axes", "res"), labels=("size", "res", "axes", "modified"),
                                      header=False, numbering=False, actions=actions,
                                      preamble=preamble, postscript=postscript, div_id=div_id))
@@ -170,24 +170,32 @@ class FITSFile(radiopadre.file.FileBase):
                      max=100,
                      showpath=False,
                      **kw):
-        if not fits_files:
-            return None
-        fits_files = fits_files[:max]
-        if title:
-            display(HTML(radiopadre.render_title(title)))
-        nrow, ncol, width = radiopadre.file.compute_thumb_geometry(len(fits_files),
-                                                                   ncol, mincol,
-                                                                   maxcol, width,
-                                                                   maxwidth)
-        plt.figure(figsize=(width * ncol, width * nrow), dpi=settings.plot.screen_dpi)
-        for iplot, ff in enumerate(fits_files):
-            ax = plt.subplot(nrow, ncol, iplot + 1)
-            ax.tick_params(labelsize=kw.get('fs_axis', fs))
-            ff.show(index=[0] * 10,
-                    unroll=None,
-                    filename_in_title=True,
-                    make_figure=False,
-                    fs_title='small', **kw)
+        if fits_files:
+            fits_files[0].message("Rendering thumbnails, please wait...", timeout=0)
+            fits_files = fits_files[:max]
+            if title:
+                display(HTML(radiopadre.render_title(title)))
+            nrow, ncol, width = radiopadre.file.compute_thumb_geometry(len(fits_files),
+                                                                       ncol, mincol,
+                                                                       maxcol, width,
+                                                                       maxwidth)
+            plt.figure(figsize=(width * ncol, width * nrow), dpi=settings.plot.screen_dpi)
+            for iplot, ff in enumerate(fits_files):
+                ax = plt.subplot(nrow, ncol, iplot + 1)
+                ax.tick_params(labelsize=kw.get('fs_axis', fs))
+                ff.show(index=[0] * 10,
+                        unroll=None,
+                        filename_in_title=True,
+                        make_figure=False,
+                        fs_title='small', **kw)
+
+            fits_files[0].clear_message()
+
+    def _return_exception(self, title):
+        etype, eval, etb = sys.exc_info()
+        display(HTML(render_error("{}: {}".format(title, traceback.format_exception_only(etype, eval)[0]))))
+        return NumberedLineList(enumerate(traceback.format_exception(etype, eval, etb)), title=title)
+
 
     def show(self,
              index=0,
@@ -210,169 +218,181 @@ class FITSFile(radiopadre.file.FileBase):
              colorbar=True,
              make_figure=True,
              filename_in_title=False):
+        msg = TransientMessage("Reading {}, please wait...".format(self.fullpath), timeout=0)
         try:
             ff = self.fitsobj
             hdr = ff[0].header
-        except:
-            status = "Error reading {}:".format(self.fullpath)
-            print status
-            traceback.print_exc()
-            return status
-
-        # make base slice with ":" for every axis
-        naxis = hdr['NAXIS']
-        dims = [hdr['NAXIS%d' % i] for i in range(1, naxis + 1)]
-        axis_type = [hdr.get("CTYPE%d" % i, str(i))
-                     for i in range(1, hdr["NAXIS"] + 1)]
-        baseslice = [slice(None)] * hdr['NAXIS']
-        # create status string
-
-        status = "%s (%s,%s)" % (self.path, axis_type[xyaxes[0]].split("-")[0],
-                                 axis_type[xyaxes[1]].split("-")[0])
-        title = self.basename if filename_in_title else ""
-        # zoom in if asked
-        if zoom:
-            x0, y0 = int(dims[xyaxes[0]] / 2), int(dims[xyaxes[1]] / 2)
-            xz, yz = int(dims[xyaxes[0]] / (zoom * 2)), int(dims[xyaxes[1]] /
-                                                            (zoom * 2))
-            xlim = x0 - xz, x0 + xz
-            ylim = y0 - yz, y0 + yz
-            status += " zoom x%s" % zoom
-        else:
-            xlim = 0, dims[xyaxes[0]] - 1
-            ylim = 0, dims[xyaxes[1]] - 1
-
-        # the set of axes that we need to index into -- remove the XY axes
-        # first
-        remaining_axes = set(range(naxis)) - set(xyaxes)
-
-        # get axis labels. "1" to "N", unless a special axis like STOKES is
-        # used
-        axis_labels = {}
-        for ax in remaining_axes:
-            labels = self.FITSAxisLabels.get(axis_type[ax], None)
-            rval, rpix, delt, unit = [hdr.get("C%s%d" % (kw, ax + 1), 1)
-                                      for kw in ("RVAL", "RPIX", "DELT", "UNIT")]
-            if labels:
-                axis_labels[ax] = ["%s %s" %
-                                   (axis_type[ax], labels[int(rval - 1 + delt *
-                                                              (i + 1 - rpix))])
-                                   for i in range(dims[ax])]
-            elif unit == 1:
-                axis_labels[ax] = ["%s %g" % (axis_type[ax], rval + delt *
-                                              (i + 1 - rpix))
-                                   for i in range(dims[ax])]
-            else:
-                axis_labels[ax] = ["%s %g%s" % (axis_type[ax], rval + delt *
-                                                (i + 1 - rpix), unit)
-                                   for i in range(dims[ax])]
-
-        # is there an unroll axis specified
-        if unroll is not None:
-            if type(unroll) is str:
-                if unroll in axis_type:
-                    unroll = axis_type.index(unroll)
-                    if dims[unroll] < 2:
-                        unroll = None
-                else:
-                    unroll = None
-            if unroll is not None:
-                if unroll in remaining_axes:
-                    remaining_axes.remove(unroll)
-                else:
-                    raise ValueError("unknown unroll axis %s" % unroll)
-
-        # we need enough elements in index to take care of the remaining axes
-        index = [index] if type(index) is int else list(index)
-        for remaxis in sorted(remaining_axes):
-            if dims[remaxis] == 1:
-                baseslice[remaxis] = 0
-            elif not index:
-                e = "not enough elements in index to index into axis %s" % \
-                    axis_type[remaxis]
-                raise TypeError(e)
-            else:
-                baseslice[remaxis] = i = index.pop(0)
-                status += " " + (axis_labels[remaxis][i])
-                title += " " + (axis_labels[remaxis][i])
-        try:
             data = ff[0].data.T
         except:
-            status = "Error reading {}:".format(self.fullpath)
-            print status
-            traceback.print_exc()
-            return status
+            self.clear_message()
+            return self._return_exception("Error reading {}:".format(self.fullpath))
 
-        # figure out image geometry and make subplots
-        nrow, ncol, width = radiopadre.file.compute_thumb_geometry(
-            1 if unroll is None else dims[unroll],
-            ncol, mincol, maxcol, width, maxwidth)
-        vmin = settings.fits.get(vmin=vmin)
-        vmax = settings.fits.get(vmax=vmax)
-        cmap = settings.fits.get(colormap=colormap)
-        scale = settings.fits.get(scale=scale)
-        if scale == 'linear':
-            norm = None
-        elif scale == 'log':
-            norm = matplotlib.colors.SymLogNorm(vmin, vmax)
-        else:
-            raise ValueError("unknown scle setting'{}'", scale)
+        # many things can go wrong during plotting (exspecially if the data is dodgy, so catch all exceptions
+        # here and return them
+        try:
+            msg = TransientMessage("Rendering {}, please wait...".format(self.fullpath), timeout=0)
 
-        if unroll is None:
-            # show single image
-            fig = make_figure and plt.figure(figsize=(width, width),
-                                             dpi=settings.plot.screen_dpi)
-            if fig:
-                plt.suptitle(self.basename)
-            plt.imshow(data[tuple(baseslice)].T, vmin=vmin, vmax=vmax, cmap=cmap, norm=norm)
-            if colorbar:
-                cbar = plt.colorbar()
-                cbar.ax.tick_params(labelsize=fs or fs_colorbar)
-            plt.xlabel(axis_type[xyaxes[0]], fontsize=fs or fs_axis)
-            plt.ylabel(axis_type[xyaxes[1]], fontsize=fs or fs_axis)
-            plt.title(title, fontsize=fs or fs_title)
-            fig and fig.axes[0].tick_params(labelsize=fs or fs_axis)
-            plt.xlim(*xlim)
-            plt.ylim(*ylim)
-        else:
-            status += ", unrolling " + axis_type[unroll]
-            nrow, ncol, width = radiopadre.file.compute_thumb_geometry(dims[unroll],
-                                                                       ncol, mincol,
-                                                                       maxcol, width,
-                                                                       maxwidth)
-            plt.figure(figsize=(width * ncol, width * nrow), dpi=settings.plot.screen_dpi)
-            plt.suptitle(self.basename)
-            for iplot in range(dims[unroll]):
-                ax = plt.subplot(nrow, ncol, iplot + 1)
-                ax.tick_params(labelsize=fs or fs_axis)
-                baseslice[unroll] = iplot
-                plt.imshow(data[tuple(baseslice)].T, vmin=vmin, vmax=vmax,
-                           cmap=cmap, norm=norm)
-                plt.title(title + " " + axis_labels[unroll][iplot],
-                          fontsize=fs or fs_title)
-                plt.xlabel(axis_type[xyaxes[0]], fontsize=fs or fs_axis)
-                plt.ylabel(axis_type[xyaxes[1]], fontsize=fs or fs_axis)
+            # make base slice with ":" for every axis
+            naxis = hdr['NAXIS']
+            dims = [hdr['NAXIS%d' % i] for i in range(1, naxis + 1)]
+            axis_type = [hdr.get("CTYPE%d" % i, str(i))
+                         for i in range(1, hdr["NAXIS"] + 1)]
+            baseslice = [slice(None)] * hdr['NAXIS']
+            # create status string
+
+            status = "%s (%s,%s)" % (self.path, axis_type[xyaxes[0]].split("-")[0],
+                                     axis_type[xyaxes[1]].split("-")[0])
+            title = self.basename if filename_in_title else ""
+            # zoom in if asked
+            if zoom:
+                x0, y0 = int(dims[xyaxes[0]] / 2), int(dims[xyaxes[1]] / 2)
+                xz, yz = int(dims[xyaxes[0]] / (zoom * 2)), int(dims[xyaxes[1]] /
+                                                                (zoom * 2))
+                xlim = x0 - xz, x0 + xz
+                ylim = y0 - yz, y0 + yz
+                status += " zoom x%s" % zoom
+            else:
+                xlim = 0, dims[xyaxes[0]] - 1
+                ylim = 0, dims[xyaxes[1]] - 1
+
+            # the set of axes that we need to index into -- remove the XY axes
+            # first
+            remaining_axes = set(range(naxis)) - set(xyaxes)
+
+            # get axis labels. "1" to "N", unless a special axis like STOKES is
+            # used
+            axis_labels = {}
+            for ax in remaining_axes:
+                labels = self.FITSAxisLabels.get(axis_type[ax], None)
+                rval, rpix, delt, unit = [hdr.get("C%s%d" % (kw, ax + 1), 1)
+                                          for kw in ("RVAL", "RPIX", "DELT", "UNIT")]
+                if labels:
+                    axis_labels[ax] = ["%s %s" %
+                                       (axis_type[ax], labels[int(rval - 1 + delt *
+                                                                  (i + 1 - rpix))])
+                                       for i in range(dims[ax])]
+                elif unit == 1:
+                    axis_labels[ax] = ["%s %g" % (axis_type[ax], rval + delt *
+                                                  (i + 1 - rpix))
+                                       for i in range(dims[ax])]
+                else:
+                    axis_labels[ax] = ["%s %g%s" % (axis_type[ax], rval + delt *
+                                                    (i + 1 - rpix), unit)
+                                       for i in range(dims[ax])]
+
+            # is there an unroll axis specified
+            if unroll is not None:
+                if type(unroll) is str:
+                    if unroll in axis_type:
+                        unroll = axis_type.index(unroll)
+                        if dims[unroll] < 2:
+                            unroll = None
+                    else:
+                        unroll = None
+                if unroll is not None:
+                    if unroll in remaining_axes:
+                        remaining_axes.remove(unroll)
+                    else:
+                        raise ValueError("unknown unroll axis %s" % unroll)
+
+            # we need enough elements in index to take care of the remaining axes
+            index = [index] if type(index) is int else list(index)
+            for remaxis in sorted(remaining_axes):
+                if dims[remaxis] == 1:
+                    baseslice[remaxis] = 0
+                elif not index:
+                    e = "not enough elements in index to index into axis %s" % \
+                        axis_type[remaxis]
+                    raise TypeError(e)
+                else:
+                    baseslice[remaxis] = i = index.pop(0)
+                    status += " " + (axis_labels[remaxis][i])
+                    title += " " + (axis_labels[remaxis][i])
+
+            # figure out image geometry and make subplots
+            nrow, ncol, width = radiopadre.file.compute_thumb_geometry(
+                1 if unroll is None else dims[unroll],
+                ncol, mincol, maxcol, width, maxwidth)
+            vmin = settings.fits.get(vmin=vmin)
+            vmax = settings.fits.get(vmax=vmax)
+            cmap = settings.fits.get(colormap=colormap)
+            scale = settings.fits.get(scale=scale)
+            if scale == 'linear':
+                norm = None
+            elif scale == 'log':
+                norm = matplotlib.colors.SymLogNorm(vmin, vmax)
+            else:
+                raise ValueError("unknown scle setting'{}'", scale)
+
+            if unroll is None:
+                # show single image
+                fig = make_figure and plt.figure(figsize=(width, width),
+                                                 dpi=settings.plot.screen_dpi)
+                if fig:
+                    plt.suptitle(self.basename)
+                plt.imshow(data[tuple(baseslice)].T, vmin=vmin, vmax=vmax, cmap=cmap, norm=norm)
                 if colorbar:
                     cbar = plt.colorbar()
                     cbar.ax.tick_params(labelsize=fs or fs_colorbar)
+                plt.xlabel(axis_type[xyaxes[0]], fontsize=fs or fs_axis)
+                plt.ylabel(axis_type[xyaxes[1]], fontsize=fs or fs_axis)
+                plt.title(title, fontsize=fs or fs_title)
+                fig and fig.axes[0].tick_params(labelsize=fs or fs_axis)
                 plt.xlim(*xlim)
                 plt.ylim(*ylim)
-        return status
+            else:
+                status += ", unrolling " + axis_type[unroll]
+                nrow, ncol, width = radiopadre.file.compute_thumb_geometry(dims[unroll],
+                                                                           ncol, mincol,
+                                                                           maxcol, width,
+                                                                           maxwidth)
+                plt.figure(figsize=(width * ncol, width * nrow), dpi=settings.plot.screen_dpi)
+                plt.suptitle(self.basename)
+                for iplot in range(dims[unroll]):
+                    ax = plt.subplot(nrow, ncol, iplot + 1)
+                    ax.tick_params(labelsize=fs or fs_axis)
+                    baseslice[unroll] = iplot
+                    plt.imshow(data[tuple(baseslice)].T, vmin=vmin, vmax=vmax,
+                               cmap=cmap, norm=norm)
+                    plt.title(title + " " + axis_labels[unroll][iplot],
+                              fontsize=fs or fs_title)
+                    plt.xlabel(axis_type[xyaxes[0]], fontsize=fs or fs_axis)
+                    plt.ylabel(axis_type[xyaxes[1]], fontsize=fs or fs_axis)
+                    if colorbar:
+                        cbar = plt.colorbar()
+                        cbar.ax.tick_params(labelsize=fs or fs_colorbar)
+                    plt.xlim(*xlim)
+                    plt.ylim(*ylim)
+            self.clear_message()
+            return None
+        except:
+            self.clear_message()
+            return self._return_exception("Error rendering {}:".format(self.fullpath))
+
+    def _make_cache_symlink(self):
+        """Makes a symlink from the cache directory to the FITS file. Needed for JS9 to load it."""
+        cachedir, cachedir_url = radiopadre.get_cache_dir(self.fullpath, "js9-launch")
+        symlink = "{}/{}".format(cachedir, self.name)
+        if not os.path.exists(symlink):
+            os.symlink(os.path.abspath(self.fullpath), symlink)
+        # Cache dir is in the shadow hierarchy, so symlink will always be something like e.g.
+        #    /home/user/.radiopadre/home/user/path/to/.radiopadre/js9-launch/x.fits
+        # ...and if padre was started in /home/user/path, then jS9helper runs in its shadow equivalent,
+        # so what we really want to return is the relative path "to/.radiopadre/js9-launch/x.fits"
+        assert symlink.startswith(radiopadre.SHADOW_BASEDIR)
+        return symlink[len(radiopadre.SHADOW_BASEDIR)+1:]
 
     def _make_js9_launch_command(self, display_id):
         """Internal method: formats up Javascript statement to load the image into a JS9pPartneredDisplay"""
         xsize, ysize = self.shape[:2]
         bin = math.ceil(max(self.shape[:2])/float(settings.fits.js9_preview_size))
-        return "JS9p._pd_{display_id}.loadImage('{self.fullpath}', {xsize}, {ysize}, {bin}, true);".format(**locals())
+        image_link = self._make_cache_symlink()
+        return "console.log(JS9p,'{image_link}'); JS9p._pd_{display_id}.loadImage('{image_link}', {xsize}, {ysize}, {bin}, true);".format(**locals())
 
     @staticmethod
     def _make_js9_external_window_script(fits_files, basename, subs, **kw):
         # creates an HTML script per each image, by replacing various arguments in a templated bit of html
         cachedir, cachedir_url = radiopadre.get_cache_dir(fits_files[0].fullpath, "js9-launch")
-        for ff in fits_files:
-            symlink = "{}/{}".format(cachedir, ff.name)
-            if not os.path.exists(symlink):
-                os.symlink(os.path.abspath(ff.fullpath), symlink)
         js9_target = "{cachedir}/js9-{basename}-newtab.html".format(**locals())
 
         subs['xzoom'] = int(settings.fits.max_js9_slice * settings.display.window_width/float(settings.display.window_height))
@@ -403,7 +423,7 @@ class FITSFile(radiopadre.file.FileBase):
         subs['window_title'] = kw.get("window_title", "JS9: {} images".format(len(fits_files)))
         subs['js9_target'] = FITSFile._make_js9_external_window_script(fits_files, uuid.uuid4().hex, subs, **kw)
 
-        code = """window.open('{js9.JS9_SCRIPT_PREFIX_HTTP}{js9_target}', '_blank')""".format(**subs)
+        code = """window.open('{js9.JS9_SCRIPT_PREFIX}{js9_target}', '_blank')""".format(**subs)
         display(Javascript(code))
 
     @staticmethod
@@ -459,6 +479,7 @@ class FITSFile(radiopadre.file.FileBase):
                 """<script type='text/javascript'>
                         JS9p._pd_{display_id} = new JS9pPartneredDisplays('{display_id}', {settings.fits.max_js9_slice}, {settings.fits.max_js9_slice})
                         JS9p._pd_{display_id}.defaults = {defaults}
+                        JS9p.imageUrlPrefixNative = '/files/'
                    </script>
                 """.format(**subs1)
 
@@ -489,7 +510,7 @@ class FITSFile(radiopadre.file.FileBase):
             <button title="display all images using an inline JS9 window" style="font-size: 0.8em; height=0.8em;"
                     onclick="JS9p._pd_{display_id}_load_all()">&#8595;JS9 all</button>
             <button title="display all images using JS9 in a new browser tab" style="font-size: 0.8em;  height=0.8em;"
-                    onclick="window.open('{js9.JS9_SCRIPT_PREFIX_HTTP}{newtab_html}', '_blank')">&#8663;JS9 all</button>
+                    onclick="window.open('{newtab_html}', '_blank')">&#8663;JS9 all</button>
         """.format(**subs)
         return code
 
@@ -527,6 +548,6 @@ class FITSFile(radiopadre.file.FileBase):
             <button id="JS9load-{element_id}" title="display using an inline JS9 window" style="font-size: 0.9em;"
                     onclick="JS9p._pd_{element_id}_load()">&#8595;JS9</button>
             <button id="" title="display using JS9 in a new browser tab" style="font-size: 0.9em;"
-                    onclick="window.open('{js9.JS9_SCRIPT_PREFIX_HTTP}{newtab_html}', '_blank')">&#8663;JS9</button>
+                    onclick="window.open('{newtab_html}', '_blank')">&#8663;JS9</button>
         """.format(**subs)
         return code

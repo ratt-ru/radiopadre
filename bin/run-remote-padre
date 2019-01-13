@@ -64,6 +64,8 @@ parser.add_option("--no-casacore", action="store_true",
                   help="Ignore casacore installation errors, if installing on remote.")
 parser.add_option("--no-js9", action="store_true",
                   help="Ignore JS9 installation errors, if installing on remote.")
+parser.add_option("--verbose", action="store_true",
+                  help="Enable verbose output.")
 
 (options,args) = parser.parse_args()
 
@@ -247,6 +249,8 @@ if options.no_casacore:
     padre_exec += " --no-casacore"
 if options.no_js9:
     padre_exec += " --no-js9"
+if options.verbose:
+    padre_exec += " --verbose"
 
 padre_exec += "  --remote"
 
