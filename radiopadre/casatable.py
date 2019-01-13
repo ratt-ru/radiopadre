@@ -7,7 +7,7 @@ import radiopadre
 from radiopadre import casacore_tables
 from .file import FileBase
 from .filelist import FileList
-from .render import render_table, rich_string, render_status_message, render_error
+from .render import render_table, rich_string, render_status_message, render_error, TransientMessage
 
 
 
@@ -181,6 +181,8 @@ class CasaTable(radiopadre.file.FileBase):
         return slicer, desc, colformat
 
     def render_html(self, firstrow=0, nrows=100, native=False, allcols=False, _=None, **columns):
+        msg = TransientMessage("Rendering {}, please wait...".format(self.fullpath), timeout=0)
+
         html = self._header_html() + "\n\n"
         #       render_refresh_button(full=self._parent and self._parent.is_updated())
         tab = self.table
