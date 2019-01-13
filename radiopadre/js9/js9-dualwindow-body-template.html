@@ -1,0 +1,101 @@
+<style type="text/css">
+
+.outer-{display_id}-row {{ display: table-row; width: 100%; height: auto; clear: both; }}
+    .zoom-{display_id}-cell {{ display: table-cell; width: var(--js9-zoom-width); height: auto; }}
+        .zoom-{display_id}-cell-column {{ display: table; width: 100%; height: 100%; }}
+            .status-{display_id}-1 {{ display: table-row; height: var(--statusbar-height); }}
+                .status-{display_id} {{ display: table-cell; text-align: center; background: #909090;
+                                        max-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap }}
+            .zoom-{display_id}-menubar1 {{ display: table-row; height: var(--menubar-height); }}
+                .zoom-{display_id}-menubar2 {{ display: table; height: var(--menubar-height); width: var(--js9-zoom-width);}}
+                    .zoom-{display_id}-menubar3 {{ display: table-row; height: var(--menubar-height); background: -webkit-linear-gradient(top, #ebebeb, #d5d5d5)}}
+                        .zoom-{display_id}-menubar {{ display: table-cell; width: 500px; height: var(--menubar-height); }}
+                        .zoom-{display_id}-menubar-fill {{ display: table-cell; width: auto; height: var(--menubar-height); }}
+                        .zoom-{display_id}-menubar-tool {{ display: table-cell; height: var(--menubar-height); }}
+            .zoom-{display_id}-display {{ display: table-row; width: 100%; }}
+            .zoom-{display_id}-colorbar {{ display: table-row; height: var(--colorbar-height); margin-top: 2px; }}
+        .rebin-{display_id}-cell-column {{ display: table; width: 100%; height: 100%; }}
+            .rebin-{display_id}-outer1   {{ display: table-row; width: 100%;
+                                            height: calc(var(--statusbar-height)+var(--js9-rebin-size)); }}
+                .rebin-{display_id}-outer2   {{ display: table-cell; width: 100%;
+                                                height: calc(var(--statusbar-height)+var(--js9-rebin-size)); }}
+                    .rebin-{display_id}-outer   {{ display: table; width: 100%; height: 100%; background: #909090 }}
+                        .rebin-{display_id}-title1   {{ display: table-row; width: 100%; height: var(--statusbar-height); }}
+                            .rebin-{display_id}-title   {{ display: table-cell; height: height: var(--statusbar-height); text-align: center;
+                                                           max-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap }}
+                        .rebin-{display_id}-display1 {{ display: table-row; height: var(--js9-rebin-size); width: 100%; }}
+                            .rebin-{display_id}-display {{ display: table-cell; width: 100%;  margin-left: 8px }}
+            .rebin-{display_id}-tools        {{ display: table-row;  height: var(--plugin-size); ; }}
+            .rebin-{display_id}-tools-pad    {{ display: table-row; height: var(--tools-padding); }}
+            .rebin-{display_id}-tools-fill   {{ display: table-row; }}
+</style>
+                    <!--background: -webkit-linear-gradient(top, #ebebeb, #d5d5d5) }}-->
+
+<div class="outer-{display_id}" id="outer-{display_id}" style="{init_style}">
+    <div class="outer-{display_id}-table">
+        <div class="outer-{display_id}-row">
+            <div class="zoom-{display_id}-cell">
+                <div class="zoom-{display_id}-cell-column">
+                    <div class="status-{display_id}-1">
+                        <div class="status-{display_id}" id="status-{display_id}"></div>
+                    </div>
+                    <div class="zoom-{display_id}-menubar1">
+                        <div class="zoom-{display_id}-menubar2">
+                            <div class="zoom-{display_id}-menubar3">
+                                <div class="zoom-{display_id}-menubar">
+                                    <div class="JS9Menubar" id="zoom-{display_id}-JS9_Menubar" data-height="var(--menubar-height)" data-width="calc(var(--js9-zoom-width)-200px)"></div>
+                                </div>
+                                <div class="zoom-{display_id}-menubar-fill"></div>
+                                <div class="zoom-{display_id}-menubar-tool" style="width: 60px; height: 20px">
+                                    <button id="zoom-{display_id}-lockscale"
+                                            title="lock scale and colormap across multiple images"
+                                            style="width: 60px">&#x2610; lock</button>
+                                </div>
+                                <div class="zoom-{display_id}-menubar-tool" style="width: 48px; height: 20px">
+                                    <button id="zoom-{display_id}-fullscale"
+                                            title="reset scale limits to data min/max"
+                                            >&#x21a4;&#x21a6;</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="zoom-{display_id}-display">
+                        <div class="JS9" data-width="var(--js9-zoom-width)" data-height="var(--js9-zoom-height)" id="zoom-{display_id}-JS9"></div>
+                    </div>
+                    <div class="zoom-{display_id}-colorbar">
+                        <div class="JS9Colorbar" id="zoom-{display_id}-JS9_Colorbar"
+                             data-height="var(--colorbar-height)" data-width="var(--js9-zoom-width)">
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="rebin-{display_id}-cell">
+                <div class="rebin-{display_id}-cell-column">
+                    <div class="rebin-{display_id}-outer1">
+                        <div class="rebin-{display_id}-outer2">
+                            <div id="rebin-{display_id}-outer" class="rebin-{display_id}-outer">
+                                <div class="rebin-{display_id}-title1">
+                                    <div class="rebin-{display_id}-title" id="status-{display_id}-rebin">Active region</div>
+                                </div>
+                                <div class="rebin-{display_id}-display1">
+                                    <div class="rebin-{display_id}-display">
+                                        <div class="JS9" data-width="var(--js9-rebin-size)" data-height="var(--js9-rebin-size)" id="rebin-{display_id}-JS9"></div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="rebin-{display_id}-tools-pad"></div>
+                    <div class="rebin-{display_id}-tools">
+                        <div class="JS9Magnifier" data-width="var(--plugin-size)" data-height="var(--plugin-size)" id="zoom-{display_id}-JS9_Magnifier"></div>
+                    </div>
+                    <div class="rebin-{display_id}-tools-pad"></div>
+                    <div class="rebin-{display_id}-tools">
+                        <div class="JS9Panner" data-width="var(--plugin-size)" data-height="var(--plugin-size)" id="zoom-{display_id}-JS9_Panner"></div>
+                    </div>
+                    <div class="rebin-{display_id}-tools-fill"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>

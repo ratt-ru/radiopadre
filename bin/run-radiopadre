@@ -1,0 +1,324 @@
+#!/usr/bin/python
+
+import os.path
+import os
+import subprocess
+import sys
+import glob
+import socket
+
+# get radiopadre install directory. __file__ is RADIOPADRE/bin/run-radiopadre, so take the dirname twice
+PADRE_PATH = os.path.abspath(os.path.dirname(os.path.dirname(__file__)))
+ROOTDIR = os.getcwd()
+
+JUPYTER_OPTS = [
+    "notebook",
+    "--ContentsManager.pre_save_hook=radiopadre.notebook_utils._notebook_save_hook",
+    "--ContentsManager.allow_hidden=True",
+    # "--NotebookApp.allow_origin='*'",
+]
+
+import argparse
+parser = argparse.ArgumentParser(description="Runs radiopadre")
+
+# parser.add_option("--port-query",type=int,metavar="N",
+#                   help="looks for N unused ports and reports them. For internal use.");
+parser.add_argument("--bootstrap", action="store_true",
+                  help="automatically initialize radiopadre virtual environment, if missing.")
+parser.add_argument("--reinstall", action="store_true",
+                  help="reinstall radiopadre virtual environment before running.")
+parser.add_argument("--remote", action="store_true",
+                  help="runs script in remote mode. Normally used by run-remote-padre -- not to be invoked directly.")
+parser.add_argument("-b","--browser", action="store_true",
+                  help="open a browser session, even if running under ssh.")
+parser.add_argument("-n","--no-browser",action="store_true",
+                  help="do not open a browser session, even if running locally.")
+parser.add_argument("--no-default",action="store_true",
+                  help="do not create a default notebook automatically. Default is to create.")
+parser.add_argument("--no-casacore", action="store_true",
+                  help="Ignore casacore installation errors, if bootstrapping.")
+parser.add_argument("--no-js9", action="store_true",
+                  help="Ignore JS9 installation errors, if bootstrapping.")
+parser.add_argument("notebook", nargs="?",
+                  help="notebook to load, if given")
+
+options = parser.parse_args()
+
+DEVZERO = open("/dev/zero")
+DEVNULL = open("/dev/null", "w")
+
+PADRE_VENV = os.path.expanduser("~/.radiopadre-venv")
+
+def message(x, prefix='run-radiopadre: '):
+    print(prefix + x.format(**globals()))
+
+def bye(x, code=1):
+    message(x)
+    sys.exit(code)
+
+def shell(cmd):
+    return subprocess.call(cmd.format(**globals()), shell=True)
+
+activation_script = os.path.join(PADRE_VENV, "bin/activate_this.py")
+complete_cookie = os.path.join(PADRE_VENV, ".complete")
+
+# See https://stackoverflow.com/questions/1871549/determine-if-python-is-running-inside-virtualenv
+if hasattr(sys, 'real_prefix') or (hasattr(sys, 'base_prefix') and sys.base_prefix != sys.prefix):
+    if sys.prefix == PADRE_VENV:
+        message("Already running inside radiopadre virtual environment")
+    else:
+        bye("Can't run this script inside a non-radiopadre virtualenv. Please deactivate and rerun.")
+else:
+    if os.path.exists(activation_script) and os.path.exists(complete_cookie) and not options.reinstall:
+        message("Found radiopadre virtualenv in {PADRE_VENV}")
+    elif options.bootstrap or options.reinstall:
+        if options.reinstall:
+            message("Will reinstall radiopadre virtualenv using install-radiopadre")
+        else:
+            message("Can't find complete radiopadre virtualenv, bootstrapping with install-radiopadre")
+        if shell("{}/bin/install-radiopadre {} {} reinstall".format(PADRE_PATH,
+                    "--no-casacore" if options.no_casacore else "",
+                    "--no-js9" if options.no_js9 else "",
+                )):
+            bye("Installation script failed")
+
+    print "Activating the radiopadre virtualenv"
+    execfile(activation_script, dict(__file__=activation_script))
+
+message("Welcome to Radiopadre!")
+message("  Using radiopadre install at {PADRE_PATH}")
+
+# check if a root directory needs to be faked
+# if not, make .radiopadre workdir
+if os.access(ROOTDIR, os.W_OK):
+    os.environ['RADIOPADRE_SERVERDIR'] = os.path.abspath(ROOTDIR)
+    os.environ['RADIOPADRE_FAKEROOT'] = ''
+    FAKEROOT = None
+    message("  Visualizing {ROOTDIR}, which is user-writeable, no fake")
+    PADRE_WORKDIR = os.path.join(ROOTDIR, ".radiopadre")
+    if os.path.exists(PADRE_WORKDIR):
+        if not os.access(PADRE_WORKDIR, os.W_OK):
+            print("WARNING: {} is not user-writeable, re-creating".format(PADRE_WORKDIR))
+            os.system("rm -fr {}".format(PADRE_WORKDIR))
+            os.mkdir(PADRE_WORKDIR)
+    else:
+        os.mkdir(PADRE_WORKDIR)
+# else fake a root dir
+else:
+    # if ROOTDIR is /path/to/directory, split into /path/to and directory
+    absroot = os.path.abspath(ROOTDIR).rstrip("/")
+    content = os.path.basename(absroot)
+    os.environ['RADIOPADRE_FAKEROOT'] = FAKEROOT = os.path.expanduser("~/.radiopadre" + absroot)
+    os.environ['RADIOPADRE_REALROOT'] = ROOTDIR
+    message("  Visualizing {ROOTDIR}, which is not user-writeable, fake root directory needed:")
+    message("       running under {FAKEROOT}")
+    if not os.path.exists(FAKEROOT):
+        os.system("mkdir -p {}".format(FAKEROOT))
+    elif not os.access(FAKEROOT, os.W_OK):
+        bye("{} is not user-writeable. Try deleting it?".format(FAKEROOT))
+    PADRE_WORKDIR = os.path.join(FAKEROOT, ".radiopadre")
+    content = os.path.join(FAKEROOT, content)
+    if os.path.exists(content):
+        os.unlink(content)
+    os.symlink(ROOTDIR, content)
+    if not os.path.exists(PADRE_WORKDIR):
+        os.mkdir(PADRE_WORKDIR)
+    elif not os.access(PADRE_WORKDIR, os.W_OK):
+        bye("{} is not user-writeable. Try deleting it?".format(PADRE_WORKDIR))
+    os.chdir(FAKEROOT)
+    os.environ['RADIOPADRE_SERVERDIR'] = os.path.abspath(FAKEROOT)
+
+ALL_NOTEBOOKS = glob.glob("*.ipynb")
+
+message("  Available notebooks: " + " ".join(ALL_NOTEBOOKS))
+
+# get hostname
+os.environ["HOSTNAME"] = subprocess.check_output("/bin/hostname")
+
+# get jupyter path
+notebook_dir = subprocess.check_output("{PADRE_VENV}/bin/pip show jupyter| "
+                                       "grep Location:|cut -d ':' -f 2".format(**globals()), shell=True).strip()
+if not notebook_dir:
+    raise subprocess.CalledProcessError("jupyter installation path not found")
+
+LOAD_NOTEBOOK = options.notebook
+CREATE_DEFAULT_NOTEBOOK = False
+DEFAULT_NAME = "radiopadre-default.ipynb"
+
+if LOAD_NOTEBOOK:
+    message("  Will load {LOAD_NOTEBOOK} as requested")
+elif not options.no_default:
+    LOAD_NOTEBOOK = DEFAULT_NAME
+    if DEFAULT_NAME in ALL_NOTEBOOKS:
+        message("  Will load {LOAD_NOTEBOOK} as requested")
+    else:
+        CREATE_DEFAULT_NOTEBOOK = True
+        message("  Will create and load default {LOAD_NOTEBOOK} as requested")
+else:
+    # are there any notebooks in the directory? If only one, load it automatically.
+    if len(ALL_NOTEBOOKS) == 1:
+        LOAD_NOTEBOOK = ALL_NOTEBOOKS[0]
+        message("  Only one notebook found, will auto-load.")
+    elif not ALL_NOTEBOOKS:
+        LOAD_NOTEBOOK = "radiopadre-default.ipynb"
+        CREATE_DEFAULT_NOTEBOOK = True
+        message("  No notebooks. Will auto-create and load default {LOAD_NOTEBOOK}.")
+    else:
+        message("  Not auto-loading any notebooks. Pick one, or specify it on the command line.")
+
+
+# create default notebook
+if CREATE_DEFAULT_NOTEBOOK:
+    if os.path.exists(LOAD_NOTEBOOK):
+        message("Strange, {LOAD_NOTEBOOK} already exists but we mean to create a default?")
+    else:
+        import shutil
+        shutil.copyfile(PADRE_PATH+"/notebooks/"+DEFAULT_NAME, LOAD_NOTEBOOK)
+
+# check status of JS9. Ends up being True, or a RuntimeError
+
+js9dir = js9error = None
+js9status_file = PADRE_VENV + "/js9status"
+if not os.path.exists(js9status_file):
+    js9error = "not found"
+else:
+    js9dir = open(js9status_file).read().strip()
+    if not js9dir.startswith("/"):
+        js9error = js9dir
+        js9dir = None
+
+os.environ['RADIOPADRE_JS9_DIR'] = js9dir or ''
+os.environ['RADIOPADRE_JS9_ERROR'] = js9error or ''
+if js9dir:
+    message("  Found JS9 install in {js9dir}")
+else:
+    message("  Warning: JS9 not functional ({js9error}). Reinstall radiopadre?")
+
+
+# make link to JS9 install
+if js9dir:
+    if not os.path.exists(PADRE_WORKDIR + "/js9-www"):
+        os.symlink(js9dir, PADRE_WORKDIR + "/js9-www")
+    if not os.path.exists(PADRE_WORKDIR + "/js9colormaps.js"):
+        os.symlink(notebook_dir + "/notebook/static/js9colormaps.js", PADRE_WORKDIR + "/js9colormaps.js")
+    if not os.path.exists(PADRE_WORKDIR + "/radiopadre-www"):
+        os.symlink(PADRE_PATH + "/html", PADRE_WORKDIR + "/radiopadre-www")
+
+# add padre directory to PYTHONPATH
+if "PYTHONPATH" in os.environ:
+    os.environ["PYTHONPATH"] = os.environ["PYTHONPATH"] + ":" + PADRE_PATH
+else:
+    os.environ["PYTHONPATH"] = PADRE_PATH
+
+
+browser = False
+if os.environ.get("SSH_CLIENT"):
+    message("You appear to have logged in via ssh")
+    if options.browser:
+        message("--browser is set so I will open a browser anyway")
+        browser = True
+    else:
+        message("You're logged in via ssh, so I'm not opening a web browser for you.")
+        message("Please manually browse to the URL printed by Jupyter below. You will probably want to employ ssh")
+        message("port forwarding if you want to browse this notebook from your own machine.")
+        browser = False
+else:
+    message("You appear to have a local session")
+    if options.no_browser:
+        message("--no-browser is set, jupyter notebook will not invoke a browser.")
+        message("Please manually browse to the URL printed by Jupyter below.")
+        browser = False
+    else:
+        message("Allowing jupyter notebook to open a web browser. Use --no-browser to disable this.")
+        browser = True
+
+# find unused ports for Jupyter & helpers
+def find_unused_port (base,maxtries=1000):
+    for i in range(maxtries):
+        serversocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        try:
+            serversocket.bind(("localhost", base))
+            serversocket.close()
+            return base
+        except:
+            base += 1
+            continue
+    return None
+
+jupyter_port = find_unused_port(1024)
+helper_port  = find_unused_port(jupyter_port+1)
+http_port    = find_unused_port(helper_port+1)
+
+message("Selected ports: {}:{}:{}".format(jupyter_port, helper_port, http_port))
+
+forwarded_helper_port, forwarded_http_port = helper_port, http_port
+
+if options.remote:
+    forwarded_ports = raw_input("{Remote mode} please enter fowarded port numbers: ")
+    forwarded_helper_port, forwarded_http_port = forwarded_ports.strip().split(" ",1)
+    print forwarded_helper_port, forwarded_http_port
+
+
+JUPYTER_OPTS.append("--port={}".format(jupyter_port))
+if not browser:
+    JUPYTER_OPTS.append("--no-browser")
+
+if LOAD_NOTEBOOK:
+    JUPYTER_OPTS.append(os.path.abspath(LOAD_NOTEBOOK))
+
+child_processes = []
+
+os.environ['RADIOPADRE_HTTP_PORT'] = str(forwarded_http_port)
+
+if js9dir:
+    os.environ['RADIOPADRE_JS9_HELPER_PORT'] = str(forwarded_helper_port)
+    os.environ['RADIOPADRE_JS9_HTTP'] = "http://localhost:{}/".format(forwarded_http_port)
+    open(PADRE_WORKDIR + "/js9prefs.js", "w").write("JS9Prefs.globalOpts.helperPort = {};\n".format(forwarded_helper_port))
+
+try:
+    helper_proc = None
+    if js9dir:
+        js9helper = js9dir +"/js9Helper.js"
+        if os.path.exists(js9helper):
+            message("Starting JS9 helper process on port {helper_port}")
+            try:
+                nodejs = subprocess.check_output("which nodejs || which node", shell=True)
+            except subprocess.CalledProcessError:
+                bye("Unable to find nodejs or node -- can't run js9helper. You need to apt-get install nodejs perhaps?")
+            child_processes.append(subprocess.Popen([nodejs.strip(), js9helper,
+                '{{"helperPort": {}}}'.format(helper_port)],
+                stdin=DEVZERO, stdout=sys.stdout, stderr=sys.stderr))
+
+    CWD = os.getcwd()
+    message("Starting HTTP server process in {CWD} on port {http_port}")
+    args = [PADRE_VENV+"/bin/python", PADRE_PATH+"/bin/http_server.py", str(http_port)]
+#    if FAKEROOT:
+#        args.append("/.radiopadre/={}/".format(PADRE_WORKDIR))
+    child_processes.append(subprocess.Popen(args, stdin=DEVZERO, stdout=sys.stdout, stderr=sys.stderr))
+
+    message("Starting: jupyter notebook "+" ".join(JUPYTER_OPTS))
+
+    ## start jupyter process
+
+    notebook_proc = subprocess.Popen([PADRE_VENV+"/bin/jupyter"] + JUPYTER_OPTS,
+                                      stdin=sys.stdin, stdout=sys.stdout, stderr=sys.stderr,
+                                      env=os.environ)
+
+    ## use this instead to debug the sessison
+    #notebook_proc = subprocess.Popen([PADRE_VENV+"/bin/ipython"],
+    #                                 stdin=sys.stdin, stdout=sys.stdout, stderr=sys.stderr,
+    #                                  env=os.environ)
+
+    child_processes.append(notebook_proc)
+
+    notebook_proc.wait()
+    message("Notebook process done")
+    child_processes.pop(-1)
+
+finally:
+    message("Terminating child processes")
+    for proc in child_processes:
+        proc.terminate()
+        proc.wait()
+
+message("Exiting")

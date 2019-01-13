@@ -1,0 +1,14 @@
+<script type="text/javascript">
+$(document).ready(function()
+{{
+    $('#{display_id}-top').draggable({{
+        handle: "#rebin-{display_id}-JS9_Menubar",
+        opacity: 0.35
+    }});
+
+    // preload the image
+    JS9.Preload("{fits_image_path}", {fits2fits_options}, {{display:"{display_id}-JS9"}});
+}});
+</script>
+</body>
+</html>

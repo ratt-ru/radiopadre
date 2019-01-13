@@ -1,0 +1,33 @@
+    <!--
+    Calculates layout based on height: column of 3 square tool windows on the right, with a matching height.
+
+    The only substitutions is a{{display_id}}.
+    -->
+
+<style type="text/css">
+.outer-{display_id}-table {{
+    --total-height: 95vh;
+    --total-width: 98vw;
+    --statusbar-height: 18px;
+    --colorbar-height:  40px;
+    --menubar-height:   36px;
+    --statusbar-rebin-height: 18px;
+    --tools-padding:    5px;
+    --horizontal-padding: 5px;
+    --zoom-vertical-padding: calc(var(--statusbar-height) + var(--colorbar-height) + var(--menubar-height));
+    --rebin-vertical-padding: calc(2*var(--tools-padding) + var(--statusbar-rebin-height));
+
+    --js9-rebin-size: calc((var(--total-height) - var(--rebin-vertical-padding))/3);
+    --js9-zoom-width: calc(var(--total-width) - var(--horizontal-padding) - var(--js9-rebin-size));
+    --js9-zoom-height: calc(var(--total-height) - var(--zoom-vertical-padding));
+    --plugin-size: var(--js9-rebin-size);
+    --colorbar-width: calc(var(--js9-zoom-width) - 64px);
+
+    font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
+    font-size: 12px;
+
+    display: table;
+    width: var(--total-width);
+    height: var(--total-height);
+}}
+</style>

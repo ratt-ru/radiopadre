@@ -1,8 +1,15 @@
-if( !document.radiopadre )
+define(['base/js/namespace', 'base/js/promises', 'socket.io' ], function(Jupyter, promises, io1) {
+
+promises.app_initialized.then(function(appname) {
+if (appname === 'NotebookApp')
 {
+    io = io1
+
+    console.log("initializing radiopadre components. io:", io)
+
     document.radiopadre = {}
 
-    document.radiopadre.fixup_hrefs = function () 
+    document.radiopadre.fixup_hrefs = function ()
     {
         $("a[href*='/#NOTEBOOK_FILES#/']").each(function() {
                 this.href = this.href.replace("/#NOTEBOOK_FILES#/","/files/"+document.radiopadre.notebook_dir);
@@ -10,18 +17,18 @@ if( !document.radiopadre )
         $("a[href*='/#NOTEBOOK_NOTEBOOKS#/']").each(function() {
                 this.href = this.href.replace("/#NOTEBOOK_NOTEBOOKS#/","/notebooks/"+document.radiopadre.notebook_dir);
            });
-        $("img[src*='/#NOTEBOOK_FILES#/']").each(function() { 
+        $("img[src*='/#NOTEBOOK_FILES#/']").each(function() {
                 this.src = this.src.replace("/#NOTEBOOK_FILES#/","/files/"+document.radiopadre.notebook_dir);
            });
     }
 
-    document.radiopadre.execute_to_current_cell = function () 
-    { 
+    document.radiopadre.execute_to_current_cell = function ()
+    {
         var current =  IPython.notebook.get_selected_index();
         IPython.notebook.execute_cell_range(0,current+1);
     }
 
-    document.radiopadre.handle_copy_notebook_output = function (out) 
+    document.radiopadre.handle_copy_notebook_output = function (out)
     {
         console.log('copy_current_notebook output ' + JSON.stringify(out));
         if( out.header.msg_type == 'error' ) {
@@ -42,7 +49,7 @@ if( !document.radiopadre )
         }
     }
 
-    document.radiopadre.copy_notebook = function (path, copy_dirs, copy_root) 
+    document.radiopadre.copy_notebook = function (path, copy_dirs, copy_root)
     {
         var kernel = IPython.notebook.kernel;
         var callbacks = {'iopub': {'output' : document.radiopadre.handle_copy_notebook_output}};
@@ -52,12 +59,12 @@ if( !document.radiopadre )
             +'cell='+index.toString()+','
             +'copy_dirs="'+copy_dirs+'",'
             +'copy_root="'+copy_root+'"'
-            +');' 
+            +');'
         console.log('running '+command)
         kernel.execute('import radiopadre')
         kernel.execute(command, callbacks, {silent:false});
     }
-    document.radiopadre.protect = function (author) 
+    document.radiopadre.protect = function (author)
     {
         IPython.notebook.metadata.radiopadre_notebook_protect = 1;
         IPython.notebook.metadata.radiopadre_notebook_scrub = 1;
@@ -65,7 +72,7 @@ if( !document.radiopadre )
         document.radiopadre.controls.update();
     }
 
-    document.radiopadre.unprotect = function () 
+    document.radiopadre.unprotect = function ()
     {
         IPython.notebook.metadata.radiopadre_notebook_protect = 0;
         document.radiopadre.controls.update();
@@ -73,7 +80,7 @@ if( !document.radiopadre )
 
     document.radiopadre.controls = {}
 
-    document.radiopadre.controls.update = function () 
+    document.radiopadre.controls.update = function ()
     {
         var prot = document.radiopadre.controls.button_protected;
         var scrub = document.radiopadre.controls.button_scrub;
@@ -83,7 +90,7 @@ if( !document.radiopadre )
         if( IPython.notebook.metadata.radiopadre_notebook_protect ) {
             IPython.notebook.set_autosave_interval(0);
             prot.visibility = 'visible'
-            var author = IPython.notebook.metadata.radiopadre_notebook_author; 
+            var author = IPython.notebook.metadata.radiopadre_notebook_author;
             if( author == document.radiopadre.user ) {
                 prot.innerHTML = 'author';
                 prot.title  = 'This is a protected radiopadre notebook, but you are the author. ';
@@ -101,7 +108,7 @@ if( !document.radiopadre )
         } else {
             prot.innerHTML = 'unprotected';
             prot.visibility = 'hidden';
-            prot.title = 'This is an unprotected radiopadre notebook, it may be modified and saved at will. '; 
+            prot.title = 'This is an unprotected radiopadre notebook, it may be modified and saved at will. ';
             prot.title += 'Use radiopadre.protect([author]) to protect this notebook.';
         }
         if( IPython.notebook.metadata.radiopadre_notebook_scrub ) {
@@ -113,7 +120,7 @@ if( !document.radiopadre )
         }
     }
 
-    document.radiopadre.toggle_scrubbing = function() 
+    document.radiopadre.toggle_scrubbing = function()
     {
         IPython.notebook.metadata.radiopadre_notebook_scrub = !IPython.notebook.metadata.radiopadre_notebook_scrub;
         document.radiopadre.controls.update();
@@ -121,15 +128,15 @@ if( !document.radiopadre )
 
     document.radiopadre.before_unload = function (e) {
         console.log("before unload")
-        if( IPython.notebook.metadata.radiopadre_notebook_protect && 
-            IPython.notebook.metadata.radiopadre_notebook_author != document.radiopadre.user) 
+        if( IPython.notebook.metadata.radiopadre_notebook_protect &&
+            IPython.notebook.metadata.radiopadre_notebook_author != document.radiopadre.user)
         {
             IPython.notebook.set_dirty(false);
         }
         return document.radiopadre._old_beforeunload(e);
     }
 
-    document.radiopadre.init_controls = function (user) 
+    document.radiopadre.init_controls = function (user)
     {
         // run only once
         if( document.radiopadre.user )
@@ -138,26 +145,26 @@ if( !document.radiopadre )
         // IPython.notebook._save_notebook_orig = IPython.notebook.save_notebook
         document.radiopadre.user = user;
         if( document.getElementById("radiopadre_controls") == null ) {
-            console.log("initializing radiopadre components");
+            console.log("initializing radiopadre controls");
             var label = $('<span/>').addClass("navbar-text").text('Radiopadre:');
             IPython.toolbar.element.append(label);
             IPython.toolbar.add_buttons_group([
                 {   'id'      : 'radiopadre_btn_exec_all',
                     'label'   : 'Click to rerun all cells in this radiopadre notebook.',
-                    'icon'    : 'icon-arrow-up', 
+                    'icon'    : 'icon-arrow-up',
                     'callback': function () { IPython.notebook.execute_all_cells() }
                 },
                 {   'id'      : 'radiopadre_btn_scrub',
                     'label'   : 'Scrubs output from all cells in the notebook',
-                    'icon'    : 'icon-stop', 
+                    'icon'    : 'icon-stop',
                     'callback': function () { document.radiopadre.toggle_scrubbing() }
                 },
                 {   'id'      : 'radiopadre_btn_protected',
                     'label'   : 'This notebook is protected',
-                    'icon'    : 'icon-play-circle', 
+                    'icon'    : 'icon-play-circle',
                     'callback':  function () { IPython.notebook.execute_cell() }
                 }
-                ],'radiopadre_controls');   
+                ],'radiopadre_controls');
             var save = IPython.menubar.element.find("#save_checkpoint");
             save.enable = true;
         }
@@ -180,4 +187,40 @@ if( !document.radiopadre )
             window.onbeforeunload = document.radiopadre.before_unload
         }
     }
+
+    document.radiopadre.register_user = function (user)
+    {
+        document.radiopadre.user = user;
+        document.radiopadre.controls.update();
+    }
+
+    // init controls for null user
+    document.radiopadre.init_controls('')
+
+
+    // load JS9 components
+    var wrapper = document.createElement("div");
+    wrapper.innerHTML = "\
+      <link type='image/x-icon' rel='shortcut icon' href='/static/js9-www/favicon.ico'>\
+      <link type='text/css' rel='stylesheet' href='/static/js9-www/js9support.css'>\
+      <link type='text/css' rel='stylesheet' href='/static/js9-www/js9.css'>\
+      <link rel='apple-touch-icon' href='/static/js9-www/images/js9-apple-touch-icon.png'>\
+      <script type='text/javascript' src='/static/js9-www/js9prefs.js'></script>\
+      <script type='text/javascript'> console.log('loaded JS9 prefs 1') </script>\
+      <script type='text/javascript' src='/files/.radiopadre/js9prefs.js'></script>\
+      <script type='text/javascript'> console.log('loaded JS9 prefs 2')</script>\
+      <script type='text/javascript' src='/static/js9-www/js9support.min.js'></script>\
+      <script type='text/javascript' src='/static/js9-www/js9.min.js'></script>\
+      <script type='text/javascript' src='/static/js9-www/js9plugins.js'></script>\
+      <script type='text/javascript'> console.log('loaded JS9 components') </script>\
+      <script type='text/javascript' src='/static/radiopadre-www/js9partners.js'></script>\
+      <script type='text/javascript'> console.log('loaded JS9 partner plugin') </script>\
+      <script type='text/javascript' src='/static/js9colormaps.js'></script>\
+    "
+    Jupyter.toolbar.element.append(wrapper);
+
 }
+})
+
+return function () {};
+})
