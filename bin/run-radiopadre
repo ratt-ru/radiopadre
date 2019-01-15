@@ -8,6 +8,7 @@ import glob
 import socket
 import shutil
 import uuid
+import time
 
 import argparse
 
@@ -21,7 +22,11 @@ def bye(x, code=1):
 def shell(cmd):
     return subprocess.call(cmd.format(**globals()), shell=True)
 
+# ports used when running inside a container
+CONTAINER_PORTS = 11001, 11002, 11003
+child_processes = []
 
+DEFAULT_DOCKER_IMAGE = "osmirnov/radiopadre:latest"
 
 parser = argparse.ArgumentParser(description="Runs radiopadre")
 
@@ -43,12 +48,25 @@ parser.add_argument("--no-casacore", action="store_true",
                   help="Ignore casacore installation errors, if bootstrapping.")
 parser.add_argument("--no-js9", action="store_true",
                   help="Ignore JS9 installation errors, if bootstrapping.")
+parser.add_argument("-d", "--docker", action="store_true",
+                  help="Runs radiopadre via a Docker container")
+parser.add_argument("-D", "--dev-docker", action="store_true",
+                  help="Runs radiopadre via a Docker container, but uses the host-installed version of radiopadre inside it. For developers.")
+parser.add_argument("--docker-image", type=str, default=DEFAULT_DOCKER_IMAGE,
+                  help="Which Docker image to use. Default is %(default)s.")
 parser.add_argument("--verbose", action="store_true",
                   help="Enable verbose output.")
 parser.add_argument("notebook", nargs="?",
-                  help="notebook to load, if given")
+                  help="notebook/dir to load, if given")
+
+# internal switches used when running in container
+parser.add_argument("--inside-container", type=str, metavar="<ports>", help=argparse.SUPPRESS)
+parser.add_argument("--workdir", type=str, help=argparse.SUPPRESS)
 
 options = parser.parse_args()
+
+if options.dev_docker:
+    options.docker = True
 
 # if explicit notebook directory is given, change into it before doing anything else
 if options.notebook:
@@ -58,15 +76,25 @@ if options.notebook:
         os.chdir(options.notebook)
         options.notebook = '.'
     else:
-        os.chdir(os.path.dirname(options.notebook))
+        nbdir = os.path.dirname(options.notebook)
+        if nbdir:
+            os.chdir(nbdir)
         options.notebook = os.path.basename(options.notebook)
+
+# setup session ID. This will also be the Jupyter authentication token
+# Inside the container, the parent script will pass it in
+if options.inside_container:
+    os.environ['RADIOPADRE_SESSION_ID'] = session_id = raw_input("Enter session ID").strip()
+# Outside the container, pick a random one
+else:
+    os.environ['RADIOPADRE_SESSION_ID'] = session_id = uuid.uuid4().hex
 
 # get radiopadre install directory. __file__ is RADIOPADRE/bin/run-radiopadre, so take the dirname twice
 PADRE_PATH = os.path.abspath(os.path.dirname(os.path.dirname(__file__)))
 # cache and shadow dir base
-PADRE_WORKDIR = os.path.expanduser("~/.radiopadre")
+PADRE_WORKDIR = options.workdir or os.path.expanduser("~/.radiopadre")
 # virtual environment
-PADRE_VENV = PADRE_WORKDIR + "/venv"
+PADRE_VENV = "/.radiopadre/venv" if options.inside_container else PADRE_WORKDIR + "/venv"
 # target directory
 ABSROOTDIR = ROOTDIR = os.path.abspath(os.getcwd())              # e.g. /home/other/path
 # shadow of target directory
@@ -95,11 +123,7 @@ if not os.path.exists(cachelink):
 JUPYTER_OPTS = [
     "notebook",
     "--ContentsManager.pre_save_hook=radiopadre_utils.notebook_utils._notebook_save_hook",
-    "--ContentsManager.allow_hidden=True",
-    # "--NotebookApp.allow_origin='*'",
-]
-
-
+    "--ContentsManager.allow_hidden=True" ]
 
 DEVZERO = open("/dev/zero")
 DEVNULL = open("/dev/null", "w")
@@ -107,31 +131,42 @@ DEVNULL = open("/dev/null", "w")
 activation_script = os.path.join(PADRE_VENV, "bin/activate_this.py")
 complete_cookie = os.path.join(PADRE_VENV, ".complete")
 
-# See https://stackoverflow.com/questions/1871549/determine-if-python-is-running-inside-virtualenv
-if hasattr(sys, 'real_prefix') or (hasattr(sys, 'base_prefix') and sys.base_prefix != sys.prefix):
-    if sys.prefix == PADRE_VENV:
-        message("Already running inside radiopadre virtual environment")
-    else:
-        bye("Can't run this script inside a non-radiopadre virtualenv. Please deactivate and rerun.")
-else:
-    if os.path.exists(activation_script) and os.path.exists(complete_cookie) and not options.reinstall:
-        message("Found radiopadre virtualenv in {PADRE_VENV}")
-    elif options.bootstrap or options.reinstall:
-        if options.reinstall:
-            message("Will reinstall radiopadre virtualenv using install-radiopadre")
+# Switch into virtualenv, unless we're using docker
+if not options.docker:
+    # See https://stackoverflow.com/questions/1871549/determine-if-python-is-running-inside-virtualenv
+    if hasattr(sys, 'real_prefix') or (hasattr(sys, 'base_prefix') and sys.base_prefix != sys.prefix):
+        if sys.prefix == PADRE_VENV:
+            message("Already running inside radiopadre virtual environment")
         else:
-            message("Can't find complete radiopadre virtualenv, bootstrapping with install-radiopadre")
-        if shell("{}/bin/install-radiopadre {} {} reinstall".format(PADRE_PATH,
-                    "--no-casacore" if options.no_casacore else "",
-                    "--no-js9" if options.no_js9 else "",
-                )):
-            bye("Installation script failed")
+            bye("Can't run this script inside a non-radiopadre virtualenv. Please deactivate and rerun.")
+    else:
+        if os.path.exists(activation_script) and os.path.exists(complete_cookie) and not options.reinstall:
+            message("Found radiopadre virtualenv in {PADRE_VENV}")
+        elif options.bootstrap or options.reinstall:
+            if options.reinstall:
+                message("Will reinstall radiopadre virtualenv using install-radiopadre")
+            else:
+                message("Can't find complete radiopadre virtualenv, bootstrapping with install-radiopadre")
+            if shell("{}/bin/install-radiopadre {} {} reinstall".format(PADRE_PATH,
+                        "--no-casacore" if options.no_casacore else "",
+                        "--no-js9" if options.no_js9 else "",
+                    )):
+                bye("Installation script failed")
 
-    print "Activating the radiopadre virtualenv"
-    execfile(activation_script, dict(__file__=activation_script))
+        print "Activating the radiopadre virtualenv"
+        execfile(activation_script, dict(__file__=activation_script))
 
 message("Welcome to Radiopadre!")
-message("  Using radiopadre install at {PADRE_PATH}")
+if options.docker:
+    docker_image = options.docker_image
+    if docker_image[0] == ":":
+        docker_image = DEFAULT_DOCKER_IMAGE.split(":")[0] + docker_image
+    message("  Using radiopadre Docker image {docker_image}")
+elif options.inside_container:
+    message("  Running inside a container")
+else:
+    message("  Using radiopadre install at {PADRE_PATH}")
+message("  Session ID/notebook token is '{}'".format(session_id))  # careful, this is read by run-remote-padre!
 
 # directory where we were originally run
 os.environ['RADIOPADRE_ABSROOTDIR'] = ABSROOTDIR
@@ -151,6 +186,78 @@ else:
 if not os.path.exists(".radiopadre"):
     os.mkdir(".radiopadre")
 
+
+#=== will we be starting a browser?
+
+browser = False
+if options.inside_container:
+    message("  Running inside container -- not opening a browser")
+elif os.environ.get("SSH_CLIENT"):
+    message("You appear to have logged in via ssh")
+    if options.browser:
+        message("--browser is set so I will open a browser anyway")
+        browser = True
+    else:
+        message("You're logged in via ssh, so I'm not opening a web browser for you.")
+        message("Please manually browse to the URL printed by Jupyter below. You will probably want to employ ssh")
+        message("port forwarding if you want to browse this notebook from your own machine.")
+        browser = False
+else:
+    message("You appear to have a local session")
+    if options.no_browser:
+        message("--no-browser is set, jupyter notebook will not invoke a browser.")
+        message("Please manually browse to the URL printed by Jupyter below.")
+        browser = False
+    else:
+        message("Allowing jupyter notebook to open a web browser. Use --no-browser to disable this.")
+        browser = True
+
+
+#=== find unused ports for Jupyter & helpers
+
+def find_unused_port (base,maxtries=1000):
+    for i in range(maxtries):
+        serversocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        try:
+            serversocket.bind(("localhost", base))
+            serversocket.close()
+            return base
+        except:
+            base += 1
+            continue
+    return None
+
+if options.inside_container:
+    jupyter_port, helper_port, http_port = CONTAINER_PORTS
+    message("Inside container, using fixed ports {} {} {}".format(jupyter_port, helper_port, http_port))
+else:
+    jupyter_port = find_unused_port(1024)
+    helper_port  = find_unused_port(jupyter_port+1)
+    http_port    = find_unused_port(helper_port+1)
+    selected_ports = jupyter_port, helper_port, http_port
+    message("Selected ports: {}:{}:{}".format(jupyter_port, helper_port, http_port))
+
+# in remote mode, ask the user-side script to supply port numbers
+# (these need to be given to radiopadre so it can form up paths properly)
+if options.remote:
+    forwarded_ports = raw_input("{Remote mode} please enter fowarded port numbers: ")
+    userside_jupyter_port, userside_helper_port, userside_http_port = forwarded_ports.strip().split(" ", 2)
+    # print userside_helper_port, userside_http_port
+# if inside container, the userside port numbers are passed in as via --inside-container port1:port2
+elif options.inside_container:
+    userside_jupyter_port, userside_helper_port, userside_http_port = map(int, options.inside_container.split(":"))
+# else running locally -- userside port are as is
+else:
+    userside_jupyter_port, userside_helper_port, userside_http_port = jupyter_port, helper_port, http_port
+
+
+JUPYTER_OPTS += [
+    "--NotebookApp.token='{}'".format(session_id),
+    "--NotebookApp.custom_display_url='http://localhost:{}'".format(userside_jupyter_port)
+]
+
+#=== figure out whether we initialize or load a notebook
+
 ALL_NOTEBOOKS = glob.glob("*.ipynb")
 
 if orig_rootdir and not ALL_NOTEBOOKS:
@@ -164,6 +271,154 @@ if orig_rootdir and not ALL_NOTEBOOKS:
 
 message("  Available notebooks: " + " ".join(ALL_NOTEBOOKS))
 
+LOAD_NOTEBOOK = None
+
+if not options.inside_container:
+
+    LOAD_NOTEBOOK = options.notebook
+    CREATE_DEFAULT_NOTEBOOK = False
+    DEFAULT_NAME = "radiopadre-default.ipynb"
+
+    if LOAD_NOTEBOOK:
+        message("  Will load {LOAD_NOTEBOOK} as requested")
+    elif not options.no_default:
+        LOAD_NOTEBOOK = DEFAULT_NAME
+        if DEFAULT_NAME in ALL_NOTEBOOKS:
+            message("  Will load {LOAD_NOTEBOOK} as requested")
+        else:
+            CREATE_DEFAULT_NOTEBOOK = True
+            message("  Will create and load default {LOAD_NOTEBOOK} as requested")
+    else:
+        # are there any notebooks in the directory? If only one, load it automatically.
+        if len(ALL_NOTEBOOKS) == 1:
+            LOAD_NOTEBOOK = ALL_NOTEBOOKS[0]
+            message("  Only one notebook found, will auto-load.")
+        elif not ALL_NOTEBOOKS:
+            LOAD_NOTEBOOK = "radiopadre-default.ipynb"
+            CREATE_DEFAULT_NOTEBOOK = True
+            message("  No notebooks. Will auto-create and load default {LOAD_NOTEBOOK}.")
+        else:
+            message("  Not auto-loading any notebooks. Pick one, or specify it on the command line.")
+
+    # create default notebook
+    if CREATE_DEFAULT_NOTEBOOK:
+        if os.path.exists(LOAD_NOTEBOOK):
+            message("Strange, {LOAD_NOTEBOOK} already exists but we mean to create a default?")
+        else:
+            import shutil
+            shutil.copyfile(PADRE_PATH+"/notebooks/"+DEFAULT_NAME, LOAD_NOTEBOOK)
+
+if LOAD_NOTEBOOK:
+    message("Browse to URL: http://localhost:{}//notebooks/{}?token={}".format(
+        userside_jupyter_port, LOAD_NOTEBOOK, session_id))  # this is read by remote
+else:
+    message("Browse to URL: http://localhost:{}/?token={}".format(
+        userside_jupyter_port, session_id))
+
+# now we're ready to start the container
+if options.docker:
+    docker = subprocess.check_output("which docker", shell=True).strip()
+    if not docker:
+        bye("docker binary not found")
+
+    docker_home = os.path.expanduser("~/.docker-home.radiopadre")
+    if not os.path.exists(docker_home):
+        os.mkdir(docker_home)
+
+    container_name = "radiopadre-{}".format(uuid.uuid4().hex)
+    docker_opts = [docker, "run", "-i", "--rm", "--name", container_name, "-w", ABSROOTDIR,
+                   "-e", "USER={}".format(os.environ["USER"])]
+    for port1, port2 in zip(selected_ports, CONTAINER_PORTS):
+        docker_opts += [ "-p", "{}:{}/tcp".format(port1, port2)]
+    # setup mounts for work dir and home dir, if needed
+    homedir = os.path.expanduser("~")
+    docker_opts += [ "-v", "{}:{}{}".format(ABSROOTDIR, ABSROOTDIR, ":ro" if orig_rootdir else ""),
+                     "-v", "{}:{}".format(homedir, homedir),
+                     "-v", "{}:/root".format(docker_home) ]
+    if options.dev_docker:
+        docker_opts += [ "-v", "{}:/radiopadre".format(PADRE_PATH) ]
+    # add image
+    docker_opts += [ docker_image,
+                     "/radiopadre/bin/run-radiopadre",
+                     "--inside-container", "{}:{}:{}".format(
+                                userside_jupyter_port, userside_helper_port, userside_http_port),
+                     "--workdir", PADRE_WORKDIR,
+                   ]
+    # add arguments
+    if options.verbose:
+        docker_opts.append("--verbose")
+    if options.no_default:
+        docker_opts.append("--no-default")
+    if options.notebook:
+        docker_opts.append(options.notebook)
+
+    message("Running {}".format(" ".join(docker_opts)))
+    docker_process = subprocess.Popen(docker_opts,
+                                      stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                                      env=os.environ)
+
+    # print session ID to script in container, as it expects it
+    docker_process.stdin.write(session_id+"\n")
+
+
+    # now go through this whole rigamarole of waiting for the container to report the notebook is started...
+    import select
+    poller = select.poll()
+    poller.register(docker_process.stdout)
+    poller.register(docker_process.stderr)
+    fdlabels = { docker_process.stdout.fileno(): ("stdout", docker_process.stdout),
+                 docker_process.stderr.fileno(): ("stderr", docker_process.stderr) }
+
+    try:
+        while True:
+            fdlist = poller.poll()
+            for fd, event in fdlist:
+                if event & (select.POLLHUP | select.POLLERR):
+                    break
+                fname, fobj = fdlabels.get(fd)
+                line = fobj.readline().strip()
+                message("docker {}: {}".format(fname, line))
+                if "Jupyter Notebook is running" in line:
+                    # report URL back to remote
+                    # start browser if requested
+                    if browser:
+                        message("notebook startup detected -- driving browser")
+                        default_browser = os.environ.get("PADRE_BROWSER", "xdg-open")
+                        if LOAD_NOTEBOOK:
+                            subprocess.Popen([default_browser,
+                                              "http://localhost:{}/notebooks/{}?token={}".format(jupyter_port, LOAD_NOTEBOOK, session_id)])
+                        else:
+                            subprocess.Popen([default_browser,
+                                              "http://localhost:{}/?token={}".format(jupyter_port, session_id)])
+    except BaseException as exc:
+        if type(exc) is KeyboardInterrupt:
+            message("Caught Ctrl+C, terminating docker processes")
+        else:
+            message("Caught exception {}, terminating docker processes".format(exc))
+        docker_process.terminate()
+        docker_process.wait()
+        status = 1
+
+    # try:
+    #     # give the docker process the session ID
+    #     docker_process.communicate(session_id+"\n\n\n")
+    #     status = 0
+    # except Exception as exc:
+    #     message("Caught exception {}, terminating docker processes".format(exc))
+    #     docker_process.terminate()
+    #     docker_process.wait()
+    #     status = 1
+
+    if container_name in subprocess.check_output(["docker", "ps"]):
+        message("Cleaning up container")
+        try:
+            subprocess.check_output(["docker", "rm", container_name, "--force"])
+        except subprocess.CalledProcessError:
+            pass
+    message("Exiting")
+    sys.exit(status)
+
+
 # get hostname
 os.environ["HOSTNAME"] = subprocess.check_output("/bin/hostname")
 
@@ -173,39 +428,6 @@ notebook_dir = subprocess.check_output("{PADRE_VENV}/bin/pip show jupyter| "
 if not notebook_dir:
     raise subprocess.CalledProcessError("jupyter installation path not found")
 
-LOAD_NOTEBOOK = options.notebook
-CREATE_DEFAULT_NOTEBOOK = False
-DEFAULT_NAME = "radiopadre-default.ipynb"
-
-if LOAD_NOTEBOOK:
-    message("  Will load {LOAD_NOTEBOOK} as requested")
-elif not options.no_default:
-    LOAD_NOTEBOOK = DEFAULT_NAME
-    if DEFAULT_NAME in ALL_NOTEBOOKS:
-        message("  Will load {LOAD_NOTEBOOK} as requested")
-    else:
-        CREATE_DEFAULT_NOTEBOOK = True
-        message("  Will create and load default {LOAD_NOTEBOOK} as requested")
-else:
-    # are there any notebooks in the directory? If only one, load it automatically.
-    if len(ALL_NOTEBOOKS) == 1:
-        LOAD_NOTEBOOK = ALL_NOTEBOOKS[0]
-        message("  Only one notebook found, will auto-load.")
-    elif not ALL_NOTEBOOKS:
-        LOAD_NOTEBOOK = "radiopadre-default.ipynb"
-        CREATE_DEFAULT_NOTEBOOK = True
-        message("  No notebooks. Will auto-create and load default {LOAD_NOTEBOOK}.")
-    else:
-        message("  Not auto-loading any notebooks. Pick one, or specify it on the command line.")
-
-
-# create default notebook
-if CREATE_DEFAULT_NOTEBOOK:
-    if os.path.exists(LOAD_NOTEBOOK):
-        message("Strange, {LOAD_NOTEBOOK} already exists but we mean to create a default?")
-    else:
-        import shutil
-        shutil.copyfile(PADRE_PATH+"/notebooks/"+DEFAULT_NAME, LOAD_NOTEBOOK)
 
 # check status of JS9. Ends up being True, or a RuntimeError
 
@@ -227,14 +449,15 @@ else:
     message("  Warning: JS9 not functional ({js9error}). Reinstall radiopadre?")
 
 
-# make link to JS9 install
-if js9dir:
-    if not os.path.exists(PADRE_WORKDIR + "/js9-www"):
-        os.symlink(js9dir, PADRE_WORKDIR + "/js9-www")
-    if not os.path.exists(PADRE_WORKDIR + "/js9colormaps.js"):
-        os.symlink(notebook_dir + "/notebook/static/js9colormaps.js", PADRE_WORKDIR + "/js9colormaps.js")
-    if not os.path.exists(PADRE_WORKDIR + "/radiopadre-www"):
-        os.symlink(PADRE_PATH + "/html", PADRE_WORKDIR + "/radiopadre-www")
+# # make link to JS9 install
+# if js9dir:
+#     if not os.path.exists(PADRE_WORKDIR + "/js9-www"):
+#         os.symlink(js9dir, PADRE_WORKDIR + "/js9-www")
+#     if not os.path.exists(PADRE_WORKDIR + "/js9colormaps.js"):
+#         message("making {} symlink".format(PADRE_WORKDIR + "/js9colormaps.js"))
+#         os.symlink(notebook_dir + "/notebook/static/js9colormaps.js", PADRE_WORKDIR + "/js9colormaps.js")
+#     if not os.path.exists(PADRE_WORKDIR + "/radiopadre-www"):
+#         os.symlink(PADRE_PATH + "/html", PADRE_WORKDIR + "/radiopadre-www")
 
 # add padre directory to PYTHONPATH
 if "PYTHONPATH" in os.environ:
@@ -243,74 +466,27 @@ else:
     os.environ["PYTHONPATH"] = PADRE_PATH
 
 
-browser = False
-if os.environ.get("SSH_CLIENT"):
-    message("You appear to have logged in via ssh")
-    if options.browser:
-        message("--browser is set so I will open a browser anyway")
-        browser = True
-    else:
-        message("You're logged in via ssh, so I'm not opening a web browser for you.")
-        message("Please manually browse to the URL printed by Jupyter below. You will probably want to employ ssh")
-        message("port forwarding if you want to browse this notebook from your own machine.")
-        browser = False
-else:
-    message("You appear to have a local session")
-    if options.no_browser:
-        message("--no-browser is set, jupyter notebook will not invoke a browser.")
-        message("Please manually browse to the URL printed by Jupyter below.")
-        browser = False
-    else:
-        message("Allowing jupyter notebook to open a web browser. Use --no-browser to disable this.")
-        browser = True
-
-# find unused ports for Jupyter & helpers
-def find_unused_port (base,maxtries=1000):
-    for i in range(maxtries):
-        serversocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        try:
-            serversocket.bind(("localhost", base))
-            serversocket.close()
-            return base
-        except:
-            base += 1
-            continue
-    return None
-
-jupyter_port = find_unused_port(1024)
-helper_port  = find_unused_port(jupyter_port+1)
-http_port    = find_unused_port(helper_port+1)
-
-message("Selected ports: {}:{}:{}".format(jupyter_port, helper_port, http_port))
-
-forwarded_helper_port, forwarded_http_port = helper_port, http_port
-
-if options.remote:
-    forwarded_ports = raw_input("{Remote mode} please enter fowarded port numbers: ")
-    forwarded_helper_port, forwarded_http_port = forwarded_ports.strip().split(" ",1)
-    print forwarded_helper_port, forwarded_http_port
-
 
 JUPYTER_OPTS.append("--port={}".format(jupyter_port))
 if not browser:
     JUPYTER_OPTS += ["--no-browser", "--browser=/dev/null"] # --no-browser alone seems to be ignored
 
+if options.inside_container:
+    JUPYTER_OPTS += ["--allow-root", "--ip=0.0.0.0"] # --no-browser alone seems to be ignored
+
 if LOAD_NOTEBOOK:
     JUPYTER_OPTS.append(LOAD_NOTEBOOK)
 
-child_processes = []
-
-os.environ['RADIOPADRE_SESSION_ID'] = session_id = uuid.uuid4().hex
 #os.environ['RADIOPADRE_SHADOW_URLBASE'] = urlbase = "http://localhost:{}/".format(forwarded_http_port)
-os.environ['RADIOPADRE_SHADOW_URLBASE'] = urlbase = "http://localhost:{}/{}/".format(forwarded_http_port, session_id)
+os.environ['RADIOPADRE_SHADOW_URLBASE'] = urlbase = "http://localhost:{}/{}/".format(userside_http_port, session_id)
 js9prefs = None
 
 if js9dir:
-    os.environ['RADIOPADRE_JS9_HELPER_PORT'] = str(forwarded_helper_port)
+    os.environ['RADIOPADRE_JS9_HELPER_PORT'] = str(userside_helper_port)
     # create JS9 settings file for session
     js9prefs = ".radiopadre/js9prefs.js"
     open(js9prefs, "w").write(
-        "JS9Prefs.globalOpts.helperPort = {};\n".format(forwarded_helper_port)
+        "JS9Prefs.globalOpts.helperPort = {};\n".format(userside_helper_port)
     )
     # URL to local settings file for this session
     os.environ['RADIOPADRE_JS9_DIR'] = "{}js9-www/".format(urlbase)
@@ -353,7 +529,9 @@ try:
 
     ## start jupyter process
 
-    notebook_proc = subprocess.Popen([PADRE_VENV+"/bin/jupyter"] + JUPYTER_OPTS,
+    jupyter_path = PADRE_VENV + "/bin/jupyter"
+
+    notebook_proc = subprocess.Popen([jupyter_path] + JUPYTER_OPTS,
                                       stdin=sys.stdin, stdout=sys.stdout, stderr=sys.stderr,
                                       env=os.environ)
 

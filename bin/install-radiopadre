@@ -29,11 +29,17 @@ parser.add_argument("--no-js9", action="store_true",
                   help="skips the JS9 installation. FITS functionality will be reduced.")
 parser.add_argument("--cfitsio-path", metavar="DIR", type=str, default="/usr",
                   help="path to cfitsio installation. Default is %(default)s")
+parser.add_argument("--inside-container", action="store_true",
+                  help=argparse.SUPPRESS)
 
 options = parser.parse_args()
 
-PADRE_WORKDIR = os.path.expanduser("~/.radiopadre")
-PADRE_VENV = os.path.expanduser("~/.radiopadre/venv")
+if not options.inside_container:
+    PADRE_WORKDIR = os.path.expanduser("~/.radiopadre")
+    PADRE_VENV = PADRE_WORKDIR + "/venv"
+else:
+    PADRE_WORKDIR = "/.radiopadre"
+    PADRE_VENV = "/.radiopadre/venv"
 
 def message(x, prefix='install-radiopadre: '):
     print(prefix + x.format(**globals()))
@@ -44,6 +50,9 @@ def bye(x, code=1):
 
 def shell(cmd):
     return subprocess.call(cmd.format(**globals()), shell=True)
+
+def which(cmd):
+    return subprocess.check_output("which {}".format(cmd), shell=True).strip()
 
 # See https://stackoverflow.com/questions/1871549/determine-if-python-is-running-inside-virtualenv
 if hasattr(sys, 'real_prefix') or (hasattr(sys, 'base_prefix') and sys.base_prefix != sys.prefix):
@@ -99,41 +108,56 @@ if not os.path.exists(activation_script):
         sys.exit(1)
 
     message("Creating radiopadre virtualenv in {PADRE_VENV}")
-    if shell("virtualenv " + PADRE_VENV):
+    site_packages = "--system-site-packages" if options.inside_container else ""
+    if shell("virtualenv {PADRE_VENV} {site_packages}"):
         bye("Failed to create virtualenv")
-
 
 message("Activating virtualenv")
 execfile(activation_script, dict(__file__=activation_script))
 
 if options.command in ["install", "reinstall", "reqs"]:
     message("Installing dependencies. This may take a few minutes")
-    if shell("{PADRE_VENV}/bin/pip install -r {PADRE_PATH}/requirements.txt"):
-        bye("Dependencies failed to install, see log above")
 
-    # install this venv as a custom kernel
-    message("All dependencies installed in virtual environment. Creating radiopadre ipython kernel")
-    if shell("{PADRE_VENV}/bin/ipython kernel install --user --name=radiopadre"):
-        bye("ipython kernel failed to install, see log above")
+    ## For now, always install jupyter and notebook in the venv (whether in a container or not).
+    ## I couldn't figure out how to bolt on kernel.js and JS9 on a systemwide install properly,
+    ## so sticking with the virtualenv approach for now...
+
+    if options.inside_container:
+        if shell("{PADRE_VENV}/bin/pip install -r {PADRE_PATH}/requirements-docker.txt"):
+            bye("Dependencies failed to install, see log above")
+    else:
+        if shell("{PADRE_VENV}/bin/pip install -r {PADRE_PATH}/requirements.txt"):
+            bye("Dependencies failed to install, see log above")
+
+    message("Creating radiopadre ipython kernel")
+    if options.inside_container:
+        ipython = "ipython"
+        if shell(ipython + " kernel install --name=radiopadre"):
+            bye("ipython kernel failed to install, see log above")
+    else:
+        ipython = PADRE_VENV + "/bin/ipython"
+        if shell(ipython + " kernel install --user --name=radiopadre"):
+            bye("ipython kernel failed to install, see log above")
+
+    # get jupyter base path
+    notebook_dir = subprocess.check_output("{PADRE_VENV}/bin/pip show jupyter| "
+                                           "grep Location:|cut -d ':' -f 2".format(**globals()), shell=True).strip()
 
     # get path to it because we want to install our own kernel.js
     try:
-        out = subprocess.check_output("jupyter kernelspec list", shell=True)
+        out = subprocess.check_output(ipython + " kernelspec list", shell=True)
     except subprocess.CalledProcessError:
-        bye("jupyter kernelspec list failed, see log above")
+        bye("ipython kernelspec list failed, see log above")
     for line in out.split("\n"):
         columns = line.strip().split()
         if columns[0] == "radiopadre":
             kerneldir = columns[1]
             break
     else:
-        bye("jupyter kernelspec list did not return the radiopadre kernel. This is a bug?")
+        bye("ipython kernelspec list did not return the radiopadre kernel. This is a bug?")
     message("Linking kernel.js to {kerneldir}")
     os.symlink(PADRE_PATH + "/html/radiopadre-kernel.js", kerneldir + "/kernel.js")
 
-# get jupyter path
-notebook_dir = subprocess.check_output("{PADRE_VENV}/bin/pip show jupyter| "
-                                       "grep Location:|cut -d ':' -f 2".format(**globals()), shell=True).strip()
 if not notebook_dir:
     raise subprocess.CalledProcessError("jupyter installation path not found")
 

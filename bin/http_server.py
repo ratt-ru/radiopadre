@@ -41,7 +41,8 @@ if __name__ == '__main__':
     port = int(sys.argv[1])
     print("HTTPServer: starting on port {}".format(port))
 
-    server_address = ('localhost', port)
+    server_address = ("0.0.0.0", port)
+#    server_address = ('localhost', port)
     httpd = HTTPServer(server_address, CORSRequestHandler)
     httpd.serve_forever()
 
