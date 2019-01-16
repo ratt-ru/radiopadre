@@ -10,7 +10,7 @@ import re
 import socket
 import fnmatch
 
-REPO = "git@github.com:ratt-ru/radiopadre-devel.git"
+REPO = "git@github.com:ratt-ru/radiopadre.git"
 BRANCH = "master"
 
 LAUNCH = "run-radiopadre"
