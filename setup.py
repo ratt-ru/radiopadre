@@ -1,4 +1,5 @@
 from setuptools import setup
+import os
 
 __version__ = "0.4"
 
@@ -7,8 +8,8 @@ install_requires = [
     'jupyter',
     'ipython>3.0',
     'notebook',
-    'matplotlib>=1.3,<1.5',
-    'pyfits',
+    'matplotlib>=1.3',
+    'astropy',
     'aplpy',
     'tornado>=4.0',
     'jsonschema',
@@ -18,11 +19,7 @@ install_requires = [
     'jinja2',
 ]
 
-scripts = [
-    'run-remote-padre',
-    'run-radiopadre.sh',
-    'run-radiopadre-docker.sh'
-]
+scripts = ["bin/" + i for i in os.listdir("bin")]
 
 setup(
     name="radiopadre",
