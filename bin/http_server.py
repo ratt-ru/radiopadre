@@ -21,6 +21,7 @@ class CORSRequestHandler (SimpleHTTPRequestHandler):
 
     def translate_path(self, path):
         path = SimpleHTTPRequestHandler.translate_path(self, path)
+        print("HTTPServer: requested {}".format(path))
         if not path.startswith(path_id):
             print("HTTPServer: ignoring request for {}".format(path), file=sys.stderr)
             return "/dev/null"
@@ -35,8 +36,8 @@ if __name__ == '__main__':
     for arg in sys.argv[2:]:
         if "=" in arg:
             src, dest = arg.split("=", 1)
-            src = os.getcwd() + src
-            path_rewrites.append((src, dest))
+            src = path_id + src
+            path_rewrites.insert(0, (src, dest))
             print("HTTPServer: will rewrite {}->{}".format(src, dest))
     port = int(sys.argv[1])
     print("HTTPServer: starting on port {}".format(port))

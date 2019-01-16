@@ -44,6 +44,8 @@ parser.add_argument("-n","--no-browser",action="store_true",
                   help="do not open a browser session, even if running locally.")
 parser.add_argument("--no-default",action="store_true",
                   help="do not create a default notebook automatically. Default is to create.")
+parser.add_argument("-a", "--auto-load",action="store_true",
+                  help="automatically load first notebook found, if none is given explicitly")
 parser.add_argument("--no-casacore", action="store_true",
                   help="Ignore casacore installation errors, if bootstrapping.")
 parser.add_argument("--no-js9", action="store_true",
@@ -54,6 +56,8 @@ parser.add_argument("-D", "--dev-docker", action="store_true",
                   help="Runs radiopadre via a Docker container, but uses the host-installed version of radiopadre inside it. For developers.")
 parser.add_argument("--docker-image", type=str, default=DEFAULT_DOCKER_IMAGE,
                   help="Which Docker image to use. Default is %(default)s.")
+parser.add_argument("--docker-pull", action="store_true",
+                  help="Use dopcker pull to update the image from dockerhub.")
 parser.add_argument("--verbose", action="store_true",
                   help="Enable verbose output.")
 parser.add_argument("notebook", nargs="?",
@@ -75,11 +79,15 @@ if options.notebook:
     if os.path.isdir(options.notebook):
         os.chdir(options.notebook)
         options.notebook = '.'
+        LOAD_DIR = True
+        LOAD_NOTEBOOK = None
     else:
         nbdir = os.path.dirname(options.notebook)
         if nbdir:
             os.chdir(nbdir)
         options.notebook = os.path.basename(options.notebook)
+        LOAD_DIR = False
+        LOAD_NOTEBOOK = options.notebook
 
 # setup session ID. This will also be the Jupyter authentication token
 # Inside the container, the parent script will pass it in
@@ -93,6 +101,8 @@ else:
 PADRE_PATH = os.path.abspath(os.path.dirname(os.path.dirname(__file__)))
 # cache and shadow dir base
 PADRE_WORKDIR = options.workdir or os.path.expanduser("~/.radiopadre")
+os.environ['RADIOPADRE_SHADOW_HOME'] = PADRE_WORKDIR
+
 # virtual environment
 PADRE_VENV = "/.radiopadre/venv" if options.inside_container else PADRE_WORKDIR + "/venv"
 # target directory
@@ -162,6 +172,10 @@ if options.docker:
     if docker_image[0] == ":":
         docker_image = DEFAULT_DOCKER_IMAGE.split(":")[0] + docker_image
     message("  Using radiopadre Docker image {docker_image}")
+    if options.docker_pull:
+        message("  Calling docker pull to make sure the image is up-to-date:")
+        subprocess.call("docker pull {}".format(docker_image), shell=True)
+
 elif options.inside_container:
     message("  Running inside a container")
 else:
@@ -275,45 +289,37 @@ LOAD_NOTEBOOK = None
 
 if not options.inside_container:
 
-    LOAD_NOTEBOOK = options.notebook
-    CREATE_DEFAULT_NOTEBOOK = False
     DEFAULT_NAME = "radiopadre-default.ipynb"
 
-    if LOAD_NOTEBOOK:
-        message("  Will load {LOAD_NOTEBOOK} as requested")
-    elif not options.no_default:
-        LOAD_NOTEBOOK = DEFAULT_NAME
-        if DEFAULT_NAME in ALL_NOTEBOOKS:
-            message("  Will load {LOAD_NOTEBOOK} as requested")
-        else:
-            CREATE_DEFAULT_NOTEBOOK = True
-            message("  Will create and load default {LOAD_NOTEBOOK} as requested")
-    else:
-        # are there any notebooks in the directory? If only one, load it automatically.
-        if len(ALL_NOTEBOOKS) == 1:
-            LOAD_NOTEBOOK = ALL_NOTEBOOKS[0]
-            message("  Only one notebook found, will auto-load.")
-        elif not ALL_NOTEBOOKS:
-            LOAD_NOTEBOOK = "radiopadre-default.ipynb"
-            CREATE_DEFAULT_NOTEBOOK = True
-            message("  No notebooks. Will auto-create and load default {LOAD_NOTEBOOK}.")
-        else:
-            message("  Not auto-loading any notebooks. Pick one, or specify it on the command line.")
-
-    # create default notebook
-    if CREATE_DEFAULT_NOTEBOOK:
-        if os.path.exists(LOAD_NOTEBOOK):
-            message("Strange, {LOAD_NOTEBOOK} already exists but we mean to create a default?")
-        else:
+    if not ALL_NOTEBOOKS:
+        if not options.no_default:
+            message("  No notebooks: will create {DEFAULT_NAME}")
+            LOAD_DIR = True
             import shutil
-            shutil.copyfile(PADRE_PATH+"/notebooks/"+DEFAULT_NAME, LOAD_NOTEBOOK)
+            shutil.copyfile(PADRE_PATH + "/notebooks/" + DEFAULT_NAME, DEFAULT_NAME)
+        else:
+            message("  No notebooks but --no-default given. Displaying directory only.")
+            LOAD_DIR = True
+            LOAD_NOTEBOOK = None
+    else:
+        if LOAD_NOTEBOOK:
+            if LOAD_NOTEBOOK in ALL_NOTEBOOKS:
+                message("  Will load {LOAD_NOTEBOOK} as requested.")
+            else:
+                message("  {LOAD_NOTEBOOK} not found. Displaying directory only.")
+                LOAD_DIR = True
+                LOAD_NOTEBOOK = None
+        else:
+            if options.auto_load:
+                LOAD_NOTEBOOK = ALL_NOTEBOOKS[0]
+                message("  Auto-loading {LOAD_NOTEBOOK}.")
+
 
 if LOAD_NOTEBOOK:
     message("Browse to URL: http://localhost:{}/notebooks/{}?token={}".format(
         userside_jupyter_port, LOAD_NOTEBOOK, session_id))  # this is read by remote
-else:
-    message("Browse to URL: http://localhost:{}/?token={}".format(
-        userside_jupyter_port, session_id))
+if LOAD_DIR:
+    message("Browse to URL: http://localhost:{}/?token={}".format(userside_jupyter_port, session_id))
 
 # now we're ready to start the container
 if options.docker:
@@ -326,8 +332,11 @@ if options.docker:
         os.mkdir(docker_home)
 
     container_name = "radiopadre-{}".format(uuid.uuid4().hex)
-    docker_opts = [docker, "run", "-i", "--rm", "--name", container_name, "-w", ABSROOTDIR,
-                   "-e", "USER={}".format(os.environ["USER"])]
+    docker_opts = [ docker, "run", "-i", "--rm", "--name", container_name, "-w", ABSROOTDIR,
+                        "--user", "{}:{}".format(os.getuid(), os.getgid()),
+                        "-e", "USER={}".format(os.environ["USER"]),
+                        "-e", "HOME={}".format(os.environ["HOME"])
+                  ]
     for port1, port2 in zip(selected_ports, CONTAINER_PORTS):
         docker_opts += [ "-p", "{}:{}/tcp".format(port1, port2)]
     # setup mounts for work dir and home dir, if needed
@@ -481,6 +490,8 @@ if LOAD_NOTEBOOK:
 os.environ['RADIOPADRE_SHADOW_URLBASE'] = urlbase = "http://localhost:{}/{}/".format(userside_http_port, session_id)
 js9prefs = None
 
+http_rewrites = [ "/radiopadre-www/={}/".format(PADRE_PATH + "/html") ]
+
 if js9dir:
     os.environ['RADIOPADRE_JS9_HELPER_PORT'] = str(userside_helper_port)
     # create JS9 settings file for session
@@ -491,6 +502,11 @@ if js9dir:
     # URL to local settings file for this session
     os.environ['RADIOPADRE_JS9_DIR'] = "{}js9-www/".format(urlbase)
     os.environ['RADIOPADRE_JS9_SETTINGS'] = "{}{}/{}".format(urlbase, ABSROOTDIR.lstrip("/"), js9prefs)
+
+
+    http_rewrites.append("/js9-www/={}/".format(js9dir))
+    http_rewrites.append("/js9colormaps.js={}".format(notebook_dir + "/notebook/static/js9colormaps.js"))
+
 try:
     helper_proc = None
     if js9dir:
@@ -515,7 +531,7 @@ try:
                 os.chdir(ROOTDIR)
 
     message("Starting HTTP server process in {PADRE_WORKDIR} on port {http_port}")
-    args = [PADRE_VENV+"/bin/python", PADRE_PATH+"/bin/http_server.py", str(http_port)]
+    args = [PADRE_VENV+"/bin/python", PADRE_PATH+"/bin/http_server.py", str(http_port) ] + http_rewrites
 
     try:
         os.chdir(PADRE_WORKDIR)

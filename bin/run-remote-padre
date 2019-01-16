@@ -51,7 +51,7 @@ parser.add_argument("-p","--remote-path",type=str,
                       help="directory in which remote radiopadre is installed. Default is to try ~/radiopadre first, "+
                       "and PATH second.")
 parser.add_argument("-u","--update",action="store_true",
-                      help="update remote radiopadre installation using git pull")
+                      help="update remote radiopadre installation using git pull, or docker container using docker pull")
 parser.add_argument("-b","--browser",type=str,default=default_browser,
                       help="browser command to run. Default is %(default)s, or set PADRE_BROWSER.")
 parser.add_argument("-n","--no-browser",action="store_true",
@@ -72,7 +72,7 @@ parser.add_argument("--no-js9", action="store_true",
                       help="Ignore JS9 installation errors, if installing on remote.")
 parser.add_argument("--verbose", action="store_true",
                       help="Enable verbose output.")
-parser.add_argument("destination", nargs="?",
+parser.add_argument("destination", nargs=1,
                       help="specify as host:directory[/notebook.ipynb]")
 
 options = parser.parse_args()
@@ -84,12 +84,11 @@ if options.docker:
         parser.error("Can't combine -d/--docker and -i/--init modes")
 
 # parse path to notebook, if notebook even specified
-host = options.destination
-notebook_path = None
-if ':' in host:
-    host, notebook_path = host.split(":", 1)
+dest = options.destination[0]
+if ':' in dest:
+    host, notebook_path = dest.split(":", 1)
 else:
-    notebook_path = ""
+    host, notebook_path = dest, ""
 
 print "radiopadre: Welcome!"
 print "radiopadre: Will start remote radiopadre on {}:{}".format(host, notebook_path)
@@ -268,9 +267,13 @@ if options.docker:
     scp_to_remote(PADRE_PATH + "/bin/run-radiopadre", ".radiopadre/tmp/bin")
     scp_to_remote(PADRE_PATH + "/notebooks/radiopadre-default.ipynb", ".radiopadre/tmp/notebooks")
     padre_exec = "~/.radiopadre/tmp/bin/run-radiopadre -d --docker-image " + options.docker_image
+    if options.update:
+        padre_exec += " --docker-pull"
 
 elif options.dev_docker:
     padre_exec += " -D --docker-image " + options.docker_image
+    if options.update:
+        padre_exec += " --docker-pull"
 
 if bootstrap:
     padre_exec += " --bootstrap"
@@ -283,11 +286,10 @@ if options.no_js9:
 if options.verbose:
     padre_exec += " --verbose"
 
-padre_exec += "  --remote"
+padre_exec += "  --remote " + notebook_path
 
 # start ssh subprocess to launch notebook
-args = list(SSH_OPTS) + [ padre_exec ]
-    
+args = list(SSH_OPTS) + [padre_exec]
 
 ssh = subprocess.Popen(args, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 
@@ -307,7 +309,7 @@ ssh2 = None
 local_ports = []
 remote_ports = None
 session_id = None
-url = None
+urls = []
 remote_running = False
 
 while True:
@@ -358,18 +360,18 @@ while True:
                 # check for launch URL
                 match = re.match(".*Browse to URL: ([^\s]+)", line)
                 if match:
-                    url = match.group(1)
+                    urls.append(match.group(1))
 
                 if "The Jupyter Notebook is running at" in line:
                     remote_running = True
-
-                    # open browser if needed
-                    if not options.no_browser:
-                        print "radiopadre: Opening browser for {}\r".format(url)
-                        subprocess.Popen([options.browser, url])
-                    else:
-                        print "-n/--no-browser given, not opening a browser for you\r"
-                        print "Please surf to {}\n".format(url)
+                    for url in urls:
+                        # open browser if needed
+                        if not options.no_browser:
+                            print "radiopadre: Opening browser for {}\r".format(url)
+                            subprocess.Popen([options.browser, url])
+                        else:
+                            print "-n/--no-browser given, not opening a browser for you\r"
+                            print "Please surf to {}\n".format(url)
     except KeyboardInterrupt:
         print "radiopadre: Ctrl+C caught"
 #        print "radiopadre: sending exit request to ssh mux process..."

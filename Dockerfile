@@ -19,6 +19,8 @@ RUN docker-apt-install \
     python-matplotlib python-pil python-casacore
 #    python-notebook jupyter-notebook jupyter-nbextension-jupyter-js-widgets \
 
+RUN pip install astropy==2.0.10  # monkeypatch
+
 RUN mkdir /radiopadre
 ADD . /radiopadre
 #RUN git clone https://github.com/ratt-ru/radiopadre
