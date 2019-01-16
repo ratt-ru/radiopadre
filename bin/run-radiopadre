@@ -309,7 +309,7 @@ if not options.inside_container:
             shutil.copyfile(PADRE_PATH+"/notebooks/"+DEFAULT_NAME, LOAD_NOTEBOOK)
 
 if LOAD_NOTEBOOK:
-    message("Browse to URL: http://localhost:{}//notebooks/{}?token={}".format(
+    message("Browse to URL: http://localhost:{}/notebooks/{}?token={}".format(
         userside_jupyter_port, LOAD_NOTEBOOK, session_id))  # this is read by remote
 else:
     message("Browse to URL: http://localhost:{}/?token={}".format(

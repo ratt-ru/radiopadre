@@ -356,7 +356,7 @@ while True:
                     ssh.stdin.write("{} {} {}\n".format(*local_ports))
 
                 # check for launch URL
-                match = re.match(".*Browse to URL: ([^\s+])", line)
+                match = re.match(".*Browse to URL: ([^\s]+)", line)
                 if match:
                     url = match.group(1)
 
