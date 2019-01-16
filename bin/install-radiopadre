@@ -115,6 +115,7 @@ if not os.path.exists(activation_script):
 message("Activating virtualenv")
 execfile(activation_script, dict(__file__=activation_script))
 
+# install requirements
 if options.command in ["install", "reinstall", "reqs"]:
     message("Installing dependencies. This may take a few minutes")
 
@@ -129,6 +130,14 @@ if options.command in ["install", "reinstall", "reqs"]:
         if shell("{PADRE_VENV}/bin/pip install -r {PADRE_PATH}/requirements.txt"):
             bye("Dependencies failed to install, see log above")
 
+# get jupyter base path
+notebook_dir = subprocess.check_output("{PADRE_VENV}/bin/pip show jupyter| "
+                                       "grep Location:|cut -d ':' -f 2".format(**globals()), shell=True).strip()
+if not notebook_dir:
+    raise subprocess.CalledProcessError("jupyter", -1, "no jupyter found")
+
+# init radiopadre kernel etc.
+if options.command in ["install", "reinstall", "reqs"]:
     message("Creating radiopadre ipython kernel")
     if options.inside_container:
         ipython = "ipython"
@@ -138,10 +147,6 @@ if options.command in ["install", "reinstall", "reqs"]:
         ipython = PADRE_VENV + "/bin/ipython"
         if shell(ipython + " kernel install --user --name=radiopadre"):
             bye("ipython kernel failed to install, see log above")
-
-    # get jupyter base path
-    notebook_dir = subprocess.check_output("{PADRE_VENV}/bin/pip show jupyter| "
-                                           "grep Location:|cut -d ':' -f 2".format(**globals()), shell=True).strip()
 
     # get path to it because we want to install our own kernel.js
     try:
@@ -158,8 +163,6 @@ if options.command in ["install", "reinstall", "reqs"]:
     message("Linking kernel.js to {kerneldir}")
     os.symlink(PADRE_PATH + "/html/radiopadre-kernel.js", kerneldir + "/kernel.js")
 
-if not notebook_dir:
-    raise subprocess.CalledProcessError("jupyter installation path not found")
 
 # add link to radiopadre web components in notebook static dir
 if options.command in ["install", "reinstall", "reqs"]:

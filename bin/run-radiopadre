@@ -1,4 +1,5 @@
 #!/usr/bin/python
+from __future__ import print_function
 
 import os.path
 import os
@@ -12,8 +13,8 @@ import time
 
 import argparse
 
-def message(x, prefix='run-radiopadre: '):
-    print(prefix + x.format(**globals()))
+def message(x, prefix='run-radiopadre: ', file=sys.stderr):
+    print(prefix + x.format(**globals()), file=file)
 
 def bye(x, code=1):
     message(x)
@@ -72,6 +73,12 @@ options = parser.parse_args()
 if options.dev_docker:
     options.docker = True
 
+def make_dir(name):
+    name = os.path.expanduser(name)
+    if not os.path.exists(name):
+        os.mkdir(name)
+    return name
+
 # if explicit notebook directory is given, change into it before doing anything else
 if options.notebook:
     if not os.path.exists(options.notebook):
@@ -105,6 +112,8 @@ os.environ['RADIOPADRE_SHADOW_HOME'] = PADRE_WORKDIR
 
 # virtual environment
 PADRE_VENV = "/.radiopadre/venv" if options.inside_container else PADRE_WORKDIR + "/venv"
+os.environ["RADIOPADRE_VENV"] = PADRE_VENV
+
 # target directory
 ABSROOTDIR = ROOTDIR = os.path.abspath(os.getcwd())              # e.g. /home/other/path
 # shadow of target directory
@@ -116,15 +125,13 @@ if not os.path.exists(SHADOWDIR):
 cachedir = ABSROOTDIR+"/.radiopadre"
 cachelink = SHADOWDIR + "/.radiopadre"
 if os.access(ABSROOTDIR, os.W_OK):
-    if not os.path.exists(cachedir):
-        os.mkdir(cachedir)
+    make_dir(cachedir)
     if not os.path.exists(cachelink):
         os.symlink(cachedir, cachelink)
 else:
     if os.path.islink(cachelink):
         os.unlink(cachelink)
-    if not os.path.exists(cachelink):
-        os.mkdir(cachelink)
+    make_dir(cachelink)
 
 if not os.path.exists(cachelink):
     os.symlink(ABSROOTDIR+"/.radiopadre", cachelink)
@@ -163,7 +170,7 @@ if not options.docker:
                     )):
                 bye("Installation script failed")
 
-        print "Activating the radiopadre virtualenv"
+        message("Activating the radiopadre virtualenv via {activation_script}")
         execfile(activation_script, dict(__file__=activation_script))
 
 message("Welcome to Radiopadre!")
@@ -173,7 +180,8 @@ if options.docker:
         docker_image = DEFAULT_DOCKER_IMAGE.split(":")[0] + docker_image
     message("  Using radiopadre Docker image {docker_image}")
     if options.docker_pull:
-        message("  Calling docker pull to make sure the image is up-to-date:")
+        message("  Calling docker pull to make sure the image is up-to-date.")
+        message("  (This may take a few minutes if it isn't....)")
         subprocess.call("docker pull {}".format(docker_image), shell=True)
 
 elif options.inside_container:
@@ -197,8 +205,7 @@ else:
     os.environ['RADIOPADRE_SERVER_BASEDIR'] = ROOTDIR = SHADOWDIR
     os.chdir(SHADOWDIR)
 
-if not os.path.exists(".radiopadre"):
-    os.mkdir(".radiopadre")
+make_dir(".radiopadre")
 
 
 #=== will we be starting a browser?
@@ -327,9 +334,8 @@ if options.docker:
     if not docker:
         bye("docker binary not found")
 
-    docker_home = os.path.expanduser("~/.docker-home.radiopadre")
-    if not os.path.exists(docker_home):
-        os.mkdir(docker_home)
+    docker_local = make_dir("~/.radiopadre/.docker-local")
+    js9_tmp = make_dir("~/.radiopadre/.js9-tmp")
 
     container_name = "radiopadre-{}".format(uuid.uuid4().hex)
     docker_opts = [ docker, "run", "-i", "--rm", "--name", container_name, "-w", ABSROOTDIR,
@@ -341,9 +347,14 @@ if options.docker:
         docker_opts += [ "-p", "{}:{}/tcp".format(port1, port2)]
     # setup mounts for work dir and home dir, if needed
     homedir = os.path.expanduser("~")
-    docker_opts += [ "-v", "{}:{}{}".format(ABSROOTDIR, ABSROOTDIR, ":ro" if orig_rootdir else ""),
+    docker_opts += [
+                     "-v", "{}:{}{}".format(ABSROOTDIR, ABSROOTDIR, ":ro" if orig_rootdir else ""),
                      "-v", "{}:{}".format(homedir, homedir),
-                     "-v", "{}:/root".format(docker_home) ]
+                     # hides /home/user/.local, which if exposed, can confuse jupyter and ipython
+                     "-v", "{}:{}/.local".format(docker_local, homedir),
+                     # mount a writeable tmp dir for the js9 install -- needed by js9helper
+                     "-v", "{}:/.radiopadre/venv/js9-www/tmp".format(js9_tmp)
+    ]
     if options.dev_docker:
         docker_opts += [ "-v", "{}:/radiopadre".format(PADRE_PATH) ]
     # add image
@@ -401,9 +412,9 @@ if options.docker:
                                               "http://localhost:{}/?token={}".format(jupyter_port, session_id)])
     except BaseException as exc:
         if type(exc) is KeyboardInterrupt:
-            message("Caught Ctrl+C, terminating docker processes")
+            message("Caught Ctrl+C, terminating docker processes -- give it a few seconds")
         else:
-            message("Caught exception {}, terminating docker processes".format(exc))
+            message("Caught exception {}, terminating docker processes -- give it a few seconds".format(exc))
         docker_process.terminate()
         docker_process.wait()
         status = 1
@@ -514,7 +525,7 @@ try:
         os.environ['JS9_LOCAL_FS_PREFIX'] = PADRE_WORKDIR + "/"
         js9helper = js9dir +"/js9Helper.js"
         if os.path.exists(js9helper):
-            message("Starting {js9helper} on port {helper_port}")
+            message("Starting {js9helper} on port {helper_port} in {SHADOWDIR}")
             try:
                 nodejs = subprocess.check_output("which nodejs || which node", shell=True)
             except subprocess.CalledProcessError:
@@ -525,7 +536,8 @@ try:
                 child_processes.append(subprocess.Popen([nodejs.strip(), js9helper,
                     ('{{"helperPort": {}, "debug": {}, ' +
                      '"fileTranslate": ["^(http://localhost:[0-9]+/[0-9a-f]+{}|/static/)", ""] }}').format(
-                        helper_port, 1 if options.verbose else 0, ABSROOTDIR)],
+                        helper_port, 1 if options.verbose else 0,
+                        ABSROOTDIR)],
                     stdin=DEVZERO, stdout=sys.stdout, stderr=sys.stderr))
             finally:
                 os.chdir(ROOTDIR)
@@ -541,11 +553,10 @@ try:
     finally:
         os.chdir(ROOTDIR)
 
-    message("Starting: jupyter "+" ".join(JUPYTER_OPTS))
-
     ## start jupyter process
 
     jupyter_path = PADRE_VENV + "/bin/jupyter"
+    message("Starting: "+jupyter_path+" "+" ".join(JUPYTER_OPTS))
 
     notebook_proc = subprocess.Popen([jupyter_path] + JUPYTER_OPTS,
                                       stdin=sys.stdin, stdout=sys.stdout, stderr=sys.stderr,
