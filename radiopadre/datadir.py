@@ -130,20 +130,22 @@ class DataDir(FileList):
             # Check for matching files
             for name in files:
                 path = os.path.join(root, name)
-                if _matches(name if self._browse_mode else path, self._include, self._exclude):
-                    list.append(self, (autodetect_file_type(path), path))
+                filetype = autodetect_file_type(path)
+                if filetype is not None and _matches(name if self._browse_mode else path, self._include, self._exclude):
+                    list.append(self, (filetype, path))
                     self.nfiles += 1
             # Check for matching directories
             for name in dirs:
                 path = os.path.join(root, name)
                 filetype = autodetect_file_type(path)
-                if _matches(name if self._browse_mode else path, incdir, excdir) and \
-                            (not self._browse_mode or self._include_empty or os.listdir(path)):
-                    list.append(self, (filetype, path))
-                    self.ndirs += 1
-                # Check for directories to descend into
-                if self._recursive and filetype is DataDir and _matches(name, self._include_dir, self._exclude_dir):
-                    subdirs.append(name)
+                if filetype is not None:
+                    if _matches(name if self._browse_mode else path, incdir, excdir) and \
+                                (not self._browse_mode or self._include_empty or os.listdir(path)):
+                        list.append(self, (filetype, path))
+                        self.ndirs += 1
+                    # Check for directories to descend into
+                    if self._recursive and filetype is DataDir and _matches(name, self._include_dir, self._exclude_dir):
+                        subdirs.append(name)
             # Descend into specified subdirs
             dirs[:] = subdirs
 

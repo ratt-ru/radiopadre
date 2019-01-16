@@ -17,6 +17,6 @@
 		 "dataPath":	     "$HOME/Desktop:$HOME/data",
 		 "analysisPlugins":  "./analysis-plugins",
 		 "analysisWrappers": "./analysis-wrappers"},
-  "imageOpts":  {"colormap":	     "grey",
+  		 "imageOpts":  {"colormap":	     "grey",
   		 "scale":     	     "linear"}
 }
