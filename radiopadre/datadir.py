@@ -145,7 +145,7 @@ class DataDir(FileList):
                         self.ndirs += 1
                     # Check for directories to descend into
                     if self._recursive and filetype is DataDir and _matches(name, self._include_dir, self._exclude_dir):
-                    subdirs.append(name)
+                        subdirs.append(name)
             # Descend into specified subdirs
             dirs[:] = subdirs
 
