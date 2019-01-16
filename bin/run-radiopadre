@@ -95,6 +95,9 @@ if options.notebook:
         options.notebook = os.path.basename(options.notebook)
         LOAD_DIR = False
         LOAD_NOTEBOOK = options.notebook
+else:
+    LOAD_DIR = '.'
+    LOAD_NOTEBOOK = None
 
 # setup session ID. This will also be the Jupyter authentication token
 # Inside the container, the parent script will pass it in
