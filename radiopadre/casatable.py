@@ -216,7 +216,7 @@ class CasaTable(radiopadre.file.FileBase):
             column_selection = self.columns
 
         # else use ours
-        if firstrow > nrows-1:
+        if firstrow > self.nrows-1:
             return html + render_error("Starting row {} out of range".format(firstrow))
         nrows = min(self.nrows-firstrow, nrows)
         labels = ["row"] + list(column_selection)
@@ -263,7 +263,7 @@ class CasaTable(radiopadre.file.FileBase):
                         shape_suffix += " " + desc
                 # else try to apply default slicer, if applicable. Retain column on error
                 elif default_slicer and column_has_shape and colval.ndim > len(default_slicer):
-                    slicer = [slice(None)] + default_slicer
+                    slicer = [Ellipsis] + default_slicer
                     try:
                         colvalues[icol] = colvalues[icol][tuple(slicer)]
                         if default_slicer_desc:

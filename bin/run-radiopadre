@@ -376,6 +376,7 @@ if options.docker:
         docker_opts.append(options.notebook)
 
     message("Running {}".format(" ".join(docker_opts)))
+    message("  (If the image is not yet available locally, this can take a few minutes the first time you run.)")
     docker_process = subprocess.Popen(docker_opts,
                                       stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
                                       env=os.environ)
