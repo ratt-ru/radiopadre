@@ -192,6 +192,10 @@ class CasaTable(radiopadre.file.FileBase):
         if native:
             return html + tab._repr_html_()
 
+        # empty? return
+        if not self.nrows:
+            return html
+
         firstrow = firstrow or 0
 
         # get subset of columns to use, and slicer objects
@@ -225,7 +229,8 @@ class CasaTable(radiopadre.file.FileBase):
         for icol, colname in enumerate(column_selection):
             style = None
             shape_suffix = ""
-            formatter = error = None
+            formatter = error = colval = None
+            column_has_shape = False
 
             # figure out formatting of measures/quanta columns
             colkw = tab.getcolkeywords(colname)
@@ -240,14 +245,30 @@ class CasaTable(radiopadre.file.FileBase):
                 formatter = lambda value:self._render_quantity(value, units=units, format=column_formats.get(colname))
                 if same_units and meastype != 'direction':
                     labels[icol+1] += ", {}".format(units)
+            # getcol() is prone to "RuntimeError: ...  no array in row N", so explicitly ignore that and render empty column
             try:
                 colvalues[icol] = colval = tab.getcol(colname, firstrow, nrows)
-                column_has_shape = type(colval) is np.ndarray and colval.ndim > 1
-                if column_has_shape:
-                    shape_suffix = " ({})".format("x".join(map(str, colval.shape[1:])))
-            except Exception, exc:
-                error = type(exc)
-                colvalues[icol] = ["(err)"]*nrows
+            except RuntimeError:
+                colvalues[icol] = [""]*nrows
+                continue
+            except Exception as exc:
+                error = exc
+
+            if not error:
+                try:
+                    colvalues[icol] = colval = tab.getcol(colname, firstrow, nrows)
+                    # work around variable-shaped string columns
+                    if type(colval) is dict:
+                        if 'array' not in colval or 'shape' not in colval:
+                            raise TypeError("unknown column shape")
+                        colvalues[icol] = colval = np.array(colval['array'], dtype=object).reshape(colval['shape'])
+                    column_has_shape = type(colval) is np.ndarray and colval.ndim > 1
+                    if column_has_shape:
+                        shape_suffix = " ({})".format("x".join(map(str, colval.shape[1:])))
+                except Exception as exc:
+                    error = exc
+
+            # render the value
             if not error:
                 # apply slicer, if specified for this column. Render error if incorrect
                 if colname in column_slicers:
@@ -255,10 +276,8 @@ class CasaTable(radiopadre.file.FileBase):
                     slicer = [slice(None)] + slicer
                     try:
                         colvalues[icol] = colvalues[icol][tuple(slicer)]
-                    except IndexError:
-                        colvalues[icol] = ["index error"]*nrows
-                        style = "color: red"
-                        error = IndexError
+                    except IndexError as exc:
+                        error = exc
                     if desc:
                         shape_suffix += " " + desc
                 # else try to apply default slicer, if applicable. Retain column on error
@@ -272,13 +291,18 @@ class CasaTable(radiopadre.file.FileBase):
                         pass
 
             if formatter and not error:
-#                try:
-                colvalues[icol] = map(formatter, colvalues[icol])
-#                except Exception:
-#                    colvalues[icol] = ["format error"]*nrows
-#                    style = "color: red"
+                try:
+                    colvalues[icol] = map(formatter, colvalues[icol])
+                except Exception as exc:
+                    error = exc
 
             labels[icol+1] += shape_suffix
+
+            # on any error, fill column with "(error)"
+            if error:
+                colvalues[icol] = ["(error)"]*nrows
+                html += render_error("Column {}: {}: {}".format(colname, error.__class__.__name__, str(error)))
+                style = "color: red"
             if style:
                 styles[labels[icol+1]] = style
 
