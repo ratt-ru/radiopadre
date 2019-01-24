@@ -23,6 +23,8 @@ class CasaTable(radiopadre.file.FileBase):
         """
         self._error = self._dir_obj = None
         self._table = table
+        if table:
+            table.unlock()
         self._subtables_obj = None
         self._parent = parent
         radiopadre.file.FileBase.__init__(self, name, title=title)
@@ -31,7 +33,7 @@ class CasaTable(radiopadre.file.FileBase):
     @property
     def table(self):
         if self._table is not None:
-            return self._table
+            return casacore_tables.table([self._table], ack=False)
         if casacore_tables is None:
             return RuntimeError("no casacore.tables installed")
         try:
