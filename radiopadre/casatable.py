@@ -2,6 +2,7 @@ import os.path
 from collections import OrderedDict
 import itertools
 import numpy as np
+from numpy.ma import masked_array
 
 import radiopadre
 from radiopadre import casacore_tables
@@ -61,8 +62,8 @@ class CasaTable(radiopadre.file.FileBase):
                                 self.nrows, len(self.columns), len(self.keywords), len(self._subtables))
             # make attributes for each column
             for name in tab.colnames():
-                def getcol(start=0, nrow=-1, incr=1, col=name):
-                    return self.table.getcol(col, start, nrow, incr)
+                def getcol(start=0, nrow=-1, incr=1, flag=False, colname=name):
+                    return self.getcol(colname, start, nrow, incr, flag)
                 while hasattr(self, name):
                     name = name + "_"
                 setattr(self, name, getcol)
@@ -76,6 +77,31 @@ class CasaTable(radiopadre.file.FileBase):
                     name = name + "_"
                 self._subtables_dict[name] = path
                 setattr(self, name, path)
+
+    def getcol(self, colname, start=0, nrow=-1, incr=1, flag=False):
+        """Like standard getcol() of a CASA table, but can also read a flag column to make a masked array"""
+        tab = self.table
+        coldata = tab.getcol(colname, start, nrow, incr)
+        if flag:
+            shape = coldata.shape
+            fr = fl = None
+            if "FLAG_ROW" in self.columns:
+                fr = tab.getcol("FLAG_ROW", start, nrow, incr)
+                if fr.shape != (shape[0],):
+                    raise ValueError("FLAG_ROW column has unexpected shape {}".format(fr.shape))
+            if "FLAG" in self.columns:
+                fl = tab.getcol("FLAG", start, nrow, incr)
+                if fl.shape != shape[-len(fl.shape):]:
+                    raise ValueError("FLAG column has unexpected shape {}".format(fl.shape))
+            if fr is not None or fl is not None:
+                mask = np.zeros(shape, bool)
+                if fr is not None:
+                    mask[fr,...] = True
+                if fl is not None:
+                    mask[...,fl] = True
+                return masked_array(coldata, mask)
+        return coldata
+
 
     def __getattribute__(self, attr):
         try:
