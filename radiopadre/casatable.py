@@ -16,6 +16,74 @@ class CasaTable(radiopadre.file.FileBase):
     """
 
     """
+    class ColumnProxy(object):
+        def __init__(self, casatable, name, flagrow=False, flag=False):
+            self._casatable = casatable
+            self._name = name
+            self._flagrow = flagrow
+            self._flag = flag
+
+        def __call__(self, start=0, nrow=-1, incr=1, flag=False):
+            return self._casatable.getcol(self._name, start, nrow, incr, flagrow=flag or self._flagrow, flag=flag or self._flag)
+
+        @staticmethod
+        def _slice_to_casa(slc, row_based=True):
+            """
+            Helper method to convert a slice element into CASA slicing indices (which uses either
+            (start, nrows, step), or (start, end, incr), depending on context)
+
+            :param slc:     slice object or integer index
+            :param rows:    if True, return start, nrows, step. Else return start, end, step
+            :return:        4-tuple of start, {nrows or end}, step, index,
+                            where index is 0 if slc was an integer, or slice(None) if it was a slice
+            """
+            if type(slc) is int:
+                if slc < 0:
+                    raise IndexError("{} is not a valid table column index".format(slc))
+                start = end = slc
+                step = 1
+            elif type(slc) is slice:
+                start = 0 if slc.start is None else slc.start
+                if start < 0:
+                    raise IndexError("start index in {} is not valid for a table column".format(slc))
+                if slc.stop is None:
+                    end = -1
+                else:
+                    if slc.stop < start:
+                        raise IndexError("end index in {} is not valid for a table column".format(slc))
+                    end = slc.stop - 1
+                step = 1 if slc.step is None else slc.step
+                if step < 1:
+                    raise IndexError("step index in {} is not valid for a table column".format(slc))
+            else:
+                raise IndexError("{} is not a valid table column index".format(slc))
+            # convert end to nrows, unless it is set to -1
+            if row_based and end >= 0:
+                end = end - start + 1
+            return start, end, step, (0 if type(slc) is int else slice(None))
+
+        def __getitem__(self, item):
+            if type(item) is not tuple:
+                item = (item, )
+            if len(item) < 1:
+                raise IndexError("{} is not a valid table column index".format(item))
+
+            # parse the index elements. First one selects rows, subsequent ones select column slice
+            start, nrows, step, index = self._slice_to_casa(item[0], row_based=True)
+            blc = []
+            trc = []
+            incr = []
+            posterior_slice = [index]
+            indexing_elements = [blc, trc, incr, posterior_slice]
+            for slc in item[1:]:
+                for i, element in enumerate(self._slice_to_casa(slc, row_based=False)):
+                    indexing_elements[i].append(element)
+
+            return self._casatable.getcol(self._name, start, nrows, step,
+                                          blc or None, trc or None, incr or None,
+                                          flagrow=self._flagrow, flag=self._flag)[tuple(posterior_slice)]
+
+
     def __init__(self, name, table=None, title=None, parent=None, **kwargs):
         """
 
@@ -30,6 +98,16 @@ class CasaTable(radiopadre.file.FileBase):
         self._parent = parent
         radiopadre.file.FileBase.__init__(self, name, title=title)
 
+
+    @property
+    def wtable(self):
+        if casacore_tables is None:
+            return RuntimeError("no casacore.tables installed")
+        try:
+            tab = casacore_tables.table(self.fullpath, ack=False, readonly=False)
+            return tab
+        except Exception, exc:
+            return exc
 
     @property
     def table(self):
@@ -60,13 +138,22 @@ class CasaTable(radiopadre.file.FileBase):
             self.size = "{} rows, {} cols".format(self.nrows, len(self.columns))
             self.description = "{} rows, {} columns, {} keywords, {} subtables".format(
                                 self.nrows, len(self.columns), len(self.keywords), len(self._subtables))
+            flagrow = 'FLAG_ROW' in self.columns
+            flagcol = 'FLAG' in self.columns
+
             # make attributes for each column
             for name in tab.colnames():
-                def getcol(start=0, nrow=-1, incr=1, flag=False, colname=name):
-                    return self.getcol(colname, start, nrow, incr, flag)
-                while hasattr(self, name):
-                    name = name + "_"
-                setattr(self, name, getcol)
+                attrname = name
+                while hasattr(self, attrname):
+                    attrname = attrname + "_"
+                setattr(self, attrname, CasaTable.ColumnProxy(self, name))
+                # make _F versions for flagged columns
+                flag = flagcol and (name.endswith('DATA') or name.endswith('SPECTRUM'))
+                if flag or flagrow:
+                    attrname = "{}_F".format(name)
+                    while hasattr(self, attrname):
+                        attrname = attrname + "_"
+                    setattr(self, attrname, CasaTable.ColumnProxy(self, name, flagrow=flagrow, flag=flag))
 
             # make attributes for each subtable
             self._subtables_dict = OrderedDict()
@@ -78,28 +165,37 @@ class CasaTable(radiopadre.file.FileBase):
                 self._subtables_dict[name] = path
                 setattr(self, name, path)
 
-    def getcol(self, colname, start=0, nrow=-1, incr=1, flag=False):
-        """Like standard getcol() of a CASA table, but can also read a flag column to make a masked array"""
+    def putcol(self, colname, coldata, start=0, nrow=-1, rowincr=1, blc=None, trc=None, incr=None):
+        tab = self.wtable
+        return tab.putcol(colname, coldata, start, nrow, rowincr) if blc is None else \
+               tab.putcolslice(colname, coldata, blc, trc, incr, start, nrow, rowincr)
+
+
+    def getcol(self, colname, start=0, nrow=-1, rowincr=1, blc=None, trc=None, incr=None, flagrow=False, flag=False):
+        """Like standard getcol() or getcolslice() of a CASA table, but can also read a flag column to make a masked array"""
         tab = self.table
-        coldata = tab.getcol(colname, start, nrow, incr)
-        if flag:
-            shape = coldata.shape
-            fr = fl = None
-            if "FLAG_ROW" in self.columns:
-                fr = tab.getcol("FLAG_ROW", start, nrow, incr)
-                if fr.shape != (shape[0],):
-                    raise ValueError("FLAG_ROW column has unexpected shape {}".format(fr.shape))
-            if "FLAG" in self.columns:
-                fl = tab.getcol("FLAG", start, nrow, incr)
-                if fl.shape != shape[-len(fl.shape):]:
-                    raise ValueError("FLAG column has unexpected shape {}".format(fl.shape))
-            if fr is not None or fl is not None:
-                mask = np.zeros(shape, bool)
-                if fr is not None:
-                    mask[fr,...] = True
-                if fl is not None:
-                    mask[...,fl] = True
-                return masked_array(coldata, mask)
+        coldata = tab.getcol(colname, start, nrow, rowincr) if blc is None else \
+                  tab.getcolslice(colname, blc, trc, incr, start, nrow, rowincr)
+        if coldata is None:
+            return None
+        shape = coldata.shape
+        fr = fl = None
+        if flagrow and "FLAG_ROW" in self.columns:
+            fr = tab.getcol("FLAG_ROW", start, nrow, rowincr)
+            if fr.shape != (shape[0],):
+                raise ValueError("FLAG_ROW column has unexpected shape {}".format(fr.shape))
+        if flag and "FLAG" in self.columns:
+            fl = tab.getcol("FLAG", start, nrow, rowincr) if blc is None else \
+                 tab.getcolslice("FLAG", blc, trc, incr, start, nrow, rowincr)
+            if fl.shape != shape[-len(fl.shape):]:
+                raise ValueError("FLAG column has unexpected shape {}".format(fl.shape))
+        if fr is not None or fl is not None:
+            mask = np.zeros(shape, bool)
+            if fr is not None:
+                mask[fr,...] = True
+            if fl is not None:
+                mask[...,fl] = True
+            return masked_array(coldata, mask)
         return coldata
 
 
@@ -389,8 +485,10 @@ class CasaTable(radiopadre.file.FileBase):
     def query(self, taql, sortlist='', columns='', limit=0, offset=0):
         if self._error:
             return self._error
-        tab = self.table.query(taql, sortlist=sortlist,columns=columns, limit=limit, offset=offset)
-        return CasaTable(self.fullpath, title="{} ({})".format(self.title, taql), table=tab)
+        tab0 = self.table
+        tab = tab0.query(taql, sortlist=sortlist,columns=columns, limit=limit, offset=offset)
+        return CasaTable(self.fullpath, title="{} ({})".format(self.title, taql),
+                         table=tab)
 
     def __call__(self, taql, sortlist='', columns='', limit=0, offset=0):
         return self.query(taql, sortlist, columns, limit, offset)
