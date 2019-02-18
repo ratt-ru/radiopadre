@@ -281,7 +281,7 @@ class FITSFile(radiopadre.file.FileBase):
                 for code in postscript.values():
                     html += code + "\n"
 
-            open("tmp-thumbs.html", "w").write(html)
+            # open("tmp-thumbs.html", "w").write(html)
             display(HTML(html))
 
 
