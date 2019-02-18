@@ -95,37 +95,42 @@ def render_thumbs(name_path_url,
                 html += """<td style="border: 0px; text-align: center">"""
                 if type(name) is RichString:
                     html += name.html
-                else:
+                elif url[0] != '#':
                     html += "<a href='{}' target='_blank'>{}</a>".format(url, name)
+                else:
+                    html += name
                 html += "</td>\n"
             html += """</tr>\n"""
         html += """<tr style="border: 0px; text-align: left">\n"""
-        for name, image, url  in filelist_row:
-            if external_thumbs is False:
-                thumb = None
-            # make thumbnail and record exceptions. Print the first one, as
-            # they really shouldn't happen
+        for name, image, url in filelist_row:
+            if url[0] == '#':
+                html += """<td style="border: 0px; text-align: center">{}</td>""".format(url[1:])
             else:
-                try:
-                    thumb_realfile, thumb = _make_thumbnail(image, npix)
-                    if not thumb and external_thumbs:
-                        nfail += 1
-                except:
-                    if not nfail:
-                        traceback.print_exc()
-                    nfail += 1
+                if external_thumbs is False:
                     thumb = None
-            html += """<td style="border: 0px; text-align: left"><div style="position: relative"><div>"""
-            mtime = os.path.getmtime(image)
-            if thumb:
-                html += "<a href='{}?mtime={}' target='_blank'><img src='{}' alt='?'></a>".format(
-                    url, mtime, render_url(thumb))
-            else:
-                html += "<a href='{}?mtime={}' target='_blank'><img src='{}?mtime={}' width={} alt='?'></a>".format(
-                    url, mtime, url, mtime, npix)
-            if image in action_buttons:
-                html += """</div><div style="position: absolute; top: 0; left: 0">{}""".format(action_buttons[image])
-            html += "</div></div></td>\n"
+                # make thumbnail and record exceptions. Print the first one, as
+                # they really shouldn't happen
+                else:
+                    try:
+                        thumb_realfile, thumb = _make_thumbnail(image, npix)
+                        if not thumb and external_thumbs:
+                            nfail += 1
+                    except:
+                        if not nfail:
+                            traceback.print_exc()
+                        nfail += 1
+                        thumb = None
+                html += """<td style="border: 0px; text-align: left"><div style="position: relative"><div>"""
+                mtime = os.path.getmtime(image)
+                if thumb:
+                    html += "<a href='{}?mtime={}' target='_blank'><img src='{}' alt='?'></a>".format(
+                        url, mtime, render_url(thumb))
+                else:
+                    html += "<a href='{}?mtime={}' target='_blank'><img src='{}?mtime={}' width={} alt='?'></a>".format(
+                        url, mtime, url, mtime, npix)
+                if image in action_buttons:
+                    html += """</div><div style="position: absolute; top: 0; left: 0">{}""".format(action_buttons[image])
+                html += "</div></div></td>\n"
         html += "</tr>\n"
     html += "</table>"
 

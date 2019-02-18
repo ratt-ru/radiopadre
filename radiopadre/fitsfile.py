@@ -354,7 +354,10 @@ class FITSFile(radiopadre.file.FileBase):
         try:
             ff = self.fitsobj
             hdr = ff[0].header
-            data = ff[0].data.T
+            data = ff[0].data
+            if data is None:
+                return [(self.short_summary, "#no image", "#no image")]
+            data = data.T
         except:
             self.clear_message()
             return self._return_exception("Error reading {}:".format(self.fullpath))
@@ -513,7 +516,6 @@ class FITSFile(radiopadre.file.FileBase):
             return name_image_url
         except:
             self.clear_message()
-            raise
             return self._return_exception("Error rendering {}:".format(self.fullpath))
 
     def _make_cache_symlink(self):
