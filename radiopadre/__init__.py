@@ -194,10 +194,13 @@ def get_cache_dir(path, subdir=None):
     if ABSROOTDIR is None:
         raise RuntimeError("radiopadre.init() must be called first")
     basedir = _strip_slash(os.path.abspath(os.path.dirname(path)))
-    if not _is_subdir(basedir, ABSROOTDIR):
+    if _is_subdir(basedir, ABSROOTDIR):
+        # if in a subdirectory off the root, this becomes the relative path to it, else ""
+        reldir = basedir[len(ABSROOTDIR):]
+    elif _is_subdir(basedir, SHADOW_HOME+ABSROOTDIR):
+        reldir = basedir[len(SHADOW_HOME)+len(ABSROOTDIR):]
+    else:
         raise RuntimeError("Trying to access {}, which is outside the {} hierarchy".format(basedir, ABSROOTDIR))
-    # if in a subdirectory off the root, this becomes the relative path to it, else ""
-    reldir = basedir[len(ABSROOTDIR):]
     cacheurl = CACHE_URL_ROOT + reldir + "/.radiopadre"
     shadowdir = SHADOW_HOME + basedir
     cachedir = None

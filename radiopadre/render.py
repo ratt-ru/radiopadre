@@ -120,7 +120,9 @@ def render_url(fullpath): # , prefix="files"):
 
 
 def render_title(title):
-    return title.html if type(title) is RichString else "<b>{}</b>".format(htmlize(title))
+    if title:
+        return title.html if type(title) is RichString else "<b>{}</b>".format(htmlize(title))
+    return ''
 
 def render_error(message):
     return "<SPAN style='color: red'><P>{}</P></SPAN>".format(htmlize(message))
@@ -224,23 +226,19 @@ class TransientMessage(object):
         if background is None:
             background = TransientMessage.default_backgrounds.get(color, 'transparent')
         html = """
-            <DIV id={id} style="color: {color}; background-color: {background}; position: absolute; right: 0; top: 0;">&nbsp;{message}&nbsp;</DIV>
+            <DIV id={id} style="color: {color}; display: inline; background-color: {background}; position: absolute; right: 0; top: 0;">&nbsp;{message}&nbsp;</DIV>
             """.format(**locals())
         self.timeout = timeout
         if timeout:
             timeout = timeout*1000
-            html += """
-            <SCRIPT type="text/javascript">
-            $('#{id}').delay({timeout}).fadeOut('slow');
-            </SCRIPT>
-            """.format(**locals())
+            html += """<SCRIPT type="text/javascript">
+                        $('#{id}').delay({timeout}).fadeOut('slow');
+                        </SCRIPT>""".format(**locals())
         # hide previous message
         if TransientMessage.last_message_id:
-            html += """
-                <SCRIPT type="text/javascript">
-                $('#{}').hide();
-                </SCRIPT>
-            """.format(TransientMessage.last_message_id)
+            html += """<SCRIPT type="text/javascript">
+                        $('#{}').hide();
+                        </SCRIPT>""".format(TransientMessage.last_message_id)
         TransientMessage.last_message_id = self.id
         # display
         display(HTML(html))
