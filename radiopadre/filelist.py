@@ -28,6 +28,8 @@ class FileList(FileBase, list):
         self._parent = parent
         self._sort = sort or ""
         self.nfiles = self.ndirs = 0
+        self._fits = self._images = self._dirs = self._tables = self._html_files = None
+
 
         FileBase.__init__(self, path, title=title)
 
@@ -135,6 +137,7 @@ class FileList(FileBase, list):
 
     def _scan_impl(self):
         FileBase._scan_impl(self)
+        self._fits = self._images = self._dirs = self._tables = self._html_files = None
         self._reset_summary()
 
     # def watch(self,*args,**kw):
@@ -230,5 +233,49 @@ class FileList(FileBase, list):
                         sort=opt,
                         classobj=self._classobj,
                         title=title, parent=self._parent)
+
+    def _typed_subset(self, filetype, title):
+        if os.path.samefile(self.fullpath, radiopadre.ROOTDIR):
+            title = self.title + " [{}]".format(title)
+        else:
+            title = " [{}]".format(title)
+        return FileList([f for f in self if type(f) is filetype], path=self.fullpath, classobj=filetype, title=title,
+                        parent=self, sort="")
+
+    @property
+    def dirs(self):
+        from .datadir import DataDir
+        if self._dirs is None:
+            self._dirs = self._typed_subset(DataDir, title="Subdirectories")
+        return self._dirs
+
+    @property
+    def fits(self):
+        from .fitsfile import FITSFile
+        if self._fits is None:
+            # make separate lists of fits files and image files
+            self._fits = self._typed_subset(FITSFile, title="FITS files")
+        return self._fits
+
+    @property
+    def images(self):
+        from .imagefile import ImageFile
+        if self._images is None:
+            self._images = self._typed_subset(ImageFile, title="Images")
+        return self._images
+
+    @property
+    def tables(self):
+        from .casatable import CasaTable
+        if self._tables is None:
+            self._tables = self._typed_subset(CasaTable, title="Tables")
+        return self._tables
+
+    @property
+    def html(self):
+        from .htmlfile import HTMLFile
+        if self._html_files is None:
+            self._html_files = self._typed_subset(HTMLFile, title="HTML files")
+        return self._html_files
 
 

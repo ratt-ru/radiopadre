@@ -261,7 +261,7 @@ def _init_js_side():
     reset_code = """
         var width = $(".rendered_html")[0].clientWidth;
         console.log("reset display, width is", window.innerWidth, window.innerHeight);
-        Jupyter.notebook.kernel.execute(`import radiopadre; radiopadre.set_window_sizes(
+        Jupyter.notebook.kernel.execute(`print "executing reset"; import radiopadre; radiopadre.set_window_sizes(
                                                 ${width}, 
                                                 ${window.innerWidth}, ${window.innerHeight})`);
     """
@@ -282,6 +282,11 @@ def _init_js_side():
             {}
             </script>
          """.format(warns, os.environ['USER'], reset_code)
+    # <style>
+    #     .container {{ width:100% !important; }}
+    # </style>
+
+    # print "executing reset code"
 
     display(HTML(html))
 

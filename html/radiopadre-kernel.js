@@ -5,27 +5,36 @@ if (appname === 'NotebookApp')
 {
     io = io1
 
-    console.log("initializing radiopadre components. io:", io)
+    console.log("initializing radiopadre components")
+
+    var width = $(".rendered_html")[0].clientWidth;
+
+    console.log("reset display, width is", window.innerWidth, window.innerHeight);
+
+//    Jupyter.notebook.kernel.execute(`import radiopadre; radiopadre.set_window_sizes(
+//                                            ${width},
+//                                            ${window.innerWidth}, ${window.innerHeight})`);
+
 
     document.radiopadre = {}
 
-    document.radiopadre.fixup_hrefs = function ()
-    {
-        $("a[href*='/#NOTEBOOK_FILES#/']").each(function() {
-                this.href = this.href.replace("/#NOTEBOOK_FILES#/","/files/"+document.radiopadre.notebook_dir);
-           });
-        $("a[href*='/#NOTEBOOK_NOTEBOOKS#/']").each(function() {
-                this.href = this.href.replace("/#NOTEBOOK_NOTEBOOKS#/","/notebooks/"+document.radiopadre.notebook_dir);
-           });
-        $("img[src*='/#NOTEBOOK_FILES#/']").each(function() {
-                this.src = this.src.replace("/#NOTEBOOK_FILES#/","/files/"+document.radiopadre.notebook_dir);
-           });
-    }
+//    document.radiopadre.fixup_hrefs = function ()
+//    {
+//        $("a[href*='/#NOTEBOOK_FILES#/']").each(function() {
+//                this.href = this.href.replace("/#NOTEBOOK_FILES#/","/files/"+document.radiopadre.notebook_dir);
+//           });
+//        $("a[href*='/#NOTEBOOK_NOTEBOOKS#/']").each(function() {
+//                this.href = this.href.replace("/#NOTEBOOK_NOTEBOOKS#/","/notebooks/"+document.radiopadre.notebook_dir);
+//           });
+//        $("img[src*='/#NOTEBOOK_FILES#/']").each(function() {
+//                this.src = this.src.replace("/#NOTEBOOK_FILES#/","/files/"+document.radiopadre.notebook_dir);
+//           });
+//    }
 
     document.radiopadre.execute_to_current_cell = function ()
     {
-        var current =  IPython.notebook.get_selected_index();
-        IPython.notebook.execute_cell_range(0,current+1);
+        var current =  Jupyter.notebook.get_selected_index();
+        Jupyter.notebook.execute_cell_range(0,current+1);
     }
 
     document.radiopadre.handle_copy_notebook_output = function (out)
@@ -44,18 +53,18 @@ if (appname === 'NotebookApp')
             var path = out.content.data['text/plain']
             path = path.replace(/^['"](.*)['"]$/, '$1')
             console.log('success: '+path);
-            IPython.notebook.execute_cell();
+            Jupyter.notebook.execute_cell();
             window.open('/notebooks/'+path,'_blank')
         }
     }
 
     document.radiopadre.copy_notebook = function (path, copy_dirs, copy_root)
     {
-        var kernel = IPython.notebook.kernel;
+        var kernel = Jupyter.notebook.kernel;
         var callbacks = {'iopub': {'output' : document.radiopadre.handle_copy_notebook_output}};
-        var index = IPython.notebook.get_selected_index();
+        var index = Jupyter.notebook.get_selected_index();
         var command = 'radiopadre.copy_current_notebook('
-            +'"'+IPython.notebook.notebook_path+'","'+path+'",'
+            +'"'+Jupyter.notebook.notebook_path+'","'+path+'",'
             +'cell='+index.toString()+','
             +'copy_dirs="'+copy_dirs+'",'
             +'copy_root="'+copy_root+'"'
@@ -66,15 +75,15 @@ if (appname === 'NotebookApp')
     }
     document.radiopadre.protect = function (author)
     {
-        IPython.notebook.metadata.radiopadre_notebook_protect = 1;
-        IPython.notebook.metadata.radiopadre_notebook_scrub = 1;
-        IPython.notebook.metadata.radiopadre_notebook_author = author;
+        Jupyter.notebook.metadata.radiopadre_notebook_protect = 1;
+        Jupyter.notebook.metadata.radiopadre_notebook_scrub = 1;
+        Jupyter.notebook.metadata.radiopadre_notebook_author = author;
         document.radiopadre.controls.update();
     }
 
     document.radiopadre.unprotect = function ()
     {
-        IPython.notebook.metadata.radiopadre_notebook_protect = 0;
+        Jupyter.notebook.metadata.radiopadre_notebook_protect = 0;
         document.radiopadre.controls.update();
     }
 
@@ -87,10 +96,10 @@ if (appname === 'NotebookApp')
         scrub.disabled = false;
         var save = IPython.menubar.element.find("#save_checkpoint");
         save.enable = true;
-        if( IPython.notebook.metadata.radiopadre_notebook_protect ) {
-            IPython.notebook.set_autosave_interval(0);
+        if( Jupyter.notebook.metadata.radiopadre_notebook_protect ) {
+            Jupyter.notebook.set_autosave_interval(0);
             prot.visibility = 'visible'
-            var author = IPython.notebook.metadata.radiopadre_notebook_author;
+            var author = Jupyter.notebook.metadata.radiopadre_notebook_author;
             if( author == document.radiopadre.user ) {
                 prot.innerHTML = 'author';
                 prot.title  = 'This is a protected radiopadre notebook, but you are the author. ';
@@ -102,7 +111,7 @@ if (appname === 'NotebookApp')
                 prot.title += 'You may modify, but you cannot save the notebook. ';
                 prot.title += 'Use radiopadre.unprotect() to unprotect this notebook.';
                 scrub.disabled = true;
-                IPython.notebook.metadata.radiopadre_notebook_scrub = true;
+                Jupyter.notebook.metadata.radiopadre_notebook_scrub = true;
                 save.enable = false;
             }
         } else {
@@ -111,27 +120,54 @@ if (appname === 'NotebookApp')
             prot.title = 'This is an unprotected radiopadre notebook, it may be modified and saved at will. ';
             prot.title += 'Use radiopadre.protect([author]) to protect this notebook.';
         }
-        if( IPython.notebook.metadata.radiopadre_notebook_scrub ) {
+        if( Jupyter.notebook.metadata.radiopadre_notebook_scrub ) {
             scrub.innerHTML = 'scrub: on';
             scrub.title = 'Will scrub all cell output when saving this notebook. Click to toggle.';
         } else {
             scrub.innerHTML = 'scrub: off';
             scrub.title = 'Will retain cell output when saving this notebook. Click to toggle.';
         }
+        var width_btn = document.radiopadre.controls.button_width;
+        if( document.radiopadre._full_width ) {
+            width_btn.innerHTML = '&rarr;default width&larr;';
+            width_btn.title = 'Reset notebook display to default width.';
+        } else {
+            width_btn.innerHTML = '&larr;<nbsp>full width<nbsp>&rarr;';
+            width_btn.title = 'Set notebook display to full browser width.';
+        }
     }
 
     document.radiopadre.toggle_scrubbing = function()
     {
-        IPython.notebook.metadata.radiopadre_notebook_scrub = !IPython.notebook.metadata.radiopadre_notebook_scrub;
+        Jupyter.notebook.metadata.radiopadre_notebook_scrub = !Jupyter.notebook.metadata.radiopadre_notebook_scrub;
         document.radiopadre.controls.update();
     }
 
+    document.radiopadre._full_width = 0
+    document.radiopadre.toggle_width = function()
+    {
+        document.radiopadre.controls.update();
+        document.radiopadre._full_width = !document.radiopadre._full_width;
+        container = document.getElementById("notebook-container");
+//        console.log("container is", container, 'offsetWidth:', container.offsetWidth, 'style.width:', container.style.width, ';')
+        if( document.radiopadre._full_width ) {
+            document.radiopadre._default_width_px = container.style.width;
+            container.style.width = "100%";
+//            console.log("set 100% width");
+        } else {
+            container.style.width = document.radiopadre._default_width_px;
+//            console.log("set default width", document.radiopadre._default_width_px);
+        }
+        document.radiopadre.controls.update();
+    }
+
+
     document.radiopadre.before_unload = function (e) {
         console.log("before unload")
-        if( IPython.notebook.metadata.radiopadre_notebook_protect &&
-            IPython.notebook.metadata.radiopadre_notebook_author != document.radiopadre.user)
+        if( Jupyter.notebook.metadata.radiopadre_notebook_protect &&
+            Jupyter.notebook.metadata.radiopadre_notebook_author != document.radiopadre.user)
         {
-            IPython.notebook.set_dirty(false);
+            Jupyter.notebook.set_dirty(false);
         }
         return document.radiopadre._old_beforeunload(e);
     }
@@ -142,7 +178,7 @@ if (appname === 'NotebookApp')
         if( document.radiopadre.user )
             return;
         // // causes TypeError since the notebook is marked as non-extensible
-        // IPython.notebook._save_notebook_orig = IPython.notebook.save_notebook
+        // Jupyter.notebook._save_notebook_orig = Jupyter.notebook.save_notebook
         document.radiopadre.user = user;
         if( document.getElementById("radiopadre_controls") == null ) {
             console.log("initializing radiopadre controls");
@@ -152,7 +188,7 @@ if (appname === 'NotebookApp')
                 {   'id'      : 'radiopadre_btn_exec_all',
                     'label'   : 'Click to rerun all cells in this radiopadre notebook.',
                     'icon'    : 'icon-arrow-up',
-                    'callback': function () { IPython.notebook.execute_all_cells() }
+                    'callback': function () { Jupyter.notebook.execute_all_cells() }
                 },
                 {   'id'      : 'radiopadre_btn_scrub',
                     'label'   : 'Scrubs output from all cells in the notebook',
@@ -162,7 +198,12 @@ if (appname === 'NotebookApp')
                 {   'id'      : 'radiopadre_btn_protected',
                     'label'   : 'This notebook is protected',
                     'icon'    : 'icon-play-circle',
-                    'callback':  function () { IPython.notebook.execute_cell() }
+                    'callback':  function () { Jupyter.notebook.execute_cell() }
+                },
+                {   'id'      : 'radiopadre_btn_width',
+                    'label'   : 'width',
+                    'icon'    : 'icon-play-circle',
+                    'callback':  function () { document.radiopadre.toggle_width() }
                 }
                 ],'radiopadre_controls');
             var save = IPython.menubar.element.find("#save_checkpoint");
@@ -171,8 +212,9 @@ if (appname === 'NotebookApp')
         document.getElementById("radiopadre_btn_exec_all").innerHTML = "Run all";
         document.radiopadre.controls.button_scrub = document.getElementById("radiopadre_btn_scrub")
         document.radiopadre.controls.button_protected = document.getElementById("radiopadre_btn_protected")
+        document.radiopadre.controls.button_width = document.getElementById("radiopadre_btn_width")
         document.radiopadre.controls.update();
-        var nbpath = IPython.notebook.notebook_path;
+        var nbpath = Jupyter.notebook.notebook_path;
         if( nbpath.search('/') >=0 ) {
             var nbdir = nbpath.replace(/\/[^\/]*$/, '/');
         } else {
@@ -218,6 +260,8 @@ if (appname === 'NotebookApp')
       <script type='text/javascript' src='/static/js9colormaps.js'></script>\
     "
     Jupyter.toolbar.element.append(wrapper);
+
+
 
 }
 })

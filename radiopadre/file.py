@@ -368,6 +368,7 @@ def autodetect_file_type(path):
     from .textfile import TextFile
     from .datadir import DataDir
     from .casatable import CasaTable
+    from .htmlfile import HTMLFile
 
     if not os.path.exists(path):
         return None
@@ -380,6 +381,8 @@ def autodetect_file_type(path):
             return DataDir
     elif ext in [".fits", ".fts"]:
         return FITSFile
+    elif ext in [".html" ]:
+        return HTMLFile
     elif ext in [".png", ".jpg", ".jpeg"]:
         return ImageFile
     elif ext in [".txt", ".log", ".py", ".sh"]:
