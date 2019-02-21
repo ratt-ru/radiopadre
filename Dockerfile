@@ -21,9 +21,11 @@ RUN docker-apt-install \
 
 RUN pip install astropy==2.0.10  # monkeypatch
 
+RUN ldconfig
 RUN mkdir /radiopadre
 ADD . /radiopadre
 #RUN git clone https://github.com/ratt-ru/radiopadre
 RUN rm -fr /radiopadre/.git /radiopadre/js9/.git
 RUN cd /radiopadre && if [ ! -d js9 ]; then git clone https://github.com/ericmandel/js9; fi
+RUN cd /radiopadre/js9 && make clean
 RUN radiopadre/bin/install-radiopadre --inside-container
