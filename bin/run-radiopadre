@@ -42,6 +42,22 @@ def find_unused_port (base,maxtries=1000):
             continue
     return None
 
+
+# Poller code. Damn you OS/X and your select.poll bollocks
+class Poller(object):
+    def __init__ (self, label):
+        self._label = label
+        self.fdlabels = {}
+
+    def register_process(self, po, label=""):
+        self.fdlabels[po.stdout.fileno()] = '{} {}'.format(self._label, label), po.stdout
+        self.fdlabels[po.stderr.fileno()] = '{} {} stderr'.format(self._label, label), po.stderr
+
+
+    def poll(self, timeout=5):
+        to_read, _, _ = select.select(self.fdlabels.keys(), [], [], timeout)
+        return [self.fdlabels[fd] for fd in to_read]
+
 default_browser = os.environ.get("PADRE_BROWSER","xdg-open")
 
 # default repo and branch to use when initializing a remote installation
@@ -317,7 +333,8 @@ if options.destination and ':' in options.destination:
             message("radiopadre: Testing the remote virtual environment at {}:{}".format(host, remote_venv))
             try:
                 ssh_remote("source {}".format(activate_script))
-            except subprocess.CalledProcessError,exc:
+                message("radiopadre: looks fine")
+            except subprocess.CalledProcessError as exc:
                 message(exc.output)
                 help_yourself("The remote virtual environment at {}:{} exists, but we can't seem to activate it".format(host, remote_venv),
                               "Perhaps remove {}:{}, and I'll try to rebuild it from scratch.".format(host, remote_venv))
@@ -394,17 +411,9 @@ if options.destination and ':' in options.destination:
 
     ssh = subprocess.Popen(args, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 
-    # poll stdout/stderr
-    poller = select.poll()
-    fdlabels = {}
 
-    def register_process (po, label=""):
-        poller.register(po.stdout)
-        poller.register(po.stderr)
-        fdlabels[po.stdout.fileno()] = '{} {}'.format(host, label), po.stdout
-        fdlabels[po.stderr.fileno()] = '{} {} stderr'.format(host, label), po.stderr
-
-    register_process(ssh,"ssh")
+    poller = Poller(host)
+    poller.register_process(ssh, "ssh")
 
     ssh2 = None
     local_ports = []
@@ -416,16 +425,17 @@ if options.destination and ':' in options.destination:
     while True:
         try:
             fdlist = poller.poll()
-            for fd,event in fdlist:
-                line = None
-                if event & (select.POLLHUP|select.POLLERR):
+            for fname, fobj in fdlist:
+                try:
+                    line = fobj.readline()
+                except EOFError:
+                    line = ''
+                if not line:
                     message("radiopadre: ssh to {} complete, exiting".format(host))
                     sys.exit(0)
-                # which fd is ready? read line and message(it)
-                label,fobj = fdlabels.get(fd)
-                line = fobj.readline().strip()
+                line = line.strip()
                 #if fobj is not ssh.stderr:
-                print("\r{}: {}\r".format(label,line))
+                print("\r{}: {}\r".format(fname, line))
                 if not line:
                     continue
                 # if remote is not yet started, check output
@@ -794,22 +804,21 @@ if options.docker:
 
 
     # now go through this whole rigamarole of waiting for the container to report the notebook is started...
-    import select
-    poller = select.poll()
-    poller.register(docker_process.stdout)
-    poller.register(docker_process.stderr)
-    fdlabels = { docker_process.stdout.fileno(): ("stdout", docker_process.stdout),
-                 docker_process.stderr.fileno(): ("stderr", docker_process.stderr) }
+    poller = Poller("docker")
+    poller.register_process(docker_process)
 
     try:
         while True:
             fdlist = poller.poll()
-            for fd, event in fdlist:
-                if event & (select.POLLHUP | select.POLLERR):
+            for fname, fobj in fdlist:
+                try:
+                    line = fobj.readline()
+                except EOFError:
+                    line = ''
+                if not line:
                     break
-                fname, fobj = fdlabels.get(fd)
-                line = fobj.readline().strip()
-                message("docker {}: {}".format(fname, line))
+                line = line.strip()
+                message("{}: {}".format(fname, line))
                 if "Jupyter Notebook is running" in line:
                     # report URL back to remote
                     # start browser if requested
