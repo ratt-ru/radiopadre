@@ -51,10 +51,13 @@ def make_dir(name):
         os.mkdir(name)
     return name
 
-def make_link(src, dest):
+def make_link(src, dest, rm_fr=False):
     """Makes links."""
     if os.path.exists(dest):
-        os.unlink(dest)
+        if rm_fr:
+            subprocess.call(["rm","-fr",dest])
+        else:
+            os.unlink(dest)
     os.symlink(os.path.abspath(src), dest)
 
 
@@ -219,7 +222,7 @@ elif command == 'kill':
         parser.error("kill: specify at least one arguments")
 else:
     notebook_path = command
-    if not os.path.exists(notebook_path):
+    if not remote_host and not os.path.exists(notebook_path):
         parser.error("{} is neither a directory, nor a notebook, nor a recognized command".format(notebook_path))
     command = 'load'
     # in remote mode, allow an optional argument
@@ -917,9 +920,9 @@ cachedir = ABSROOTDIR + "/.radiopadre"
 cachelink = SHADOWDIR + "/.radiopadre"
 if os.access(ABSROOTDIR, os.W_OK):
     make_dir(cachedir)
-    make_link(cachedir, cachelink)
+    make_link(cachedir, cachelink, rm_fr=True)
     make_dir(LOCAL_SESSION_DIR)
-    make_link(LOCAL_SESSION_DIR, SHADOW_SESSION_DIR)
+    make_link(LOCAL_SESSION_DIR, SHADOW_SESSION_DIR, rm_fr=True)
 else:
     if os.path.islink(cachelink):
         os.unlink(cachelink)
