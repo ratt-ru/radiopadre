@@ -187,36 +187,36 @@ if options.inside_container:
 # remote_host: user@remote, or None in local mode
 # command: command part, could still be a notebook/directory at this stage
 copy_initial_notebook = remote_host = command = notebook_path = None
-argument = ''
+arguments = list(options.arguments)
 
-if not options.arguments:
+# figure out if remote mode is being invoked
+if not arguments:
     remote_host, command = None, '.'
 else:
-    if len(options.arguments) > 2:
-        parser.error("too many arguments")
-    # remote_
-    if ':' in options.arguments[0]:
-        remote_host, command = options.arguments[0].split(':', 1)
+    if ':' in arguments[0]:
+        remote_host, command = arguments.pop(0).split(':', 1)  # recognize both host:command and host: command
+        if not command and arguments:
+            command = arguments.pop(0)
     else:
-        remote_host, command = None, options.arguments[0]
+        remote_host, command = None, arguments.pop(0)
 
 # work out command and its arguments
 if command == 'ps':
-    if len(options.arguments) > 1:
+    if arguments:
         parser.error("ps takes no arguments")
 elif command == 'resume':
-    argument = container_id = options.arguments[1] if len(options.arguments) == 2 else None
+    if len(arguments) > 1:
+        parser.error("resume takes at most one argument")
 elif command == 'kill':
-    if len(options.arguments) < 2:
-        parser.error("kill: specify container ID(s) or 'all'")
-    argument = options.arguments[1:]
+    if not arguments:
+        parser.error("kill: specify at least one arguments")
 else:
-    argument = notebook_path = command
+    notebook_path = command
     command = 'load'
     # in remote mode, allow an optional argument
     if remote_host:
-        copy_initial_notebook = options.arguments[1] if len(options.arguments) == 2 else None
-    elif len(options.arguments) > 1:
+        copy_initial_notebook = arguments.pop(0) if arguments else None
+    if arguments:
         parser.error("too many arguments")
 
 if options.inside_container:
@@ -514,7 +514,8 @@ if remote_host:
     if options.verbose:
         padre_exec += " --verbose"
 
-    padre_exec += "  --remote {} {} {}".format(":".join(map(str, ports)), command if command is not "load" else "", argument or "")
+    padre_exec += "  --remote {} {} {}".format(":".join(map(str, ports)), command if command is not "load" else "",
+                                               " ".join(arguments))
 
     # start ssh subprocess to launch notebook
     args = list(SSH_OPTS) + [padre_exec]
@@ -713,10 +714,10 @@ if command == 'kill':
     all_containers = running_containers()
     if not all_containers:
         bye("no containers running, nothing to kill")
-    if "all" in argument:
+    if arguments[0] == "all":
         kill_containers = all_containers.keys()
     else:
-        kill_containers = [identify_container(all_containers, arg) for arg in argument]
+        kill_containers = [identify_container(all_containers, arg) for arg in arguments]
 
     kill_cont = " ".join(kill_containers)
     message("killing containers: {}".format(kill_cont))
@@ -726,20 +727,20 @@ if command == 'kill':
         name, path, _, _, _ = all_containers[cont]
         session_id_file = "{}/{}".format(SESSION_INFO_DIR, name)
         if os.path.exists(session_id_file):
-            os.unlink(session_id_file)
+            subprocess.call(["rm", "-fr", session_id_file])
     shell("docker kill " + kill_cont)
     sys.exit(0)
 
 ## attach command
 if command == "resume":
     all_containers = running_containers()
-    if argument:
-        argument = identify_container(all_containers, argument)
+    if arguments:
+        arguments = identify_container(all_containers, arguments[0])
     else:
         if not all_containers:
             bye("no containers running, nothing to attach to")
-        argument = all_containers.keys()[0]
-    container_name, path, _, session_id, attaching_to_ports = all_containers[argument]
+        arguments = all_containers.keys()[0]
+    container_name, path, _, session_id, attaching_to_ports = all_containers[arguments]
     message("  Attaching to existing container (ID: {argument}) running in {path}")
 
 # load command
