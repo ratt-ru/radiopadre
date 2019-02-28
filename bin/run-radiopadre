@@ -212,6 +212,8 @@ elif command == 'kill':
         parser.error("kill: specify at least one arguments")
 else:
     notebook_path = command
+    if not os.path.exists(notebook_path):
+        parser.error("{} is neither a directory, nor a notebook, nor a recognized command".format(notebook_path))
     command = 'load'
     # in remote mode, allow an optional argument
     if remote_host:
@@ -514,7 +516,7 @@ if remote_host:
     if options.verbose:
         padre_exec += " --verbose"
 
-    padre_exec += "  --remote {} {} {}".format(":".join(map(str, ports)), command if command is not "load" else "",
+    padre_exec += "  --remote {} {} {}".format(":".join(map(str, ports)), command if command is not "load" else notebook_path,
                                                " ".join(arguments))
 
     # start ssh subprocess to launch notebook
@@ -650,7 +652,7 @@ def ps_containers():
     Dict is name -> [id, path, uptime, None, None]"""
     lines = subprocess.check_output("""docker ps --filter 'label=radiopadre.user=oms' """ +
             """--format '{{.CreatedAt}}:::{{.ID}}:::{{.Names}}:::{{.Label "radiopadre.dir"}}'""", shell=True).strip()
-    container_list = sorted([line.split(":::") for line in lines.split("\n") if len(line.split(":::")) == 4])
+    container_list = sorted([line.split(":::") for line in lines.split("\n") if len(line.split(":::")) == 4], reverse=True)
     return OrderedDict([(name, [id_, path, time, None, None]) for time, id_, name, path in container_list])
 
 def read_session_info(dirname):
@@ -735,13 +737,13 @@ if command == 'kill':
 if command == "resume":
     all_containers = running_containers()
     if arguments:
-        arguments = identify_container(all_containers, arguments[0])
+        id_ = identify_container(all_containers, arguments[0])
     else:
         if not all_containers:
             bye("no containers running, nothing to attach to")
-        arguments = all_containers.keys()[0]
-    container_name, path, _, session_id, attaching_to_ports = all_containers[arguments]
-    message("  Attaching to existing container (ID: {argument}) running in {path}")
+        id_ = all_containers.keys()[0]
+    container_name, path, _, session_id, attaching_to_ports = all_containers[id_]
+    message("  Attaching to existing container (ID: {id_}) running in {path}")
 
 # load command
 elif command == 'load':
@@ -1064,6 +1066,7 @@ if not attaching_to_ports and not options.virtual_env:
                      "-v", "{}:{}/.local".format(docker_local, homedir),
                      # mount session info directory (needed to serve e.g. js9prefs.js)
                      "-v", "{}:{}/.radiopadre-session".format(session_info_dir, ABSROOTDIR),
+                     "-v", "{}:{}/.radiopadre-session".format(session_info_dir, SHADOWDIR),
                      # mount a writeable tmp dir for the js9 install -- needed by js9helper
                      "-v", "{}:/.radiopadre/venv/js9-www/tmp".format(js9_tmp),
                      "--label", "radiopadre.user={}".format(USER),
@@ -1284,6 +1287,10 @@ if js9dir:
         # create JS9 settings file (in container mode, this is created above, and mounted inside container already)
         make_dir(".radiopadre-session")
         open(js9prefs, "w").write("JS9Prefs.globalOpts.helperPort = {};\n".format(userside_helper_port))
+        shadowlink = SHADOWDIR + "/.radiopadre-session"
+        if os.path.exists(shadowlink):
+            os.unlink(shadowlink)
+        os.symlink(os.path.abspath(js9prefs), shadowlink)
     # URL to local settings file for this session
     os.environ['RADIOPADRE_JS9_DIR'] = "{}js9-www/".format(urlbase)
     os.environ['RADIOPADRE_JS9_SETTINGS'] = "{}{}/{}".format(urlbase, ABSROOTDIR.lstrip("/"), js9prefs)
