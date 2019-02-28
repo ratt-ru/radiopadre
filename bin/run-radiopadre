@@ -51,6 +51,13 @@ def make_dir(name):
         os.mkdir(name)
     return name
 
+def make_link(src, dest):
+    """Makes links."""
+    if os.path.exists(dest):
+        os.unlink(dest)
+    os.symlink(os.path.abspath(src), dest)
+
+
 def find_unused_port (base, maxtries=1000):
     """Helper function. Finds an unused server port"""
     for i in range(maxtries):
@@ -900,21 +907,27 @@ ABSROOTDIR = ROOTDIR = os.path.abspath(os.getcwd())              # e.g. /home/ot
 SHADOWDIR = PADRE_WORKDIR + ROOTDIR                 # e.g. ~/.radiopadre/home/other/path
 if not os.path.exists(SHADOWDIR):
     os.system("mkdir -p {}".format(SHADOWDIR))
+# This is where the per-session js9prefs.js goes. In virtualenv mode, this is just a directory
+# In docker mode, we mount session_info_dir on this
+LOCAL_SESSION_DIR = ABSROOTDIR + "/.radiopadre-session"
+SHADOW_SESSION_DIR = SHADOWDIR + "/.radiopadre-session"
 
-# make .radiopadre in target dir, or in shadow dir
-cachedir = ABSROOTDIR+"/.radiopadre"
+# make .radiopadre and .radiopadre-session in target dir, or in shadow dir
+cachedir = ABSROOTDIR + "/.radiopadre"
 cachelink = SHADOWDIR + "/.radiopadre"
 if os.access(ABSROOTDIR, os.W_OK):
     make_dir(cachedir)
-    if not os.path.exists(cachelink):
-        os.symlink(cachedir, cachelink)
+    make_link(cachedir, cachelink)
+    make_dir(LOCAL_SESSION_DIR)
+    make_link(LOCAL_SESSION_DIR, SHADOW_SESSION_DIR)
 else:
     if os.path.islink(cachelink):
         os.unlink(cachelink)
     make_dir(cachelink)
+    if os.path.islink(SHADOW_SESSION_DIR):
+        os.unlink(SHADOW_SESSION_DIR)
+    make_dir(SHADOW_SESSION_DIR)
 
-if not os.path.exists(cachelink):
-    os.symlink(ABSROOTDIR+"/.radiopadre", cachelink)
 
 JUPYTER_OPTS = [
     "notebook",
@@ -1065,8 +1078,8 @@ if not attaching_to_ports and not options.virtual_env:
                      # hides /home/user/.local, which if exposed, can confuse jupyter and ipython
                      "-v", "{}:{}/.local".format(docker_local, homedir),
                      # mount session info directory (needed to serve e.g. js9prefs.js)
-                     "-v", "{}:{}/.radiopadre-session".format(session_info_dir, ABSROOTDIR),
-                     "-v", "{}:{}/.radiopadre-session".format(session_info_dir, SHADOWDIR),
+                     "-v", "{}:{}".format(session_info_dir, LOCAL_SESSION_DIR),
+                     "-v", "{}:{}".format(session_info_dir, SHADOW_SESSION_DIR),
                      # mount a writeable tmp dir for the js9 install -- needed by js9helper
                      "-v", "{}:/.radiopadre/venv/js9-www/tmp".format(js9_tmp),
                      "--label", "radiopadre.user={}".format(USER),
@@ -1282,19 +1295,13 @@ http_rewrites = [ "/radiopadre-www/={}/".format(PADRE_PATH + "/html") ]
 
 if js9dir:
     os.environ['RADIOPADRE_JS9_HELPER_PORT'] = str(userside_helper_port)
-    js9prefs = ".radiopadre-session/js9prefs.js"
+    js9prefs = LOCAL_SESSION_DIR + "/js9prefs.js"
     if not options.inside_container:
         # create JS9 settings file (in container mode, this is created above, and mounted inside container already)
-        make_dir(".radiopadre-session")
         open(js9prefs, "w").write("JS9Prefs.globalOpts.helperPort = {};\n".format(userside_helper_port))
-        shadowlink = SHADOWDIR + "/.radiopadre-session"
-        if os.path.exists(shadowlink):
-            os.unlink(shadowlink)
-        os.symlink(os.path.abspath(js9prefs), shadowlink)
     # URL to local settings file for this session
     os.environ['RADIOPADRE_JS9_DIR'] = "{}js9-www/".format(urlbase)
-    os.environ['RADIOPADRE_JS9_SETTINGS'] = "{}{}/{}".format(urlbase, ABSROOTDIR.lstrip("/"), js9prefs)
-
+    os.environ['RADIOPADRE_JS9_SETTINGS'] = "{}{}".format(urlbase, js9prefs)
 
     http_rewrites.append("/js9-www/={}/".format(js9dir))
     http_rewrites.append("/js9colormaps.js={}".format(notebook_dir + "/notebook/static/js9colormaps.js"))
