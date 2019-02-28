@@ -249,7 +249,7 @@ if (appname === 'NotebookApp')
       <link rel='apple-touch-icon' href='/static/js9-www/images/js9-apple-touch-icon.png'>\
       <script type='text/javascript' src='/static/js9-www/js9prefs.js'></script>\
       <script type='text/javascript'> console.log('loaded JS9 prefs 1') </script>\
-      <script type='text/javascript' src='/files/.radiopadre/js9prefs.js'></script>\
+      <script type='text/javascript' src='/files/.radiopadre-session/js9prefs.js'></script>\
       <script type='text/javascript'> console.log('loaded JS9 prefs 2')</script>\
       <script type='text/javascript' src='/static/js9-www/js9support.min.js'></script>\
       <script type='text/javascript' src='/static/js9-www/js9.min.js'></script>\

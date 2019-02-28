@@ -31,9 +31,9 @@ DEVNULL = open("/dev/null", "w")
 
 # ### some helper functions
 
-def message(x, prefix='run-radiopadre: ', file=sys.stderr):
+def message(x, prefix='run-radiopadre: ', file=None):
     """Prints message, interpolating globals with .format()"""
-    print(prefix + x.format(**globals()), file=file)
+    print(prefix + x.format(**globals()), file=file or sys.stderr)
 
 def bye(x, code=1):
     """Prints message, interpolating globals with .format(). Exits with given code"""
@@ -111,6 +111,8 @@ parser.add_argument("--docker-image", type=str, metavar="IMAGE", default=DEFAULT
                   help="Which Docker image to use. Default is %(default)s.")
 parser.add_argument("--docker-detach", action="store_true",
                   help="detach from container and exit after setting everything up.")
+parser.add_argument("--docker-debug", action="store_true",
+                  help="run container in debug mode, with output to screen.")
 
 parser.add_argument("--auto-init", action="store_true",
                   help="automatically initialize radiopadre installation, if missing on remote.\n" +
@@ -139,14 +141,14 @@ parser.add_argument("arguments", nargs="*",
     [user@]remote_host:directory notebook.ipynb
         run a remote radiopadre session, copying over the specified notebook if it doesn't 
         already exist on the remote;
-    ls
+    ps
         list available local containerized radiopadre sessions;
     resume [ID]
         reconnect to a containerized radiopadre session. If an ID is not given,
         reconnects to first available session;
     kill [ID(s)|all]
         kills specified containerized session, or all sessions
-    [user@]remote_host:ls
+    [user@]remote_host:ps
         list available containerized radiopadre sessions on remote host;
     [user@]remote_host:resume [ID]
         reconnect to a containerized radiopadre session on remote host;
@@ -161,6 +163,16 @@ parser.add_argument("--workdir", type=str, help=argparse.SUPPRESS)
 parser.add_argument("--remote", type=str, metavar="<port1:port2:port3>", help=argparse.SUPPRESS)
 
 options = parser.parse_args()
+
+make_dir("~/.radiopadre")
+SESSION_INFO_DIR = os.path.expanduser("~/.radiopadre/.sessions")
+make_dir(SESSION_INFO_DIR)
+
+# redirect stdout/err if inside a container
+if options.inside_container and not options.docker_debug:
+    container_name = os.environ['RADIOPADRE_CONTAINER_NAME']
+    sys.stdout = open("{}/{}/stdout.log".format(SESSION_INFO_DIR, container_name), 'w')
+    sys.stderr = open("{}/{}/stderr.log".format(SESSION_INFO_DIR, container_name), 'w')
 
 ### PARSE ARGUMENTS
 
@@ -189,9 +201,9 @@ else:
         remote_host, command = None, options.arguments[0]
 
 # work out command and its arguments
-if command == 'ls':
+if command == 'ps':
     if len(options.arguments) > 1:
-        parser.error("ls takes no arguments")
+        parser.error("ps takes no arguments")
 elif command == 'resume':
     argument = container_id = options.arguments[1] if len(options.arguments) == 2 else None
 elif command == 'kill':
@@ -628,9 +640,6 @@ if remote_host:
 # ### LOCAL MODE ####################################################################################################
 
 child_processes = []
-make_dir("~/.radiopadre")
-SESSION_INFO_DIR = os.path.expanduser("~/.radiopadre/.sessions")
-make_dir(SESSION_INFO_DIR)
 
 # if not None, gives the six port assignments
 attaching_to_ports = container_name = None
@@ -643,16 +652,16 @@ def ps_containers():
     container_list = sorted([line.split(":::") for line in lines.split("\n") if len(line.split(":::")) == 4])
     return OrderedDict([(name, [id_, path, time, None, None]) for time, id_, name, path in container_list])
 
-def read_session_id_file(filename):
+def read_session_info(dirname):
     """Reads the given session ID file. Returns session_id, ports, or else throws a ValueError"""
-    comps = open(filename).read().strip().split(" ")
+    comps = open(dirname + "/info").read().strip().split(" ")
     if len(comps) != 7:
-        raise ValueError("invalid session file " + filename)
+        raise ValueError("invalid session dir " + dirname)
     session_id = comps[0]
     try:
         ports = map(int, comps[1:])
     except:
-        raise ValueError("invalid session file " + filename)
+        raise ValueError("invalid session dir " + dirname)
     return session_id, ports
 
 
@@ -661,17 +670,17 @@ def running_containers():
     Dict is id -> [name, path, uptime, session_id, ports]"""
     container_dict = ps_containers()
     # match session files to containers
-    for session_id_file in glob.glob(SESSION_INFO_DIR + "/radiopadre-*"):
-        name = os.path.basename(session_id_file)
+    for session_dir in glob.glob(SESSION_INFO_DIR + "/radiopadre-*"):
+        name = os.path.basename(session_dir)
         if name not in container_dict:
             if options.verbose:
-                message("container {} is no longer running, clearing up session file".format(name))
-            os.unlink(session_id_file)
+                message("container {} is no longer running, clearing up session dir".format(name))
+            subprocess.call(["rm", "-fr", session_dir])
             continue
         try:
-            container_dict[name][3], container_dict[name][4] = read_session_id_file(session_id_file)
+            container_dict[name][3], container_dict[name][4] = read_session_info(session_dir)
         except ValueError:
-            message("invalid session file {sessiod_id_file}")
+            message("invalid session dir {session_dir}")
             continue
     return OrderedDict([(id_, [name, path, time, session_id, port])
                         for name, (id_, path, time, session_id, port) in container_dict.iteritems()])
@@ -691,7 +700,7 @@ def identify_container(container_dict, arg):
 message("Welcome to Radiopadre!")
 
 # ### ls command
-if command == 'ls':
+if command == 'ps':
     container_dict = running_containers()
     num = len(container_dict)
     message("{} container{} running".format(num, "s" if num != 1 else ""))
@@ -754,7 +763,7 @@ if attaching_to_ports:
 elif options.inside_container:
     message("started the radiopadre container")
     container_name = os.environ['RADIOPADRE_CONTAINER_NAME']
-    session_id, _ = read_session_id_file("{}/{}".format(SESSION_INFO_DIR, container_name))
+    session_id, _ = read_session_info("{}/{}".format(SESSION_INFO_DIR, container_name))
     os.environ['RADIOPADRE_SESSION_ID'] = session_id
     jupyter_port, helper_port, http_port = CONTAINER_PORTS
     message("  Inside container, using fixed ports {} {} {}".format(jupyter_port, helper_port, http_port))
@@ -783,9 +792,12 @@ else:
 
     # write out session file
     if container_name:
-        session_id_file = "{}/{}".format(SESSION_INFO_DIR, container_name)
-        open(session_id_file, "w").write("{} {} {} {} {} {} {}".format(session_id, *(selected_ports+userside_ports)))
-        os.chmod(session_id_file, 0600)
+        session_info_dir = "{}/{}".format(SESSION_INFO_DIR, container_name)
+        make_dir(session_info_dir)
+        session_info_file = session_info_dir + "/info"
+        open(session_info_file, "w").write("{} {} {} {} {} {} {}".format(session_id, *(selected_ports+userside_ports)))
+        os.chmod(session_info_file, 0600)
+        open(session_info_dir + "/js9prefs.js", "w").write("JS9Prefs.globalOpts.helperPort = {};\n".format(userside_helper_port))
 
 # print port assignments to console -- in remote mode, remote script will parse this out
 if not options.inside_container:
@@ -1029,12 +1041,17 @@ if not attaching_to_ports and not options.virtual_env:
 
     message("Container name: {container_name}")  # remote script will parse it
 
-    docker_opts = [ docker, "run", "-d", "--rm", "--name", container_name, "-w", ABSROOTDIR,
+    ##################### NB: skip -d flag for debugging
+
+    docker_opts = [ docker, "run", "--rm", "--name", container_name, "-w", ABSROOTDIR,
                         "--user", "{}:{}".format(os.getuid(), os.getgid()),
                         "-e", "USER={}".format(os.environ["USER"]),
                         "-e", "HOME={}".format(os.environ["HOME"]),
                         "-e", "RADIOPADRE_CONTAINER_NAME={}".format(container_name)
                   ]
+    # enable detached mode if not debugging
+    if not options.docker_debug:
+        docker_opts.append("-d")
     for port1, port2 in zip(selected_ports, CONTAINER_PORTS):
         docker_opts += [ "-p", "{}:{}/tcp".format(port1, port2)]
     # setup mounts for work dir and home dir, if needed
@@ -1044,6 +1061,8 @@ if not attaching_to_ports and not options.virtual_env:
                      "-v", "{}:{}".format(homedir, homedir),
                      # hides /home/user/.local, which if exposed, can confuse jupyter and ipython
                      "-v", "{}:{}/.local".format(docker_local, homedir),
+                     # mount session info directory (needed to serve e.g. js9prefs.js)
+                     "-v", "{}:{}/.radiopadre-session".format(session_info_dir, ABSROOTDIR),
                      # mount a writeable tmp dir for the js9 install -- needed by js9helper
                      "-v", "{}:/.radiopadre/venv/js9-www/tmp".format(js9_tmp),
                      "--label", "radiopadre.user={}".format(USER),
@@ -1059,6 +1078,8 @@ if not attaching_to_ports and not options.virtual_env:
                      "--workdir", PADRE_WORKDIR,
                    ]
     # add arguments
+    if options.docker_debug:
+        docker_opts.append("--docker-debug")
     if options.verbose:
         docker_opts.append("--verbose")
     if options.no_default:
@@ -1071,6 +1092,7 @@ if not attaching_to_ports and not options.virtual_env:
     docker_process = subprocess.Popen(docker_opts, stdout=DEVNULL)
                                       #stdin=sys.stdin, stdout=sys.stdout, stderr=sys.stderr,
                                       #env=os.environ)
+
     # pause to let the Jupyter server spin up
     t0 = time.time()
     time.sleep(1)
@@ -1256,11 +1278,11 @@ http_rewrites = [ "/radiopadre-www/={}/".format(PADRE_PATH + "/html") ]
 
 if js9dir:
     os.environ['RADIOPADRE_JS9_HELPER_PORT'] = str(userside_helper_port)
-    # create JS9 settings file for session
-    js9prefs = ".radiopadre/js9prefs.js"
-    open(js9prefs, "w").write(
-        "JS9Prefs.globalOpts.helperPort = {};\n".format(userside_helper_port)
-    )
+    js9prefs = ".radiopadre-session/js9prefs.js"
+    if not options.inside_container:
+        # create JS9 settings file (in container mode, this is created above, and mounted inside container already)
+        make_dir(".radiopadre-session")
+        open(js9prefs, "w").write("JS9Prefs.globalOpts.helperPort = {};\n".format(userside_helper_port))
     # URL to local settings file for this session
     os.environ['RADIOPADRE_JS9_DIR'] = "{}js9-www/".format(urlbase)
     os.environ['RADIOPADRE_JS9_SETTINGS'] = "{}{}/{}".format(urlbase, ABSROOTDIR.lstrip("/"), js9prefs)
