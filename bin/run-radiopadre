@@ -506,7 +506,7 @@ if remote_host:
             padre_exec = "~/.radiopadre/tmp/bin/run-radiopadre"
 
         if options.update:
-            padre_exec += " --docker-pull --docker-image " + options.docker_image
+            padre_exec += " --update --docker-image " + options.docker_image
 
     # allocate 3 suggested ports (in resume mode, this will be overridden by the session settings)
     starting_port = 10000 + os.getuid()*3

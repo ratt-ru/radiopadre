@@ -96,6 +96,7 @@ class CasaTable(radiopadre.file.FileBase):
             table.unlock()
         self._subtables_obj = None
         self._parent = parent
+        self._dynamic_attributes = set()  # keep track of attributes added in scan_impl
         radiopadre.file.FileBase.__init__(self, name, title=title)
 
 
@@ -141,11 +142,18 @@ class CasaTable(radiopadre.file.FileBase):
             flagrow = 'FLAG_ROW' in self.columns
             flagcol = 'FLAG' in self.columns
 
+            # remove any previous dynamically-created attributes
+            for attr in self._dynamic_attributes:
+                if hasattr(self, attr):
+                    delattr(self, attr)
+            self._dynamic_attributes = set()
+
             # make attributes for each column
             for name in tab.colnames():
                 attrname = name
                 while hasattr(self, attrname):
                     attrname = attrname + "_"
+                self._dynamic_attributes.add(attrname)
                 setattr(self, attrname, CasaTable.ColumnProxy(self, name))
                 # make _F versions for flagged columns
                 flag = flagcol and (name.endswith('DATA') or name.endswith('SPECTRUM'))
@@ -153,6 +161,7 @@ class CasaTable(radiopadre.file.FileBase):
                     attrname = "{}_F".format(name)
                     while hasattr(self, attrname):
                         attrname = attrname + "_"
+                    self._dynamic_attributes.add(attrname)
                     setattr(self, attrname, CasaTable.ColumnProxy(self, name, flagrow=flagrow, flag=flag))
 
             # make attributes for each subtable
@@ -163,6 +172,7 @@ class CasaTable(radiopadre.file.FileBase):
                 while hasattr(self, name):
                     name = name + "_"
                 self._subtables_dict[name] = path
+                self._dynamic_attributes.add(attrname)
                 setattr(self, name, path)
 
     def putcol(self, colname, coldata, start=0, nrow=-1, rowincr=1, blc=None, trc=None, incr=None):
