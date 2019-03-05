@@ -161,6 +161,7 @@ class NumberedLineList(ItemBase):
         return txt
 
     def _render(self, head=0, tail=0, full=None, grep=None, fs=None, slicer=None, title=None):
+        self.rescan(load=True)
         head, tail = self._get_lines(head, tail, full, grep, slicer)
         return rich_string(self.render_text(head, tail, title=title),
                            self.render_html(head, tail, fs=fs, title=title))
@@ -178,15 +179,18 @@ class NumberedLineList(ItemBase):
         self.show(full=True, fs=fs)
 
     def __getitem__(self, item):
+        self.rescan(load=True)
         if type(item) is slice:
             return NumberedLineList(self._lines[item])
         else:
             return self._lines[int(item)]
 
     def __getslice__(self, *slicer):
+        self.rescan(load=True)
         return NumberedLineList(self._get_lines(slicer=slicer)[0])
 
     def __call__(self, *args):
+        self.rescan(load=True)
         return NumberedLineList(self._get_lines(grep=args)[0])
 
 

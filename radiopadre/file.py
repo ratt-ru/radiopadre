@@ -300,9 +300,9 @@ class FileBase(ItemBase):
             quotient = float(size) / 1024 ** exponent
             unit, num_decimals = self._unit_list[exponent]
             format_string = '{:.%sf}{}' % (num_decimals)
-            self.size = format_string.format(quotient, unit)
+            self._size = rich_string(format_string.format(quotient, unit))
         else:
-            self.size = '0'
+            self._size = rich_string('0')
         self.description = rich_string("{} {}".format(self.size, self.mtime_str))
 
     def _load_impl(self):
@@ -368,6 +368,7 @@ def autodetect_file_type(path):
     from .textfile import TextFile
     from .datadir import DataDir
     from .casatable import CasaTable
+    from .htmlfile import HTMLFile
 
     if not os.path.exists(path):
         return None
@@ -380,6 +381,8 @@ def autodetect_file_type(path):
             return DataDir
     elif ext in [".fits", ".fts"]:
         return FITSFile
+    elif ext in [".html" ]:
+        return HTMLFile
     elif ext in [".png", ".jpg", ".jpeg"]:
         return ImageFile
     elif ext in [".txt", ".log", ".py", ".sh"]:

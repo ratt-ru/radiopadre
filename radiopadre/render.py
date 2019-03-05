@@ -102,7 +102,8 @@ def render_preamble():
     """Renders HTML preamble.
     Include this in the HTML of each cell to make sure that #NOTEBOOK_FILES# in links is correctly substituted
     """
-    return """<script>document.radiopadre.fixup_hrefs()</script>"""
+    return ""
+    # return """<script>document.radiopadre.fixup_hrefs()</script>"""
 
 
 def render_url(fullpath): # , prefix="files"):
@@ -134,7 +135,10 @@ def show_exception(message, exc_class=RuntimeError):
 def render_status_message(msg, bgcolor='lightblue'):
     return "<SPAN style='background: {};'><B>{}</B></SPAN>".format(bgcolor, htmlize(msg))
 
-def render_table(data, labels, html=set(), ncol=1, links=None,
+def show_table(data, **kw):
+    display(HTML(render_table(data, **kw)))
+
+def render_table(data, labels=None, html=set(), ncol=1, links=None,
                  header=True, numbering=True,
                  styles={},
                  actions=None,
@@ -142,6 +146,9 @@ def render_table(data, labels, html=set(), ncol=1, links=None,
                  ):
     if not data:
         return "no content"
+    if labels is None:
+        labels = ["col{}".format(i) for i in range(len(data[0]))]
+        header = False
     txt = "<div id='{}'>".format(div_id) if div_id else "<div>"
     for code in preamble.itervalues():
         txt += code+"\n"

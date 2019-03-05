@@ -3,6 +3,7 @@ from collections import OrderedDict
 import itertools
 import numpy as np
 from numpy.ma import masked_array
+from contextlib import contextmanager
 
 import radiopadre
 from radiopadre import casacore_tables
@@ -92,43 +93,52 @@ class CasaTable(radiopadre.file.FileBase):
         """
         self._error = self._dir_obj = None
         self._table = table
-        if table:
-            table.unlock()
+        self._writeable = table and table.iswritable()
         self._subtables_obj = None
         self._parent = parent
+        self._dynamic_attributes = set()  # keep track of attributes added in scan_impl
         radiopadre.file.FileBase.__init__(self, name, title=title)
 
 
+    @contextmanager
+    def lock_table(self, write=False):
+        """Context manager. Sets lock on table. For use, see examples below."""
+        if casacore_tables is None:
+            raise RuntimeError("no casacore.tables installed")
+        elif write and not self._writeable:
+            raise IOError("table is not writable")
+        elif self._table is None:
+            raise RuntimeError("table not open: this is a bug")
+        else:
+            self._table.lock(write=write)
+            yield self._table
+            self._table.unlock()
+
     @property
     def wtable(self):
-        if casacore_tables is None:
-            return RuntimeError("no casacore.tables installed")
-        try:
-            tab = casacore_tables.table(self.fullpath, ack=False, readonly=False)
-            return tab
-        except Exception, exc:
-            return exc
+        return self.lock_table(True)
 
     @property
     def table(self):
-        if self._table is not None:
-            return casacore_tables.table([self._table], ack=False)
-        if casacore_tables is None:
-            return RuntimeError("no casacore.tables installed")
-        try:
-            tab = casacore_tables.table(self.fullpath, ack=False)
-            return tab
-        except Exception, exc:
-            return exc
+        return self.lock_table(False)
+
 
     def _scan_impl(self):
         radiopadre.file.FileBase._scan_impl(self)
         self._dir_obj = None
-        tab = self.table
-        if isinstance(tab, Exception):
-            msg = "CasaTable error: {}".format(tab)
+
+        if casacore_tables is None:
+            msg = "python-casacore not installed"
             self.description = self.size = self._error = rich_string(msg, render_status_message(msg, 'yellow'))
+            return
+
+        if self._table is None:
+            self._writeable = casacore_tables.tableiswritable(self.fullpath)
+            self._table = casacore_tables.table(self.fullpath, ack=False, readonly=not self._writeable, lockoptions='user')
         else:
+            self._table.resync()
+
+        with self.table as tab:
             self.nrows = tab.nrows()
             self.rownumbers = tab.rownumbers()
             self.columns = tab.colnames()
@@ -141,11 +151,18 @@ class CasaTable(radiopadre.file.FileBase):
             flagrow = 'FLAG_ROW' in self.columns
             flagcol = 'FLAG' in self.columns
 
+            # remove any previous dynamically-created attributes
+            for attr in self._dynamic_attributes:
+                if hasattr(self, attr):
+                    delattr(self, attr)
+            self._dynamic_attributes = set()
+
             # make attributes for each column
             for name in tab.colnames():
                 attrname = name
                 while hasattr(self, attrname):
                     attrname = attrname + "_"
+                self._dynamic_attributes.add(attrname)
                 setattr(self, attrname, CasaTable.ColumnProxy(self, name))
                 # make _F versions for flagged columns
                 flag = flagcol and (name.endswith('DATA') or name.endswith('SPECTRUM'))
@@ -153,6 +170,7 @@ class CasaTable(radiopadre.file.FileBase):
                     attrname = "{}_F".format(name)
                     while hasattr(self, attrname):
                         attrname = attrname + "_"
+                    self._dynamic_attributes.add(attrname)
                     setattr(self, attrname, CasaTable.ColumnProxy(self, name, flagrow=flagrow, flag=flag))
 
             # make attributes for each subtable
@@ -163,40 +181,41 @@ class CasaTable(radiopadre.file.FileBase):
                 while hasattr(self, name):
                     name = name + "_"
                 self._subtables_dict[name] = path
+                self._dynamic_attributes.add(attrname)
                 setattr(self, name, path)
 
     def putcol(self, colname, coldata, start=0, nrow=-1, rowincr=1, blc=None, trc=None, incr=None):
-        tab = self.wtable
-        return tab.putcol(colname, coldata, start, nrow, rowincr) if blc is None else \
-               tab.putcolslice(colname, coldata, blc, trc, incr, start, nrow, rowincr)
+        with self.wtable as tab:
+            return tab.putcol(colname, coldata, start, nrow, rowincr) if blc is None else \
+                   tab.putcolslice(colname, coldata, blc, trc, incr, start, nrow, rowincr)
 
 
     def getcol(self, colname, start=0, nrow=-1, rowincr=1, blc=None, trc=None, incr=None, flagrow=False, flag=False):
         """Like standard getcol() or getcolslice() of a CASA table, but can also read a flag column to make a masked array"""
-        tab = self.table
-        coldata = tab.getcol(colname, start, nrow, rowincr) if blc is None else \
-                  tab.getcolslice(colname, blc, trc, incr, start, nrow, rowincr)
-        if coldata is None:
-            return None
-        shape = coldata.shape
-        fr = fl = None
-        if flagrow and "FLAG_ROW" in self.columns:
-            fr = tab.getcol("FLAG_ROW", start, nrow, rowincr)
-            if fr.shape != (shape[0],):
-                raise ValueError("FLAG_ROW column has unexpected shape {}".format(fr.shape))
-        if flag and "FLAG" in self.columns:
-            fl = tab.getcol("FLAG", start, nrow, rowincr) if blc is None else \
-                 tab.getcolslice("FLAG", blc, trc, incr, start, nrow, rowincr)
-            if fl.shape != shape[-len(fl.shape):]:
-                raise ValueError("FLAG column has unexpected shape {}".format(fl.shape))
-        if fr is not None or fl is not None:
-            mask = np.zeros(shape, bool)
-            if fr is not None:
-                mask[fr,...] = True
-            if fl is not None:
-                mask[...,fl] = True
-            return masked_array(coldata, mask)
-        return coldata
+        with self.table as tab:
+            coldata = tab.getcol(colname, start, nrow, rowincr) if blc is None else \
+                      tab.getcolslice(colname, blc, trc, incr, start, nrow, rowincr)
+            if coldata is None:
+                return None
+            shape = coldata.shape
+            fr = fl = None
+            if flagrow and "FLAG_ROW" in self.columns:
+                fr = tab.getcol("FLAG_ROW", start, nrow, rowincr)
+                if fr.shape != (shape[0],):
+                    raise ValueError("FLAG_ROW column has unexpected shape {}".format(fr.shape))
+            if flag and "FLAG" in self.columns:
+                fl = tab.getcol("FLAG", start, nrow, rowincr) if blc is None else \
+                     tab.getcolslice("FLAG", blc, trc, incr, start, nrow, rowincr)
+                if fl.shape != shape[-len(fl.shape):]:
+                    raise ValueError("FLAG column has unexpected shape {}".format(fl.shape))
+            if fr is not None or fl is not None:
+                mask = np.zeros(shape, bool)
+                if fr is not None:
+                    mask[fr,...] = True
+                if fl is not None:
+                    mask[...,fl] = True
+                return masked_array(coldata, mask)
+            return coldata
 
 
     def __getattribute__(self, attr):
@@ -224,7 +243,7 @@ class CasaTable(radiopadre.file.FileBase):
         if not self._subtables_obj:
             for name, subtab in self._subtables_dict.items():
                 if isinstance(subtab, str):
-                    self._subtables_dict[name] = CasaTable(subtab,)
+                    self._subtables_dict[name] = CasaTable(subtab)
                     setattr(self, name, subtab)
             self._subtables_obj = FileList(self._subtables_dict.values(),
                                             path=self.fullpath, extcol=False, showpath=False,
@@ -309,141 +328,139 @@ class CasaTable(radiopadre.file.FileBase):
 
         html = self._header_html() + "\n\n"
         #       render_refresh_button(full=self._parent and self._parent.is_updated())
-        tab = self.table
-        if isinstance(tab, Exception):
-            return html + rich_string("Error accessing table {}: {}".format(self.basename, tab))
-        # if first row is not specified, and columns not specified, fall back on casacore's own HTML renderer
-        if native:
-            return html + tab._repr_html_()
+        with self.table as tab:
+            if isinstance(tab, Exception):
+                return html + rich_string("Error accessing table {}: {}".format(self.basename, tab))
+            # if first row is not specified, and columns not specified, fall back on casacore's own HTML renderer
+            if native:
+                return html + tab._repr_html_()
 
-        # empty? return
-        if not self.nrows:
-            return html
+            # empty? return
+            if not self.nrows:
+                return html
 
-        firstrow = firstrow or 0
+            firstrow = firstrow or 0
 
-        # get subset of columns to use, and slicer objects
-        column_slicers = {}
-        column_formats = {}
-        default_slicer = default_slicer_desc = None
-        # _ keyword sets up default column slicer
-        if _ is not None:
-            default_slicer, default_slicer_desc, _ = self._parse_column_argument(_, "default")
-        # any other optional keywords put us into column selection mode
-        if columns:
-            column_selection = []
-            for col, slicer in columns.items():
-                if col in self.columns:
-                    slicer, desc, colformat = self._parse_column_argument(slicer, "column {}".format(col))
-                    column_formats[col] = colformat
-                    column_slicers[col] = slicer, desc
-                    column_selection.append(col)
-                else:
-                    html += render_error("No such column: {}".format(col))
-        if not columns or allcols:
-            column_selection = self.columns
+            # get subset of columns to use, and slicer objects
+            column_slicers = {}
+            column_formats = {}
+            default_slicer = default_slicer_desc = None
+            # _ keyword sets up default column slicer
+            if _ is not None:
+                default_slicer, default_slicer_desc, _ = self._parse_column_argument(_, "default")
+            # any other optional keywords put us into column selection mode
+            if columns:
+                column_selection = []
+                for col, slicer in columns.items():
+                    if col in self.columns:
+                        slicer, desc, colformat = self._parse_column_argument(slicer, "column {}".format(col))
+                        column_formats[col] = colformat
+                        column_slicers[col] = slicer, desc
+                        column_selection.append(col)
+                    else:
+                        html += render_error("No such column: {}".format(col))
+            if not columns or allcols:
+                column_selection = self.columns
 
-        # else use ours
-        if firstrow > self.nrows-1:
-            return html + render_error("Starting row {} out of range".format(firstrow))
-        nrows = min(self.nrows-firstrow, nrows)
-        labels = ["row"] + list(column_selection)
-        colvalues = {}
-        styles = {}
-        for icol, colname in enumerate(column_selection):
-            style = None
-            shape_suffix = ""
-            formatter = error = colval = None
-            column_has_shape = False
+            # else use ours
+            if firstrow > self.nrows-1:
+                return html + render_error("Starting row {} out of range".format(firstrow))
+            nrows = min(self.nrows-firstrow, nrows)
+            labels = ["row"] + list(column_selection)
+            colvalues = {}
+            styles = {}
+            for icol, colname in enumerate(column_selection):
+                style = None
+                shape_suffix = ""
+                formatter = error = colval = None
+                column_has_shape = False
 
-            # figure out formatting of measures/quanta columns
-            colkw = tab.getcolkeywords(colname)
-            units = colkw.get("QuantumUnits", [])
-            measinfo = colkw.get('MEASINFO', {})
-            meastype = measinfo.get('type')
+                # figure out formatting of measures/quanta columns
+                colkw = tab.getcolkeywords(colname)
+                units = colkw.get("QuantumUnits", [])
+                measinfo = colkw.get('MEASINFO', {})
+                meastype = measinfo.get('type')
 
-            if units:
-                same_units = all([u==units[0] for u in units[1:]])
-                if same_units:
-                    units = units[0]
-                formatter = lambda value:self._render_quantity(value, units=units, format=column_formats.get(colname))
-                if same_units and meastype != 'direction':
-                    labels[icol+1] += ", {}".format(units)
-            # getcol() is prone to "RuntimeError: ...  no array in row N", so explicitly ignore that and render empty column
-            try:
-                colvalues[icol] = colval = tab.getcol(colname, firstrow, nrows)
-            except RuntimeError:
-                colvalues[icol] = [""]*nrows
-                continue
-            except Exception as exc:
-                error = exc
-
-            if not error:
+                if units:
+                    same_units = all([u==units[0] for u in units[1:]])
+                    if same_units:
+                        units = units[0]
+                    formatter = lambda value:self._render_quantity(value, units=units, format=column_formats.get(colname))
+                    if same_units and meastype != 'direction':
+                        labels[icol+1] += ", {}".format(units)
+                # getcol() is prone to "RuntimeError: ...  no array in row N", so explicitly ignore that and render empty column
                 try:
                     colvalues[icol] = colval = tab.getcol(colname, firstrow, nrows)
-                    # work around variable-shaped string columns
-                    if type(colval) is dict:
-                        if 'array' not in colval or 'shape' not in colval:
-                            raise TypeError("unknown column shape")
-                        colvalues[icol] = colval = np.array(colval['array'], dtype=object).reshape(colval['shape'])
-                    column_has_shape = type(colval) is np.ndarray and colval.ndim > 1
-                    if column_has_shape:
-                        shape_suffix = " ({})".format("x".join(map(str, colval.shape[1:])))
+                except RuntimeError:
+                    colvalues[icol] = [""]*nrows
+                    continue
                 except Exception as exc:
                     error = exc
 
-            # render the value
-            if not error:
-                # apply slicer, if specified for this column. Render error if incorrect
-                if colname in column_slicers:
-                    slicer, desc = column_slicers[colname]
-                    slicer = [slice(None)] + slicer
+                if not error:
                     try:
-                        colvalues[icol] = colvalues[icol][tuple(slicer)]
-                    except IndexError as exc:
+                        colvalues[icol] = colval = tab.getcol(colname, firstrow, nrows)
+                        # work around variable-shaped string columns
+                        if type(colval) is dict:
+                            if 'array' not in colval or 'shape' not in colval:
+                                raise TypeError("unknown column shape")
+                            colvalues[icol] = colval = np.array(colval['array'], dtype=object).reshape(colval['shape'])
+                        column_has_shape = type(colval) is np.ndarray and colval.ndim > 1
+                        if column_has_shape:
+                            shape_suffix = " ({})".format("x".join(map(str, colval.shape[1:])))
+                    except Exception as exc:
                         error = exc
-                    if desc:
-                        shape_suffix += " " + desc
-                # else try to apply default slicer, if applicable. Retain column on error
-                elif default_slicer and column_has_shape and colval.ndim > len(default_slicer):
-                    slicer = [Ellipsis] + default_slicer
+
+                # render the value
+                if not error:
+                    # apply slicer, if specified for this column. Render error if incorrect
+                    if colname in column_slicers:
+                        slicer, desc = column_slicers[colname]
+                        slicer = [slice(None)] + slicer
+                        try:
+                            colvalues[icol] = colvalues[icol][tuple(slicer)]
+                        except IndexError as exc:
+                            error = exc
+                        if desc:
+                            shape_suffix += " " + desc
+                    # else try to apply default slicer, if applicable. Retain column on error
+                    elif default_slicer and column_has_shape and colval.ndim > len(default_slicer):
+                        slicer = [Ellipsis] + default_slicer
+                        try:
+                            colvalues[icol] = colvalues[icol][tuple(slicer)]
+                            if default_slicer_desc:
+                                shape_suffix += " " + default_slicer_desc
+                        except IndexError:
+                            pass
+
+                if formatter and not error:
                     try:
-                        colvalues[icol] = colvalues[icol][tuple(slicer)]
-                        if default_slicer_desc:
-                            shape_suffix += " " + default_slicer_desc
-                    except IndexError:
-                        pass
+                        colvalues[icol] = map(formatter, colvalues[icol])
+                    except Exception as exc:
+                        error = exc
 
-            if formatter and not error:
-                try:
-                    colvalues[icol] = map(formatter, colvalues[icol])
-                except Exception as exc:
-                    error = exc
+                labels[icol+1] += shape_suffix
 
-            labels[icol+1] += shape_suffix
+                # on any error, fill column with "(error)"
+                if error:
+                    colvalues[icol] = ["(error)"]*nrows
+                    html += render_error("Column {}: {}: {}".format(colname, error.__class__.__name__, str(error)))
+                    style = "color: red"
+                if style:
+                    styles[labels[icol+1]] = style
 
-            # on any error, fill column with "(error)"
-            if error:
-                colvalues[icol] = ["(error)"]*nrows
-                html += render_error("Column {}: {}: {}".format(colname, error.__class__.__name__, str(error)))
-                style = "color: red"
-            if style:
-                styles[labels[icol+1]] = style
+            data = [[self.rownumbers[firstrow+i]] + [colvalues[icol][i] for icol,col in enumerate(column_selection)] for i in xrange(nrows)]
 
-        data = [[self.rownumbers[firstrow+i]] + [colvalues[icol][i] for icol,col in enumerate(column_selection)] for i in xrange(nrows)]
-
-        html += render_table(data, labels, styles=styles, numbering=False)
-        return html
+            html += render_table(data, labels, styles=styles, numbering=False)
+            return html
 
     def _select_rows_columns(self, rows, columns, desc):
-        tab = self.table
-        if isinstance(tab, Exception):
-            return self._error
-        if rows is not None:
-            tab = tab.selectrows(rows)
-        if columns is not None:
-            tab = tab.select(columns)
-        return CasaTable(self.fullpath, title="{} [{}]".format(self.title, desc), table=tab)
+        with self.table as tab:
+            if rows is not None:
+                tab = tab.selectrows(rows)
+            if columns is not None:
+                tab = tab.select(columns)
+            return CasaTable(self.fullpath, title="{} [{}]".format(self.title, desc), table=tab)
 
 
     def __getitem__(self, item):
@@ -485,10 +502,10 @@ class CasaTable(radiopadre.file.FileBase):
     def query(self, taql, sortlist='', columns='', limit=0, offset=0):
         if self._error:
             return self._error
-        tab0 = self.table
-        tab = tab0.query(taql, sortlist=sortlist,columns=columns, limit=limit, offset=offset)
-        return CasaTable(self.fullpath, title="{} ({})".format(self.title, taql),
-                         table=tab)
+        with self.table as tab0:
+            tab = tab0.query(taql, sortlist=sortlist,columns=columns, limit=limit, offset=offset)
+            return CasaTable(self.fullpath, title="{} ({})".format(self.title, taql),
+                             table=tab)
 
     def __call__(self, taql, sortlist='', columns='', limit=0, offset=0):
         return self.query(taql, sortlist, columns, limit, offset)

@@ -1,111 +1,898 @@
 #!/usr/bin/python
 from __future__ import print_function
+import sys, os.path, os, subprocess, glob, socket, shutil, uuid, argparse, re, tempfile, select, time
+from collections import OrderedDict
 
-import os.path
-import os
-import subprocess
-import sys
-import glob
-import socket
-import shutil
-import uuid
-import time
 
-import argparse
+# ### some globals
 
-def message(x, prefix='run-radiopadre: ', file=sys.stderr):
-    print(prefix + x.format(**globals()), file=file)
+# default repo and branch to use when initializing a remote installation
+REPO = "git@github.com:ratt-ru/radiopadre.git"
+BRANCH = "master"
+
+# ports used when running inside a container
+CONTAINER_PORTS = 11001, 11002, 11003
+
+# docker image to use
+DEFAULT_DOCKER_IMAGE = "osmirnov/radiopadre:latest"
+
+# system uname
+UNAME = subprocess.check_output("uname").strip()
+
+# current user
+USER = os.environ['USER']
+
+# default browser command is xdg-open on Linux, open on OSX
+DEFAULT_BROWSER = os.environ.get("RADIOPADRE_BROWSER", "open" if UNAME == "Darwin" else "xdg-open")
+
+DEVZERO = open("/dev/zero")
+DEVNULL = open("/dev/null", "w")
+
+
+# ### some helper functions
+
+def message(x, prefix='run-radiopadre: ', file=None):
+    """Prints message, interpolating globals with .format()"""
+    print(prefix + x.format(**globals()), file=file or sys.stderr)
 
 def bye(x, code=1):
+    """Prints message, interpolating globals with .format(). Exits with given code"""
     message(x)
     sys.exit(code)
 
 def shell(cmd):
+    """Runs shell command, interpolating globals with .format()"""
     return subprocess.call(cmd.format(**globals()), shell=True)
 
-# ports used when running inside a container
-CONTAINER_PORTS = 11001, 11002, 11003
-child_processes = []
-
-DEFAULT_DOCKER_IMAGE = "osmirnov/radiopadre:latest"
-
-parser = argparse.ArgumentParser(description="Runs radiopadre")
-
-# parser.add_option("--port-query",type=int,metavar="N",
-#                   help="looks for N unused ports and reports them. For internal use.");
-parser.add_argument("--bootstrap", action="store_true",
-                  help="automatically initialize radiopadre virtual environment, if missing.")
-parser.add_argument("--reinstall", action="store_true",
-                  help="reinstall radiopadre virtual environment before running.")
-parser.add_argument("--remote", action="store_true",
-                  help="runs script in remote mode. Normally used by run-remote-padre -- not to be invoked directly.")
-parser.add_argument("-b","--browser", action="store_true",
-                  help="open a browser session, even if running under ssh.")
-parser.add_argument("-n","--no-browser",action="store_true",
-                  help="do not open a browser session, even if running locally.")
-parser.add_argument("--no-default",action="store_true",
-                  help="do not create a default notebook automatically. Default is to create.")
-parser.add_argument("-a", "--auto-load",action="store_true",
-                  help="automatically load first notebook found, if none is given explicitly")
-parser.add_argument("--no-casacore", action="store_true",
-                  help="Ignore casacore installation errors, if bootstrapping.")
-parser.add_argument("--no-js9", action="store_true",
-                  help="Ignore JS9 installation errors, if bootstrapping.")
-parser.add_argument("-d", "--docker", action="store_true",
-                  help="Runs radiopadre via a Docker container")
-parser.add_argument("-D", "--dev-docker", action="store_true",
-                  help="Runs radiopadre via a Docker container, but uses the host-installed version of radiopadre inside it. For developers.")
-parser.add_argument("--docker-image", type=str, default=DEFAULT_DOCKER_IMAGE,
-                  help="Which Docker image to use. Default is %(default)s.")
-parser.add_argument("--docker-pull", action="store_true",
-                  help="Use dopcker pull to update the image from dockerhub.")
-parser.add_argument("--verbose", action="store_true",
-                  help="Enable verbose output.")
-parser.add_argument("notebook", nargs="?",
-                  help="notebook/dir to load, if given")
-
-# internal switches used when running in container
-parser.add_argument("--inside-container", type=str, metavar="<ports>", help=argparse.SUPPRESS)
-parser.add_argument("--workdir", type=str, help=argparse.SUPPRESS)
-
-options = parser.parse_args()
-
-if options.dev_docker:
-    options.docker = True
-
 def make_dir(name):
+    """Makes directory, if one does not exist. Interpolates '~' in names."""
     name = os.path.expanduser(name)
     if not os.path.exists(name):
         os.mkdir(name)
     return name
 
+def make_link(src, dest, rm_fr=False):
+    """Makes links."""
+    if os.path.exists(dest):
+        if rm_fr:
+            subprocess.call(["rm","-fr",dest])
+        else:
+            os.unlink(dest)
+    os.symlink(os.path.abspath(src), dest)
+
+
+def find_unused_port (base, maxtries=1000):
+    """Helper function. Finds an unused server port"""
+    for i in range(maxtries):
+        serversocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        try:
+            serversocket.bind(("localhost", base))
+            serversocket.close()
+            return base
+        except:
+            base += 1
+            continue
+    return None
+
+class Poller(object):
+    """Poller class. Poor man's select.poll(). Damn you OS/X and your select.poll will-you-won'y-you bollocks"""
+    def __init__ (self):
+        self.fdlabels = {}
+
+    def register_file(self, fobj, label):
+        self.fdlabels[fobj.fileno()] = label, fobj
+
+    def register_process(self, po, label_stdout='', label_stderr=''):
+        self.fdlabels[po.stdout.fileno()] = label_stdout, po.stdout
+        self.fdlabels[po.stderr.fileno()] = label_stderr, po.stderr
+
+    def poll(self, timeout=5):
+        to_read, _, _ = select.select(self.fdlabels.keys(), [], [], timeout)
+        return [self.fdlabels[fd] for fd in to_read]
+
+
+parser = argparse.ArgumentParser(description="""
+    Manages local or remote Jupyter sessions with radiopadre notebooks.
+    """,
+                                formatter_class=argparse.RawTextHelpFormatter)
+
+# parser.add_option("--port-query",type=int,metavar="N",
+#                   help="looks for N unused ports and reports them. For internal use.");
+parser.add_argument("-b","--browser", action="store_true",
+                  help="open a browser session, even if running under ssh.")
+parser.add_argument("-n","--no-browser",action="store_true",
+                  help="do not open a browser session, even if running locally.")
+parser.add_argument("--browser-command", type=str, metavar="CMD", default=DEFAULT_BROWSER,
+                  help="browser command to run. Default is %(default)s (can also set RADIOPADRE_BROWSER).")
+
+parser.add_argument("-V", "--virtual-env", action="store_true",
+                    help="run radiopadre using a virtualenv+local install, rather than via Docker (default).")
+parser.add_argument("--venv-reinstall", action="store_true",
+                  help="virtualenv: reinstall radiopadre virtual environment before running.")
+parser.add_argument("--venv-no-casacore", action="store_true",
+                  help="virtualenv: ignore casacore installation errors, if bootstrapping.")
+parser.add_argument("--venv-no-js9", action="store_true",
+                  help="virtualenv: Ignore JS9 installation errors, if bootstrapping.")
+
+parser.add_argument("-D", "--docker-dev", action="store_true",
+                  help="runs radiopadre via a container, but mounts the host-installed\n"
+                       "version of radiopadre inside it. Intended for developers.")
+parser.add_argument("--docker-image", type=str, metavar="IMAGE", default=DEFAULT_DOCKER_IMAGE,
+                  help="Which Docker image to use. Default is %(default)s.")
+parser.add_argument("--docker-detach", action="store_true",
+                  help="detach from container and exit after setting everything up.")
+parser.add_argument("--docker-debug", action="store_true",
+                  help="run container in debug mode, with output to screen.")
+
+parser.add_argument("--auto-init", action="store_true",
+                  help="automatically initialize radiopadre installation, if missing on remote.\n" +
+                       "In virtualenv mode, also initialize virtual environment, if missing.")
+parser.add_argument("--remote-path", type=str, metavar="PATH",
+                  help="for virtualenv or dev-docker mode: directory in which remote radiopadre is installed.\n"+
+                       "Default is to try ~/radiopadre first, and PATH second.\n")
+parser.add_argument("-u","--update",action="store_true",
+                  help="in virtualenv mode: update remote radiopadre installation using git pull.\n"
+                       "in docker mode: update docker container using docker pull.")
+
+parser.add_argument("--no-default",action="store_true",
+                  help="if no notebooks are found in the specified directory, default is to create\n"
+                       "a radiopadre-default.ipynb with some boilerplate. Use this option to disable.")
+parser.add_argument("-a", "--auto-load",action="store_true",
+                  help="automatically load first notebook found, if one is not given explicitly.")
+parser.add_argument("--verbose", action="store_true",
+                  help="Enable verbose output.")
+
+parser.add_argument("arguments", nargs="*",
+                  help="""One or more arguments, as follows:
+    directory[/notebook.ipynb]
+        load local notebook or directory;
+    [user@]remote_host:directory[/notebook.ipynb]
+        run a remote radiopadre session, loading the specified notebook or directory;
+    [user@]remote_host:directory notebook.ipynb
+        run a remote radiopadre session, copying over the specified notebook if it doesn't 
+        already exist on the remote;
+    ps
+        list available local containerized radiopadre sessions;
+    resume [ID]
+        reconnect to a containerized radiopadre session. If an ID is not given,
+        reconnects to first available session;
+    kill [ID(s)|all]
+        kills specified containerized session, or all sessions
+    [user@]remote_host:ps
+        list available containerized radiopadre sessions on remote host;
+    [user@]remote_host:resume [ID]
+        reconnect to a containerized radiopadre session on remote host;
+    [user@]remote_host:kill [ID|all]
+        kills a specific radiopadre session, or all sessions on remote host;
+                       """)
+
+# internal switches used when running in container
+parser.add_argument("--inside-container", type=str, metavar="<port1:port2:port3>", help=argparse.SUPPRESS)
+parser.add_argument("--workdir", type=str, help=argparse.SUPPRESS)
+# internal switch to run script in remote mode.
+parser.add_argument("--remote", type=str, metavar="<port1:port2:port3>", help=argparse.SUPPRESS)
+
+options = parser.parse_args()
+
+make_dir("~/.radiopadre")
+SESSION_INFO_DIR = os.path.expanduser("~/.radiopadre/.sessions")
+make_dir(SESSION_INFO_DIR)
+
+# redirect stdout/err if inside a container
+if options.inside_container and not options.docker_debug:
+    container_name = os.environ['RADIOPADRE_CONTAINER_NAME']
+    sys.stdout = open("{}/{}/stdout.log".format(SESSION_INFO_DIR, container_name), 'w')
+    sys.stderr = open("{}/{}/stderr.log".format(SESSION_INFO_DIR, container_name), 'w')
+
+### PARSE ARGUMENTS
+
+# check for contradictions
+if options.virtual_env and options.docker_dev:
+    parser.error("can't use --virtual-env with --docker-dev")
+
+# running inside container uses venv mode by definition
+if options.inside_container:
+    options.virtual_env = True
+
+# remote_host: user@remote, or None in local mode
+# command: command part, could still be a notebook/directory at this stage
+copy_initial_notebook = remote_host = command = notebook_path = None
+arguments = list(options.arguments)
+
+# figure out if remote mode is being invoked
+if not arguments:
+    remote_host, command = None, '.'
+else:
+    if ':' in arguments[0]:
+        remote_host, command = arguments.pop(0).split(':', 1)  # recognize both host:command and host: command
+        if not command and arguments:
+            command = arguments.pop(0)
+    else:
+        remote_host, command = None, arguments.pop(0)
+
+# work out command and its arguments
+if command == 'ps':
+    if arguments:
+        parser.error("ps takes no arguments")
+elif command == 'resume':
+    if len(arguments) > 1:
+        parser.error("resume takes at most one argument")
+elif command == 'kill':
+    if not arguments:
+        parser.error("kill: specify at least one arguments")
+else:
+    notebook_path = command
+    if not remote_host and not os.path.exists(notebook_path):
+        parser.error("{} is neither a directory, nor a notebook, nor a recognized command".format(notebook_path))
+    command = 'load'
+    # in remote mode, allow an optional argument
+    if remote_host:
+        copy_initial_notebook = arguments.pop(0) if arguments else None
+    if arguments:
+        parser.error("too many arguments")
+
+if options.inside_container:
+    import signal
+    signal.signal(signal.SIGHUP, lambda sig, frame:sys.exit(1))
+
+
+default_notebook_code = """{
+ "cells": [
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "### This is a very basic default radiopadre notebook to start you browsing"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "# execute this with Ctrl+Enter\n",
+    "from radiopadre import ls, settings\n",
+    "ls = ls()\n",
+    "ls"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "ls[0]"
+   ]
+  }
+ ],
+ "metadata": {
+  "kernelspec": {
+   "display_name": "radiopadre",
+   "language": "python",
+   "name": "radiopadre"
+  },
+  "language_info": {
+   "codemirror_mode": {
+    "name": "ipython",
+    "version": 2
+   },
+   "file_extension": ".py",
+   "mimetype": "text/x-python",
+   "name": "python",
+   "nbconvert_exporter": "python",
+   "pygments_lexer": "ipython2",
+   "version": "2.7.15rc1"
+  },
+  "radiopadre_notebook_scrub": true
+ },
+ "nbformat": 4,
+ "nbformat_minor": 2
+}
+"""
+
+
+# ### REMOTE MODE #################################################################################################
+
+if remote_host:
+    # if options.docker:
+    #     if options.docker_dev:
+    #         parser.error("Can't combine -d/--docker and -D/--dev-docker modes")
+    #     if options.init_remote:
+    #         parser.error("Can't combine -d/--docker and --init-remote modes")
+
+    # Find remote run-radiopadre script
+
+    if options.remote_path:
+        padre_execs = [ os.path.join(options.remote_path, "bin/run-radiopadre") ]
+    else:
+        padre_execs = [ os.path.join("~/radiopadre/bin/run-radiopadre"), "run-radiopadre" ]
+
+    DEVZERO = open("/dev/zero")
+    DEVNULL = open("/dev/null", "w")
+
+    SSH_MUX_OPTS = "-o ControlPath=/tmp/ssh_mux_radiopadre_%C -o ControlMaster=auto -o ControlPersist=1h".split()
+
+    SCP_OPTS = ["scp"] + SSH_MUX_OPTS
+    SSH_OPTS = ["ssh","-tt"] + SSH_MUX_OPTS + [remote_host]
+    #SSH_OPTS = ["ssh"] + SSH_MUX_OPTS + [host]
+
+    # master ssh connection, to be closed when we exit
+    if options.verbose:
+        message("Opening initial master connection to {} {}. You may be prompted for your password.".format(remote_host, " ".join(SSH_OPTS)))
+    else:
+        message("Opening initial master connection to {}. You may be prompted for your password.".format(remote_host))
+    ssh_master = subprocess.check_call(SSH_OPTS + ["exit"], stderr=DEVNULL)
+
+    # raw_input("Continue?")
+
+    def ssh_remote(command, fail_retcode=None, stderr=DEVNULL):
+        """Runs command on remote host. Returns its output if the exit status is 0, or None if the exit status matches fail_retcode.
+
+        Any other non-zero exit status (or any other error) will result in an exception.
+        """
+        try:
+            return subprocess.check_output(SSH_OPTS+[command], stderr=stderr)
+        except subprocess.CalledProcessError,exc:
+            if exc.returncode == fail_retcode:
+                return None
+            raise
+
+    def ssh_remote_interactive(command, fail_retcode=None, stderr=DEVNULL):
+        """Runs command on remote host. Returns its output if the exit status is 0, or None if the exit status matches fail_retcode.
+
+        Any other non-zero exit status (or any other error) will result in an exception.
+        """
+        try:
+            return subprocess.check_call(SSH_OPTS+[command], stderr=stderr)
+        except subprocess.CalledProcessError,exc:
+            if exc.returncode == fail_retcode:
+                return None
+            raise
+
+    def scp_to_remote(path, remote_path):
+        return subprocess.check_output(SCP_OPTS + [path, "{}:{}".format(remote_host, remote_path)])
+
+    def check_remote_file(remote_file, test="-x"):
+        """
+        Checks that a remote file exists. 'test' is specified bash-style, e.g. "-x" for executable.
+        Can also use -f and -f, for example.
+        Returns True or False, or raises an exception on other errors.
+        """
+        return ssh_remote("if [ {} {} ]; then exit 0; else exit 199; fi".format(test, remote_file),
+                                fail_retcode=199, stderr=DEVNULL) is not None
+
+    def check_remote_command(command):
+        """
+        Checks that remote host has a particular command available.
+        Returns True or False, or raises an exception on other errors.
+        """
+        return bool(ssh_remote("which "+command, fail_retcode=1, stderr=DEVNULL))
+
+    # Check for various remote bits
+
+    if options.verbose:
+        message("Checking installation on {remote_host}.")
+    has_venv = check_remote_command("virtualenv") and check_remote_command("pip")
+    has_git = check_remote_command("git")
+    has_docker = check_remote_command("docker")
+
+    ## Look for remote launch script
+
+    def help_yourself(problem, suggestion=None):
+        message("{}".format(problem))
+        message("Please ssh {} and sort it out yourself, then rerun this script".format(remote_host))
+        if suggestion:
+            message("({})".format(suggestion))
+        sys.exit(1)
+
+    bootstrap = False
+    padre_exec = "run-radiopadre"   # path to remote padre executable
+
+    # look for remote installation, unless we're explicitly set to docker mode
+
+    if options.virtual_env or options.docker_dev:
+        for padre_exec in padre_execs:
+            if check_remote_file(padre_exec):
+                message("Found remote radiopadre launch script at {}:{}".format(remote_host, padre_exec))
+                if options.update:
+                    padre_dir = os.path.dirname(os.path.dirname(padre_exec))
+                    message("--update specified, will try a git pull in {}".format(padre_dir))
+                    try:
+                        ssh_remote("cd {} ; git checkout {}; git pull".format(padre_dir, BRANCH))
+                    except subprocess.CalledProcessError as exc:
+                        message(exc.output)
+                        help_yourself("git pull failed with exit code {}".format(exc.returncode))
+                if options.virtual_env:
+                    padre_exec += " --virtual-env"
+                break
+        else:
+            message("No run-radiopadre script found on {}".format(remote_host))
+            if options.auto_init:
+                install_path = options.remote_path or "~/radiopadre"
+                message("I could try to bootstrap a radiopadre installation into {}:{}".format(remote_host, install_path))
+
+                if not has_git:
+                    help_yourself("However, I don't see git installed on {}".format(remote_host),
+                                  "Try 'sudo apt instal git' on {}".format(remote_host))
+
+                if check_remote_file(install_path, "-d"):
+                    message("However, the directory {}:{} already exists, so I'd rather not!".format(remote_host, install_path))
+                    help_yourself("This may be a sign of a broken radiopadre installation on {},".format(remote_host),
+                                  "(For example, remove {}:{} to bootstrap from scratch.)".format(remote_host, install_path))
+
+                message("(command would be 'git clone -b {} {} radiopadre')".format(BRANCH, REPO))
+
+                # try the bootstrap
+                message("Cloning {}, branch {} into {}:~/radiopadre".format(REPO, BRANCH, remote_host))
+                ssh_remote_interactive("git clone -b {} {} radiopadre".format(BRANCH, REPO))
+                padre_exec = os.path.join(install_path, "bin/run-radiopadre")
+                if not check_remote_file(padre_exec):
+                    help_yourself("git clone ran, but I still don't see the launch script {}:{}".format(remote_host, padre_exec))
+                message("Success! Running remote in bootstrap mode")
+                bootstrap = True
+            elif options.docker_dev:
+                message("no remote installation detected and --auto-init not given: can't run --dev-docker mode")
+                sys.exit(1)
+            else:
+                bye("radiopadre: no remote installation detected, can't use --virtual-env mode.", 1)
+
+    # look for remote virtualenv, unless we're in docker mode
+
+    if options.virtual_env:
+        ## Check for remote virtualenv
+        remote_venv = "~/.radiopadre/venv"
+        if not options.venv_reinstall and check_remote_file(remote_venv + "/.complete", "-f"):
+            activate_script = "{}/bin/activate".format(remote_venv)
+            message("Testing the remote virtual environment at {}:{}".format(remote_host, remote_venv))
+            try:
+                ssh_remote("source {}".format(activate_script))
+                message("looks fine")
+            except subprocess.CalledProcessError as exc:
+                message(exc.output)
+                help_yourself("The remote virtual environment at {}:{} exists, but we can't seem to activate it".format(remote_host, remote_venv),
+                              "Perhaps remove {}:{}, and I'll try to rebuild it from scratch.".format(remote_host, remote_venv))
+        else:
+            if options.init:
+                if options.venv_reinstall:
+                    message("--reinstall given, will reinstall remote virtual environment")
+                else:
+                    message("Missing or incomplete remote virtual environment at {}:{}, but I can create it".format(remote_host, remote_venv))
+                if not has_venv:
+                    help_yourself("However, I don't see virtualenv and/or pip installed on {}".format(remote_host),
+                                  "Try 'sudo apt instal virtualenv pip' on {}".format(remote_host))
+
+                if bootstrap and not options.venv_reinstall:
+                    message("Since we're bootstrapping a new installation, I will proceed to do so")
+
+                bootstrap = True
+            else:
+                bye("radiopadre: no remote virtual environment detected, can't use --virtual-env mode.", 1)
+
+    # copy notebook to remote
+    if copy_initial_notebook:
+        if not os.path.exists(copy_initial_notebook):
+            bye("{} doesn't exist".format(copy_initial_notebook))
+        if check_remote_file(notebook_path or ".", "-d"):
+            nbpath = "{}/{}".format(notebook_path or ".", copy_initial_notebook)
+            if check_remote_file(nbpath, "-f"):
+                message("remote notebook {nbpath} exists, will not copy over")
+            else:
+                message("remote notebook {nbpath} doesn't exist, will copy over")
+                scp_to_remote(copy_initial_notebook, notebook_path)
+            notebook_path = nbpath
+
+    # run remote in docker mode
+    if not options.virtual_env:
+        if not has_docker:
+            help_yourself("{} doesn't appear to have Docker installed.".format(remote_host),
+                          "Ask the admin to install Docker on {} and to add you to the docker group. Otherwise, use "
+                          "--virtual-env mode?".format(remote_host))
+
+        if options.docker_dev:
+            assert(padre_exec is not None)
+            padre_exec += " --docker-dev"
+        else:
+            if options.verbose:
+                message("copying run script and default notebook to {}:.radiopadre/tmp".format(remote_host))
+            ssh_remote("mkdir -p ~/.radiopadre/tmp/bin ~/.radiopadre/tmp/notebooks")
+            scp_to_remote(__file__, ".radiopadre/tmp/bin")
+            tmpfile = tempfile.NamedTemporaryFile()
+            tmpfile.file.write(default_notebook_code)
+            tmpfile.file.flush()
+            scp_to_remote(tmpfile.name, ".radiopadre/tmp/notebooks")
+            tmpfile = None
+            padre_exec = "~/.radiopadre/tmp/bin/run-radiopadre"
+
+        if options.update:
+            padre_exec += " --update --docker-image " + options.docker_image
+
+    # allocate 3 suggested ports (in resume mode, this will be overridden by the session settings)
+    starting_port = 10000 + os.getuid()*3
+    ports = []
+    for _ in range(3):
+        starting_port = find_unused_port(starting_port+1, 10000)
+        ports.append(starting_port)
+
+    if options.auto_init:
+        padre_exec += " --auto-init"
+    if options.venv_reinstall:
+        padre_exec += " --venv-reinstall"
+    if options.venv_no_casacore:
+        padre_exec += " --venv-no-casacore"
+    if options.venv_no_js9:
+        padre_exec += " --venv-no-js9"
+    if options.verbose:
+        padre_exec += " --verbose"
+
+    padre_exec += "  --remote {} {} {}".format(":".join(map(str, ports)), command if command is not "load" else notebook_path,
+                                               " ".join(arguments))
+
+    # start ssh subprocess to launch notebook
+    args = list(SSH_OPTS) + [padre_exec]
+
+    ssh = subprocess.Popen(args, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+
+    poller = Poller()
+    poller.register_process(ssh, remote_host, remote_host + " stderr")
+    if not options.virtual_env:
+        poller.register_file(sys.stdin, "stdin")
+
+    ssh2 = None
+    local_ports = []
+    remote_ports = session_id = container_name = None
+    urls = []
+    remote_running = False
+    status = 0
+
+    try:
+        while remote_running is not None:
+            fdlist = poller.poll()
+            for fname, fobj in fdlist:
+                try:
+                    line = fobj.readline()
+                except EOFError:
+                    line = ''
+                if fobj is sys.stdin and line and line[0].upper() == "Q":
+                    sys.exit(0)
+                # break out if ssh closes
+                if not line:
+                    if options.verbose:
+                        message("ssh process to {} has exited".format(remote_host))
+                    remote_running = None
+                    break
+                line = line.strip()
+                #if fobj is not ssh.stderr:
+                if (fobj is ssh.stdout and command != 'load') or options.verbose:
+                    print("\r{}: {}\r".format(fname, line))
+                if not line:
+                    continue
+                # if remote is not yet started, check output
+                if not remote_running:
+                    # check for session ID
+                    match = re.match(".*Session ID/notebook token is '([0-9a-f]+)'", line)
+                    if match:
+                        session_id = match.group(1)
+                        continue
+                    # check for notebook port, and launch second ssh when we have it
+                    match = re.match(".*Selected ports: ([\d]+):([\d]+):([\d]+)\s+([\d]+):([\d]+):([\d]+)[\s]*$",line)
+                    if match:
+                        ports = map(int, match.groups())
+                        remote_jupyter_port, remote_js9helper_port, remote_http_port = remote_ports = ports[:3]
+                        local_ports = ports[3:]
+                        if options.verbose:
+                            message("Detected ports {}:{}:{} -> {}:{}:{}".format(*ports))
+                        ssh2_args = ["ssh"] + SSH_MUX_OPTS + ["-O", "forward", remote_host]
+                        for loc, rem in zip(local_ports, remote_ports):
+                            ssh2_args += [ "-L", "localhost:{}:localhost:{}".format(loc, rem)]
+                        # tell mux process to forward the ports
+                        if options.verbose:
+                            message("sending forward request to ssh mux process".format(ssh2_args))
+                        subprocess.call(ssh2_args)
+                        continue
+
+                    # check for launch URL
+                    match = re.match(".*Browse to URL: ([^\s]+)", line)
+                    if match:
+                        urls.append(match.group(1))
+                        continue
+
+                    # check for container name
+                    match = re.match(".*Container name: ([^\s]+)", line)
+                    if match:
+                        container_name = match.group(1)
+                        continue
+
+                    if "Jupyter Notebook is running" in line:
+                        remote_running = True
+                        time.sleep(1)
+                        for url in urls:
+                            # open browser if needed
+                            if not options.no_browser:
+                                message("running {} {}\r".format(options.browser_command, url))
+                                message("  if this fails, specify a correct browser invocation command with --browser-command and rerun,")
+                                message("  or else browse to the URL given above (\"Browse to URL:\") yourself.")
+                                try:
+                                    subprocess.call([options.browser_command, url], stdout=DEVNULL)
+                                except OSError as exc:
+                                    if exc.errno == 2:
+                                        message("{} not found".format(options.browser_command))
+                                    else:
+                                        raise
+                            else:
+                                message("-n/--no-browser given, not opening a browser for you\r")
+                                message("Please browse to: {}\n".format(url))
+                        message("The remote radiopadre session is now fully up")
+                        if options.virtual_env:
+                            message("Press Ctrl+C to kill the remote session")
+                        else:
+                            message("Press Q<Enter> to detach from remote session, or Ctrl+C to kill it")
+
+    except SystemExit as exc:
+        status = exc.code
+
+    except KeyboardInterrupt:
+        message("Ctrl+C caught")
+        status = 1
+
+    if status and not options.virtual_env and container_name:
+        message("killing remote container {container_name}")
+        try:
+            ssh_remote("docker kill {}".format(container_name))
+        except subprocess.CalledProcessError as exc:
+            message(exc.output)
+
+    ssh.kill()
+
+    # os.system("reset")
+    sys.exit(status)
+
+# ### END OF REMOTE MODE ############################################################################################
+
+# ### LOCAL MODE ####################################################################################################
+
+child_processes = []
+
+# if not None, gives the six port assignments
+attaching_to_ports = container_name = None
+
+def ps_containers():
+    """Returns OrderedDict (ordered by uptime) of containers returned by docker ps.
+    Dict is name -> [id, path, uptime, None, None]"""
+    lines = subprocess.check_output("""docker ps --filter 'label=radiopadre.user=oms' """ +
+            """--format '{{.CreatedAt}}:::{{.ID}}:::{{.Names}}:::{{.Label "radiopadre.dir"}}'""", shell=True).strip()
+    container_list = sorted([line.split(":::") for line in lines.split("\n") if len(line.split(":::")) == 4], reverse=True)
+    return OrderedDict([(name, [id_, path, time, None, None]) for time, id_, name, path in container_list])
+
+def read_session_info(dirname):
+    """Reads the given session ID file. Returns session_id, ports, or else throws a ValueError"""
+    comps = open(dirname + "/info").read().strip().split(" ")
+    if len(comps) != 7:
+        raise ValueError("invalid session dir " + dirname)
+    session_id = comps[0]
+    try:
+        ports = map(int, comps[1:])
+    except:
+        raise ValueError("invalid session dir " + dirname)
+    return session_id, ports
+
+
+def running_containers():
+    """Returns OrderedDict (ordered by uptime) of running containers with their session IDs. Clears up dead sessions.
+    Dict is id -> [name, path, uptime, session_id, ports]"""
+    container_dict = ps_containers()
+    # match session files to containers
+    for session_dir in glob.glob(SESSION_INFO_DIR + "/radiopadre-*"):
+        name = os.path.basename(session_dir)
+        if name not in container_dict:
+            if options.verbose:
+                message("container {} is no longer running, clearing up session dir".format(name))
+            subprocess.call(["rm", "-fr", session_dir])
+            continue
+        try:
+            container_dict[name][3], container_dict[name][4] = read_session_info(session_dir)
+        except ValueError:
+            message("invalid session dir {session_dir}")
+            continue
+    return OrderedDict([(id_, [name, path, time, session_id, port])
+                        for name, (id_, path, time, session_id, port) in container_dict.iteritems()])
+
+
+def identify_container(container_dict, arg):
+    """Returns ID of container corresponding to ID or number. Throws errors on mismatch."""
+    if len(arg) <= 4 and re.match('^\d+$', arg):
+        arg = int(arg)
+        if arg >= len(container_dict):
+            bye("invalid container #{}, we only have {} running".format(arg, len(container_dict)))
+        return container_dict.keys()[arg]
+    elif arg not in container_dict:
+        bye("invalid container ID {}".format(arg))
+    return arg
+
+message("Welcome to Radiopadre!")
+
+# ### ls command
+if command == 'ps':
+    container_dict = running_containers()
+    num = len(container_dict)
+    message("{} container{} running".format(num, "s" if num != 1 else ""))
+    for i, (id, (name, path, uptime, session_id, ports)) in enumerate(container_dict.items()):
+        print("{i}: id {id}, name {name}, in {path}, up since {uptime}".format(**locals()))
+    sys.exit(0)
+
+# ### kill command
+if command == 'kill':
+    all_containers = running_containers()
+    if not all_containers:
+        bye("no containers running, nothing to kill")
+    if arguments[0] == "all":
+        kill_containers = all_containers.keys()
+    else:
+        kill_containers = [identify_container(all_containers, arg) for arg in arguments]
+
+    kill_cont = " ".join(kill_containers)
+    message("killing containers: {}".format(kill_cont))
+    for cont in kill_containers:
+        if cont not in all_containers:
+            bye("no such radiopadre container: {}".format(cont))
+        name, path, _, _, _ = all_containers[cont]
+        session_id_file = "{}/{}".format(SESSION_INFO_DIR, name)
+        if os.path.exists(session_id_file):
+            subprocess.call(["rm", "-fr", session_id_file])
+    shell("docker kill " + kill_cont)
+    sys.exit(0)
+
+## attach command
+if command == "resume":
+    all_containers = running_containers()
+    if arguments:
+        id_ = identify_container(all_containers, arguments[0])
+    else:
+        if not all_containers:
+            bye("no containers running, nothing to attach to")
+        id_ = all_containers.keys()[0]
+    container_name, path, _, session_id, attaching_to_ports = all_containers[id_]
+    message("  Attaching to existing container (ID: {id_}) running in {path}")
+
+# load command
+elif command == 'load':
+    attaching_to_ports = None
+
+# else unknown command
+else:
+    parser.error("unknown command {}".format(command))
+
+
+# ### SETUP LOCAL SESSION PROPERTIES: container_name, session_id, port assignments
+
+# REATTACH MODE: everything is read from the session file
+if attaching_to_ports:
+    # session_id and container_name already set above. Ports read from session file and printed to the console
+    # for the benefit of the remote end (if any)
+    jupyter_port, helper_port, http_port, userside_jupyter_port, userside_helper_port, userside_http_port = \
+        attaching_to_ports
+# INSIDE CONTAINER: internal ports are fixed, userside ports are passed in, name is passed in, session ID is read from file
+elif options.inside_container:
+    message("started the radiopadre container")
+    container_name = os.environ['RADIOPADRE_CONTAINER_NAME']
+    session_id, _ = read_session_info("{}/{}".format(SESSION_INFO_DIR, container_name))
+    os.environ['RADIOPADRE_SESSION_ID'] = session_id
+    jupyter_port, helper_port, http_port = CONTAINER_PORTS
+    message("  Inside container, using fixed ports {} {} {}".format(jupyter_port, helper_port, http_port))
+    userside_jupyter_port, userside_helper_port, userside_http_port = map(int, options.inside_container.split(":"))
+# NORMAL MODE: find unused internal ports. Userside ports are passed from remote if in remote mode, or same in local mode
+else:
+    if not options.virtual_env:
+        container_name = "radiopadre-{}-{}".format(USER, uuid.uuid4().hex)
+        message("  Starting new session in container {container_name}")
+    else:
+        container_name = None
+        message("  Starting new session in virtual environment")
+    jupyter_port = find_unused_port(1024)
+    helper_port = find_unused_port(jupyter_port + 1)
+    http_port = find_unused_port(helper_port + 1)
+    selected_ports = [jupyter_port, helper_port, http_port]
+
+    if options.remote:
+        userside_ports = map(int, options.remote.split(":"))
+    else:
+        userside_ports = selected_ports
+
+    userside_jupyter_port, userside_helper_port, userside_http_port = userside_ports
+
+    os.environ['RADIOPADRE_SESSION_ID'] = session_id = uuid.uuid4().hex
+
+    # write out session file
+    if container_name:
+        session_info_dir = "{}/{}".format(SESSION_INFO_DIR, container_name)
+        make_dir(session_info_dir)
+        session_info_file = session_info_dir + "/info"
+        open(session_info_file, "w").write("{} {} {} {} {} {} {}".format(session_id, *(selected_ports+userside_ports)))
+        os.chmod(session_info_file, 0600)
+        open(session_info_dir + "/js9prefs.js", "w").write("JS9Prefs.globalOpts.helperPort = {};\n".format(userside_helper_port))
+
+# print port assignments to console -- in remote mode, remote script will parse this out
+if not options.inside_container:
+    message("  Selected ports: {}:{}:{} {}:{}:{}".format(jupyter_port, helper_port, http_port,
+                                                       userside_jupyter_port, userside_helper_port, userside_http_port))
+    message("  Session ID/notebook token is '{}'".format(session_id))
+    if container_name is not None:
+        message("  Container name: {container_name}")
+
+
+# ### will we be starting a browser?
+
+browser = False
+if options.inside_container:
+    if options.verbose:
+        message("  Running inside container -- not opening a browser in here.")
+elif options.remote:
+    if options.verbose:
+        message("  Remote mode -- not opening a browser locally.")
+elif os.environ.get("SSH_CLIENT"):
+    message("You appear to have logged in via ssh.")
+    if options.browser:
+        message("--browser is set so I will open a browser anyway")
+        browser = True
+    else:
+        message("You're logged in via ssh, so I'm not opening a web browser for you.")
+        message("Please manually browse to the URL printed by Jupyter below. You will probably want to employ ssh")
+        message("port forwarding if you want to browse this notebook from your own machine.")
+        browser = False
+else:
+    message("You appear to have a local session.")
+    if options.no_browser:
+        message("--no-browser is set, we will not invoke a browser.")
+        message("Please manually browse to the URL printed below.")
+        browser = False
+    else:
+        message("We'll attempt to open a web browser (using '{options.browser_command}') as needed. Use --no-browser to disable this.")
+        browser = True
+
+# ### ATTACHING TO EXISTING SESSION: complete the attachment and exit
+
+if attaching_to_ports:
+    url = "http://localhost:{}/?token={}".format(userside_jupyter_port, session_id)
+    # in local mode, see if we need to open a browser. Else just print the URL -- remote script will pick it up
+    if not options.remote and browser:
+        message("driving browser: {options.browser_command} {url}")
+        subprocess.call([options.browser_command, url], stdout=DEVNULL)
+        time.sleep(1)
+    else:
+        message("Browse to URL: {url}")
+    # emit message so remote initiates browsing
+    if options.remote:
+        message("The Jupyter Notebook is running inside the reattached session, presumably")
+        if options.verbose:
+            message("sleeping")
+        while True:
+            time.sleep(1000000)
+    sys.exit(0)
+
+# ### NEW SESSION: from this point on, we're opening a new session
+
+# ### setup working directory and notebook paths
+
 # if explicit notebook directory is given, change into it before doing anything else
-if options.notebook:
-    if not os.path.exists(options.notebook):
-        bye("{} doesn't exist".format(options.notebook))
-    if os.path.isdir(options.notebook):
-        os.chdir(options.notebook)
-        options.notebook = '.'
+if notebook_path:
+    if not os.path.exists(notebook_path):
+        bye("{} doesn't exist".format(notebook_path))
+    if os.path.isdir(notebook_path):
+        os.chdir(notebook_path)
+        notebook_path = '.'
         LOAD_DIR = True
         LOAD_NOTEBOOK = None
     else:
-        nbdir = os.path.dirname(options.notebook)
+        nbdir = os.path.dirname(notebook_path)
         if nbdir:
             os.chdir(nbdir)
-        options.notebook = os.path.basename(options.notebook)
+        notebook_path = os.path.basename(notebook_path)
         LOAD_DIR = False
-        LOAD_NOTEBOOK = options.notebook
+        LOAD_NOTEBOOK = notebook_path
 else:
     LOAD_DIR = '.'
     LOAD_NOTEBOOK = None
-
-# setup session ID. This will also be the Jupyter authentication token
-# Inside the container, the parent script will pass it in
-if options.inside_container:
-    os.environ['RADIOPADRE_SESSION_ID'] = session_id = raw_input("Enter session ID").strip()
-# Outside the container, pick a random one
-else:
-    os.environ['RADIOPADRE_SESSION_ID'] = session_id = uuid.uuid4().hex
 
 # get radiopadre install directory. __file__ is RADIOPADRE/bin/run-radiopadre, so take the dirname twice
 PADRE_PATH = os.path.abspath(os.path.dirname(os.path.dirname(__file__)))
@@ -123,21 +910,26 @@ ABSROOTDIR = ROOTDIR = os.path.abspath(os.getcwd())              # e.g. /home/ot
 SHADOWDIR = PADRE_WORKDIR + ROOTDIR                 # e.g. ~/.radiopadre/home/other/path
 if not os.path.exists(SHADOWDIR):
     os.system("mkdir -p {}".format(SHADOWDIR))
+# This is where the per-session js9prefs.js goes. In virtualenv mode, this is just a directory
+# In docker mode, we mount session_info_dir on this
+LOCAL_SESSION_DIR = ABSROOTDIR + "/.radiopadre-session"
+SHADOW_SESSION_DIR = SHADOWDIR + "/.radiopadre-session"
 
-# make .radiopadre in target dir, or in shadow dir
-cachedir = ABSROOTDIR+"/.radiopadre"
+# make .radiopadre and .radiopadre-session in target dir, or in shadow dir
+cachedir = ABSROOTDIR + "/.radiopadre"
 cachelink = SHADOWDIR + "/.radiopadre"
 if os.access(ABSROOTDIR, os.W_OK):
     make_dir(cachedir)
-    if not os.path.exists(cachelink):
-        os.symlink(cachedir, cachelink)
+    make_link(cachedir, cachelink, rm_fr=True)
+    make_dir(LOCAL_SESSION_DIR)
+    make_link(LOCAL_SESSION_DIR, SHADOW_SESSION_DIR, rm_fr=True)
 else:
     if os.path.islink(cachelink):
         os.unlink(cachelink)
     make_dir(cachelink)
-
-if not os.path.exists(cachelink):
-    os.symlink(ABSROOTDIR+"/.radiopadre", cachelink)
+    if os.path.islink(SHADOW_SESSION_DIR):
+        os.unlink(SHADOW_SESSION_DIR)
+    make_dir(SHADOW_SESSION_DIR)
 
 
 JUPYTER_OPTS = [
@@ -145,14 +937,11 @@ JUPYTER_OPTS = [
     "--ContentsManager.pre_save_hook=radiopadre_utils.notebook_utils._notebook_save_hook",
     "--ContentsManager.allow_hidden=True" ]
 
-DEVZERO = open("/dev/zero")
-DEVNULL = open("/dev/null", "w")
-
 activation_script = os.path.join(PADRE_VENV, "bin/activate_this.py")
 complete_cookie = os.path.join(PADRE_VENV, ".complete")
 
 # Switch into virtualenv, unless we're using docker
-if not options.docker:
+if options.virtual_env:
     # See https://stackoverflow.com/questions/1871549/determine-if-python-is-running-inside-virtualenv
     if hasattr(sys, 'real_prefix') or (hasattr(sys, 'base_prefix') and sys.base_prefix != sys.prefix):
         if sys.prefix == PADRE_VENV:
@@ -160,38 +949,34 @@ if not options.docker:
         else:
             bye("Can't run this script inside a non-radiopadre virtualenv. Please deactivate and rerun.")
     else:
-        if os.path.exists(activation_script) and os.path.exists(complete_cookie) and not options.reinstall:
+        if os.path.exists(activation_script) and os.path.exists(complete_cookie) and not options.venv_reinstall:
             message("Found radiopadre virtualenv in {PADRE_VENV}")
-        elif options.bootstrap or options.reinstall:
-            if options.reinstall:
+        elif options.bootstrap or options.venv_reinstall:
+            if options.venv_reinstall:
                 message("Will reinstall radiopadre virtualenv using install-radiopadre")
             else:
                 message("Can't find complete radiopadre virtualenv, bootstrapping with install-radiopadre")
             if shell("{}/bin/install-radiopadre {} {} reinstall".format(PADRE_PATH,
-                        "--no-casacore" if options.no_casacore else "",
-                        "--no-js9" if options.no_js9 else "",
+                        "--no-casacore" if options.venv_no_casacore else "",
+                        "--no-js9" if options.venv_no_js9 else "",
                     )):
                 bye("Installation script failed")
 
         message("Activating the radiopadre virtualenv via {activation_script}")
         execfile(activation_script, dict(__file__=activation_script))
 
-message("Welcome to Radiopadre!")
-if options.docker:
+if not options.virtual_env:
     docker_image = options.docker_image
     if docker_image[0] == ":":
         docker_image = DEFAULT_DOCKER_IMAGE.split(":")[0] + docker_image
     message("  Using radiopadre Docker image {docker_image}")
-    if options.docker_pull:
+    if options.update:
         message("  Calling docker pull to make sure the image is up-to-date.")
         message("  (This may take a few minutes if it isn't....)")
         subprocess.call("docker pull {}".format(docker_image), shell=True)
 
-elif options.inside_container:
-    message("  Running inside a container")
-else:
+elif not options.inside_container:
     message("  Using radiopadre install at {PADRE_PATH}")
-message("  Session ID/notebook token is '{}'".format(session_id))  # careful, this is read by run-remote-padre!
 
 # directory where we were originally run
 os.environ['RADIOPADRE_ABSROOTDIR'] = ABSROOTDIR
@@ -209,71 +994,6 @@ else:
     os.chdir(SHADOWDIR)
 
 make_dir(".radiopadre")
-
-
-#=== will we be starting a browser?
-
-browser = False
-if options.inside_container:
-    message("  Running inside container -- not opening a browser")
-elif os.environ.get("SSH_CLIENT"):
-    message("You appear to have logged in via ssh")
-    if options.browser:
-        message("--browser is set so I will open a browser anyway")
-        browser = True
-    else:
-        message("You're logged in via ssh, so I'm not opening a web browser for you.")
-        message("Please manually browse to the URL printed by Jupyter below. You will probably want to employ ssh")
-        message("port forwarding if you want to browse this notebook from your own machine.")
-        browser = False
-else:
-    message("You appear to have a local session")
-    if options.no_browser:
-        message("--no-browser is set, jupyter notebook will not invoke a browser.")
-        message("Please manually browse to the URL printed by Jupyter below.")
-        browser = False
-    else:
-        message("Allowing jupyter notebook to open a web browser. Use --no-browser to disable this.")
-        browser = True
-
-
-#=== find unused ports for Jupyter & helpers
-
-def find_unused_port (base,maxtries=1000):
-    for i in range(maxtries):
-        serversocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        try:
-            serversocket.bind(("localhost", base))
-            serversocket.close()
-            return base
-        except:
-            base += 1
-            continue
-    return None
-
-if options.inside_container:
-    jupyter_port, helper_port, http_port = CONTAINER_PORTS
-    message("Inside container, using fixed ports {} {} {}".format(jupyter_port, helper_port, http_port))
-else:
-    jupyter_port = find_unused_port(1024)
-    helper_port  = find_unused_port(jupyter_port+1)
-    http_port    = find_unused_port(helper_port+1)
-    selected_ports = jupyter_port, helper_port, http_port
-    message("Selected ports: {}:{}:{}".format(jupyter_port, helper_port, http_port))
-
-# in remote mode, ask the user-side script to supply port numbers
-# (these need to be given to radiopadre so it can form up paths properly)
-if options.remote:
-    forwarded_ports = raw_input("{Remote mode} please enter fowarded port numbers: ")
-    userside_jupyter_port, userside_helper_port, userside_http_port = forwarded_ports.strip().split(" ", 2)
-    # print userside_helper_port, userside_http_port
-# if inside container, the userside port numbers are passed in as via --inside-container port1:port2
-elif options.inside_container:
-    userside_jupyter_port, userside_helper_port, userside_http_port = map(int, options.inside_container.split(":"))
-# else running locally -- userside port are as is
-else:
-    userside_jupyter_port, userside_helper_port, userside_http_port = jupyter_port, helper_port, http_port
-
 
 JUPYTER_OPTS += [
     "--NotebookApp.token='{}'".format(session_id),
@@ -295,9 +1015,7 @@ if orig_rootdir and not ALL_NOTEBOOKS:
 
 message("  Available notebooks: " + " ".join(ALL_NOTEBOOKS))
 
-LOAD_NOTEBOOK = None
-
-if not options.inside_container:
+if not notebook_path and not options.inside_container:
 
     DEFAULT_NAME = "radiopadre-default.ipynb"
 
@@ -305,8 +1023,7 @@ if not options.inside_container:
         if not options.no_default:
             message("  No notebooks: will create {DEFAULT_NAME}")
             LOAD_DIR = True
-            import shutil
-            shutil.copyfile(PADRE_PATH + "/notebooks/" + DEFAULT_NAME, DEFAULT_NAME)
+            open(DEFAULT_NAME, 'w').write(default_notebook_code)
         else:
             message("  No notebooks but --no-default given. Displaying directory only.")
             LOAD_DIR = True
@@ -324,15 +1041,16 @@ if not options.inside_container:
                 LOAD_NOTEBOOK = ALL_NOTEBOOKS[0]
                 message("  Auto-loading {LOAD_NOTEBOOK}.")
 
-
+urls = []
 if LOAD_NOTEBOOK:
-    message("Browse to URL: http://localhost:{}/notebooks/{}?token={}".format(
-        userside_jupyter_port, LOAD_NOTEBOOK, session_id))  # this is read by remote
+    urls.append("http://localhost:{}/notebooks/{}?token={}".format(userside_jupyter_port, LOAD_NOTEBOOK, session_id))
 if LOAD_DIR:
-    message("Browse to URL: http://localhost:{}/?token={}".format(userside_jupyter_port, session_id))
+    urls.append("http://localhost:{}/?token={}".format(userside_jupyter_port, session_id))
+for url in urls:
+    message("Browse to URL: {url}")
 
 # now we're ready to start the container
-if options.docker:
+if not attaching_to_ports and not options.virtual_env:
     docker = subprocess.check_output("which docker", shell=True).strip()
     if not docker:
         bye("docker binary not found")
@@ -340,12 +1058,19 @@ if options.docker:
     docker_local = make_dir("~/.radiopadre/.docker-local")
     js9_tmp = make_dir("~/.radiopadre/.js9-tmp")
 
-    container_name = "radiopadre-{}".format(uuid.uuid4().hex)
-    docker_opts = [ docker, "run", "-i", "--rm", "--name", container_name, "-w", ABSROOTDIR,
+    message("Container name: {container_name}")  # remote script will parse it
+
+    ##################### NB: skip -d flag for debugging
+
+    docker_opts = [ docker, "run", "--rm", "--name", container_name, "-w", ABSROOTDIR,
                         "--user", "{}:{}".format(os.getuid(), os.getgid()),
                         "-e", "USER={}".format(os.environ["USER"]),
-                        "-e", "HOME={}".format(os.environ["HOME"])
+                        "-e", "HOME={}".format(os.environ["HOME"]),
+                        "-e", "RADIOPADRE_CONTAINER_NAME={}".format(container_name)
                   ]
+    # enable detached mode if not debugging
+    if not options.docker_debug:
+        docker_opts.append("-d")
     for port1, port2 in zip(selected_ports, CONTAINER_PORTS):
         docker_opts += [ "-p", "{}:{}/tcp".format(port1, port2)]
     # setup mounts for work dir and home dir, if needed
@@ -355,10 +1080,15 @@ if options.docker:
                      "-v", "{}:{}".format(homedir, homedir),
                      # hides /home/user/.local, which if exposed, can confuse jupyter and ipython
                      "-v", "{}:{}/.local".format(docker_local, homedir),
+                     # mount session info directory (needed to serve e.g. js9prefs.js)
+                     "-v", "{}:{}".format(session_info_dir, LOCAL_SESSION_DIR),
+                     "-v", "{}:{}".format(session_info_dir, SHADOW_SESSION_DIR),
                      # mount a writeable tmp dir for the js9 install -- needed by js9helper
-                     "-v", "{}:/.radiopadre/venv/js9-www/tmp".format(js9_tmp)
+                     "-v", "{}:/.radiopadre/venv/js9-www/tmp".format(js9_tmp),
+                     "--label", "radiopadre.user={}".format(USER),
+                     "--label", "radiopadre.dir={}".format(os.getcwd()),
     ]
-    if options.dev_docker:
+    if options.docker_dev:
         docker_opts += [ "-v", "{}:/radiopadre".format(PADRE_PATH) ]
     # add image
     docker_opts += [ docker_image,
@@ -368,79 +1098,138 @@ if options.docker:
                      "--workdir", PADRE_WORKDIR,
                    ]
     # add arguments
+    if options.docker_debug:
+        docker_opts.append("--docker-debug")
     if options.verbose:
         docker_opts.append("--verbose")
     if options.no_default:
         docker_opts.append("--no-default")
-    if options.notebook:
-        docker_opts.append(options.notebook)
+    if notebook_path:
+        docker_opts.append(notebook_path)
 
     message("Running {}".format(" ".join(docker_opts)))
     message("  (If the image is not yet available locally, this can take a few minutes the first time you run.)")
-    docker_process = subprocess.Popen(docker_opts,
-                                      stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
-                                      env=os.environ)
+    docker_process = subprocess.Popen(docker_opts, stdout=DEVNULL)
+                                      #stdin=sys.stdin, stdout=sys.stdout, stderr=sys.stderr,
+                                      #env=os.environ)
 
-    # print session ID to script in container, as it expects it
-    docker_process.stdin.write(session_id+"\n")
+    # pause to let the Jupyter server spin up
+    t0 = time.time()
+    time.sleep(1)
+    # then try to connect to it
+    sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    for retry in range(1000):
+        try:
+            sock.connect(("localhost", jupyter_port))
+            message("Container started: the Jupyter Notebook is running on port {} (after {} secs)".format(
+                        jupyter_port, time.time() - t0))
+            del sock
+            break
+        except socket.error:
+            time.sleep(.1)
+    else:
+        bye("unable to connect to Jupyter Notebook server on port {jupyter_port}")
 
+    if browser:
+        for url in urls:
+            message("Driving browser: {options.browser_command} {url}")
+            subprocess.call([options.browser_command, url])
+        # give things a second (to let the browser command print its stuff, if it wants to)
+        time.sleep(1)
 
-    # now go through this whole rigamarole of waiting for the container to report the notebook is started...
-    import select
-    poller = select.poll()
-    poller.register(docker_process.stdout)
-    poller.register(docker_process.stderr)
-    fdlabels = { docker_process.stdout.fileno(): ("stdout", docker_process.stdout),
-                 docker_process.stderr.fileno(): ("stderr", docker_process.stderr) }
-
-    try:
+    if options.docker_detach:
+        message("exiting: container session will remain running.")
+        sys.exit(0)
+    elif options.remote:
+        if options.verbose:
+            message("sleeping")
         while True:
-            fdlist = poller.poll()
-            for fd, event in fdlist:
-                if event & (select.POLLHUP | select.POLLERR):
-                    break
-                fname, fobj = fdlabels.get(fd)
-                line = fobj.readline().strip()
-                message("docker {}: {}".format(fname, line))
-                if "Jupyter Notebook is running" in line:
-                    # report URL back to remote
-                    # start browser if requested
-                    if browser:
-                        message("notebook startup detected -- driving browser")
-                        default_browser = os.environ.get("PADRE_BROWSER", "xdg-open")
-                        if LOAD_NOTEBOOK:
-                            subprocess.Popen([default_browser,
-                                              "http://localhost:{}/notebooks/{}?token={}".format(jupyter_port, LOAD_NOTEBOOK, session_id)])
-                        else:
-                            subprocess.Popen([default_browser,
-                                              "http://localhost:{}/?token={}".format(jupyter_port, session_id)])
-    except BaseException as exc:
-        if type(exc) is KeyboardInterrupt:
-            message("Caught Ctrl+C, terminating docker processes -- give it a few seconds")
-        else:
-            message("Caught exception {}, terminating docker processes -- give it a few seconds".format(exc))
-        docker_process.terminate()
-        docker_process.wait()
-        status = 1
-
-    # try:
-    #     # give the docker process the session ID
-    #     docker_process.communicate(session_id+"\n\n\n")
-    #     status = 0
-    # except Exception as exc:
-    #     message("Caught exception {}, terminating docker processes".format(exc))
+            time.sleep(1000000)
+    else:
+        try:
+            while True:
+                a = raw_input("Type Q<Enter> to detach from the docker session, or Ctrl+C to kill it: ")
+                if a and a[0].upper() == 'Q':
+                    sys.exit(0)
+        except BaseException as exc:
+            if type(exc) is KeyboardInterrupt:
+                message("Caught Ctrl+C")
+                status = 1
+            elif type(exc) is SystemExit:
+                status = exc.code
+                message("Exiting with status {}".format(status))
+            else:
+                message("Caught exception {} ({})".format(exc, type(exc)))
+                status = 1
+            if status:
+                message("Killing the docker container")
+                subprocess.call(["docker", "kill", container_name], stdout=DEVNULL)
+            sys.exit(status)
+    #
+    # if status:
+    #     message("Terminating the docker processes -- give it a few seconds".format(exc))
     #     docker_process.terminate()
     #     docker_process.wait()
-    #     status = 1
+    #
+    # sys.exit(status)
 
-    if container_name in subprocess.check_output(["docker", "ps"]):
-        message("Cleaning up container")
-        try:
-            subprocess.check_output(["docker", "rm", container_name, "--force"])
-        except subprocess.CalledProcessError:
-            pass
-    message("Exiting")
-    sys.exit(status)
+    # # now wait for the container to report the notebook is started...
+    # poller = Poller("docker")
+    # poller.register_process(docker_process)
+    # if not options.docker_detach:
+    #     poller.register_file(sys.stdin, "stdin")
+    #
+    # try:
+    #     while True:
+    #         fdlist = poller.poll()
+    #         for fname, fobj in fdlist:
+    #             try:
+    #                 line = fobj.readline()
+    #             except EOFError:
+    #                 line = ''
+    #             if not line:
+    #                 break
+    #             if fobj == sys.stdin:
+    #                 if line[0].upper() == "Q":
+    #                     message("detaching and exiting -- container will remain running")
+    #                     sys.exit(0)
+    #             else:
+    #                 line = line.strip()
+    #                 message("{}: {}".format(fname, line))
+    #                 if "Jupyter Notebook is running" in line:
+    #                     # start browser if requested, else simply print URL
+    #                     message("notebook startup detected")
+    #                     if browser:
+    #                         for url in urls:
+    #                             message("Driving browser: {options.browser_command} {url}")
+    #                             subprocess.Popen([options.browser_command, url])
+    #                     if options.docker_detach:
+    #                         message("detaching and exiting, container session will remain running.")
+    #                         sys.exit(0)
+    #                     elif options.remote:
+    #                         message("exiting: remote script will manage the container as needed.")
+    #                         import time; time.sleep(1000)
+    #                         sys.exit(0)
+    #                     else:
+    #                         message("\nType Q<Enter> to detach docker process, or Ctrl+C to kill it\n")
+    # except BaseException as exc:
+    #     if type(exc) is KeyboardInterrupt:
+    #         message("Caught Ctrl+C")
+    #         status = 1
+    #     elif type(exc) is SystemExit:
+    #         status = exc.code
+    #         message("Exiting with status {}".format(status))
+    #     else:
+    #         message("Caught exception {}, terminating docker processes -- give it a few seconds".format(exc))
+    #         status = 1
+    #
+    # if status:
+    #     message("Terminating the docker processes -- give it a few seconds".format(exc))
+    #     docker_process.terminate()
+    #     docker_process.wait()
+    #
+    # sys.exit(status)
+
 
 
 # get hostname
@@ -509,15 +1298,13 @@ http_rewrites = [ "/radiopadre-www/={}/".format(PADRE_PATH + "/html") ]
 
 if js9dir:
     os.environ['RADIOPADRE_JS9_HELPER_PORT'] = str(userside_helper_port)
-    # create JS9 settings file for session
-    js9prefs = ".radiopadre/js9prefs.js"
-    open(js9prefs, "w").write(
-        "JS9Prefs.globalOpts.helperPort = {};\n".format(userside_helper_port)
-    )
+    js9prefs = LOCAL_SESSION_DIR + "/js9prefs.js"
+    if not options.inside_container:
+        # create JS9 settings file (in container mode, this is created above, and mounted inside container already)
+        open(js9prefs, "w").write("JS9Prefs.globalOpts.helperPort = {};\n".format(userside_helper_port))
     # URL to local settings file for this session
     os.environ['RADIOPADRE_JS9_DIR'] = "{}js9-www/".format(urlbase)
-    os.environ['RADIOPADRE_JS9_SETTINGS'] = "{}{}/{}".format(urlbase, ABSROOTDIR.lstrip("/"), js9prefs)
-
+    os.environ['RADIOPADRE_JS9_SETTINGS'] = "{}{}".format(urlbase, js9prefs)
 
     http_rewrites.append("/js9-www/={}/".format(js9dir))
     http_rewrites.append("/js9colormaps.js={}".format(notebook_dir + "/notebook/static/js9colormaps.js"))
