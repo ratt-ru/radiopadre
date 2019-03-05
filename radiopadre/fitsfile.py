@@ -141,6 +141,11 @@ class FITSFile(radiopadre.file.FileBase):
         radiopadre.file.FileBase._scan_impl(self)
 
     @property
+    def size(self):
+        self._setup_summaries()
+        return self._size
+
+    @property
     def summary(self):
         self._setup_summaries()
         return self._summary
@@ -166,7 +171,7 @@ class FITSFile(radiopadre.file.FileBase):
             postscript = OrderedDict()
             div_id = uuid.uuid4().hex
             actions = [ self._action_buttons_(preamble=preamble, postscript=postscript, div_id=div_id) ]
-            self.size = rich_string(self._summary_data[0][1].replace("&times;", "x"), self._summary_data[0][1])
+            self._size = rich_string(self._summary_data[0][1].replace("&times;", "x"), self._summary_data[0][1])
             self._summary_data[0][0] += ":"
             sum = self._summary_data[0]
             self._summary_set = True

@@ -7,9 +7,9 @@ if (appname === 'NotebookApp')
 
     console.log("initializing radiopadre components")
 
-    var width = $(".rendered_html")[0].clientWidth;
-
-    console.log("reset display, width is", window.innerWidth, window.innerHeight);
+//    var width = $(".rendered_html")[0].clientWidth;
+//
+//    console.log("reset display, width is", window.innerWidth, window.innerHeight);
 
 //    Jupyter.notebook.kernel.execute(`import radiopadre; radiopadre.set_window_sizes(
 //                                            ${width},
