@@ -105,7 +105,7 @@ parser.add_argument("-n","--no-browser",action="store_true",
 parser.add_argument("--browser-command", type=str, metavar="CMD", default=DEFAULT_BROWSER,
                   help="browser command to run. Default is %(default)s (can also set RADIOPADRE_BROWSER).")
 
-parser.add_argument("-v", "--virtual-env", action="store_true",
+parser.add_argument("-V", "--virtual-env", action="store_true",
                     help="run radiopadre using a virtualenv+local install, rather than via Docker (default).")
 parser.add_argument("--venv-reinstall", action="store_true",
                   help="virtualenv: reinstall radiopadre virtual environment before running.")
