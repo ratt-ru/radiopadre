@@ -33,11 +33,11 @@ DEVNULL = open("/dev/null", "w")
 
 def message(x, prefix='run-radiopadre: ', file=None):
     """Prints message, interpolating globals with .format()"""
-    print(prefix + x.format(**globals()), file=file or sys.stderr)
+    print(prefix + x.format(**globals()), file=file or sys.stdout)
 
 def bye(x, code=1):
     """Prints message, interpolating globals with .format(). Exits with given code"""
-    message(x)
+    message(x, file=sys.stderr)
     sys.exit(code)
 
 def shell(cmd):
@@ -563,8 +563,13 @@ if remote_host:
                     remote_running = None
                     break
                 line = line.strip()
-                #if fobj is not ssh.stderr:
-                if (fobj is ssh.stdout and command != 'load') or options.verbose:
+                # print remote output
+                print_output = False
+                if fobj is ssh.stderr:
+                    print_output = not line.startswith("Shared connection to")
+                else:
+                    print_output = not line.startswith("run-radiopadre:") or command != 'load'
+                if options.verbose or print_output:
                     print("\r{}: {}\r".format(fname, line))
                 if not line:
                     continue
