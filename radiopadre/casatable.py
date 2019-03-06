@@ -349,18 +349,27 @@ class CasaTable(radiopadre.file.FileBase):
             if _ is not None:
                 default_slicer, default_slicer_desc, _ = self._parse_column_argument(_, "default")
             # any other optional keywords put us into column selection mode
+            column_selection = []
+            skip_columns = set()
+            have_explicit_columns = False
+            # build up column selection from arguments
             if columns:
-                column_selection = []
                 for col, slicer in columns.items():
-                    if col in self.columns:
-                        slicer, desc, colformat = self._parse_column_argument(slicer, "column {}".format(col))
-                        column_formats[col] = colformat
-                        column_slicers[col] = slicer, desc
-                        column_selection.append(col)
+                    if slicer is None:
+                        skip_columns.add(col)
                     else:
-                        html += render_error("No such column: {}".format(col))
-            if not columns or allcols:
-                column_selection = self.columns
+                        have_explicit_columns = True
+                        if col in self.columns:
+                            slicer, desc, colformat = self._parse_column_argument(slicer, "column {}".format(col))
+                            column_formats[col] = colformat
+                            column_slicers[col] = slicer, desc
+                            column_selection.append(col)
+                        else:
+                            html += render_error("No such column: {}".format(col))
+
+            # if no columns at all were selected,
+            if allcols or not have_explicit_columns:
+                column_selection = [col for col in self.columns if col not in skip_columns]
 
             # else use ours
             if firstrow > self.nrows-1:
