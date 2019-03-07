@@ -881,7 +881,7 @@ else:
 # ### ATTACHING TO EXISTING SESSION: complete the attachment and exit
 
 if attaching_to_ports:
-    url = "http://localhost:{}/?token={}".format(userside_jupyter_port, session_id)
+    url = "http://localhost:{}/tree#running?token={}".format(userside_jupyter_port, session_id)
     # in local mode, see if we need to open a browser. Else just print the URL -- remote script will pick it up
     if not options.remote and browser:
         message("driving browser: {options.browser_command} {url}")
