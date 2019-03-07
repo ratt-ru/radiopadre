@@ -31,9 +31,11 @@ DEVNULL = open("/dev/null", "w")
 
 # ### some helper functions
 
-def message(x, prefix='run-radiopadre: ', file=None):
+def message(x, prefix='run-radiopadre: ', file=None, raw=False):
     """Prints message, interpolating globals with .format()"""
-    print(prefix + x.format(**globals()), file=file or sys.stdout)
+    if not raw:
+        x = x.format(**globals())
+    print(prefix + x, file=file or sys.stdout)
 
 def bye(x, code=1):
     """Prints message, interpolating globals with .format(). Exits with given code"""
@@ -251,9 +253,9 @@ default_notebook_code = """{
    "metadata": {},
    "outputs": [],
    "source": [
-    "# execute this with Ctrl+Enter\n",
-    "from radiopadre import ls, settings\n",
-    "ls = ls()\n",
+    "# execute this with Ctrl+Enter\\n",
+    "from radiopadre import ls, settings\\n",
+    "ls = ls()\\n",
     "ls"
    ]
   },
@@ -657,6 +659,15 @@ if remote_host:
 
 # ### LOCAL MODE ####################################################################################################
 
+message("Welcome to Radiopadre!")
+
+if options.virtual_env:
+    docker = None
+else:
+    docker = subprocess.check_output("which docker", shell=True).strip()
+    if not docker:
+        bye("docker binary not found")
+
 child_processes = []
 
 # if not None, gives the six port assignments
@@ -665,8 +676,8 @@ attaching_to_ports = container_name = None
 def ps_containers():
     """Returns OrderedDict (ordered by uptime) of containers returned by docker ps.
     Dict is name -> [id, path, uptime, None, None]"""
-    lines = subprocess.check_output("""docker ps --filter 'label=radiopadre.user=oms' """ +
-            """--format '{{.CreatedAt}}:::{{.ID}}:::{{.Names}}:::{{.Label "radiopadre.dir"}}'""", shell=True).strip()
+    lines = subprocess.check_output([docker, "ps", "--filter", "label=radiopadre.user={}".format(USER),
+                "--format", """{{.CreatedAt}}:::{{.ID}}:::{{.Names}}:::{{.Label "radiopadre.dir"}}"""]).strip()
     container_list = sorted([line.split(":::") for line in lines.split("\n") if len(line.split(":::")) == 4], reverse=True)
     return OrderedDict([(name, [id_, path, time, None, None]) for time, id_, name, path in container_list])
 
@@ -691,8 +702,7 @@ def running_containers():
     for session_dir in glob.glob(SESSION_INFO_DIR + "/radiopadre-*"):
         name = os.path.basename(session_dir)
         if name not in container_dict:
-            if options.verbose:
-                message("container {} is no longer running, clearing up session dir".format(name))
+            message("container {} is no longer running, clearing up session dir".format(name))
             subprocess.call(["rm", "-fr", session_dir])
             continue
         try:
@@ -700,8 +710,17 @@ def running_containers():
         except ValueError:
             message("invalid session dir {session_dir}")
             continue
-    return OrderedDict([(id_, [name, path, time, session_id, port])
-                        for name, (id_, path, time, session_id, port) in container_dict.iteritems()])
+    output = OrderedDict()
+
+    # check for containers without session info and form up output dict
+    for name, (id_, path, time, session_id, ports) in container_dict.items():
+        if session_id is None:
+            message("container {} has no session dir -- killing it".format(name))
+            subprocess.call([docker, "kill", id_])
+        else:
+            output[id_] = [name, path, time, session_id, ports]
+
+    return output
 
 
 def identify_container(container_dict, arg):
@@ -715,10 +734,10 @@ def identify_container(container_dict, arg):
         bye("invalid container ID {}".format(arg))
     return arg
 
-message("Welcome to Radiopadre!")
-
 # ### ls command
 if command == 'ps':
+    if not docker:
+        bye("ps command not available in --virtualenv mode")
     container_dict = running_containers()
     num = len(container_dict)
     message("{} container{} running".format(num, "s" if num != 1 else ""))
@@ -728,6 +747,8 @@ if command == 'ps':
 
 # ### kill command
 if command == 'kill':
+    if not docker:
+        bye("kill command not available in --virtualenv mode")
     all_containers = running_containers()
     if not all_containers:
         bye("no containers running, nothing to kill")
@@ -750,6 +771,8 @@ if command == 'kill':
 
 ## attach command
 if command == "resume":
+    if not docker:
+        bye("resume command not available in --virtualenv mode")
     all_containers = running_containers()
     if arguments:
         id_ = identify_container(all_containers, arguments[0])
@@ -1020,7 +1043,7 @@ if orig_rootdir and not ALL_NOTEBOOKS:
 
 message("  Available notebooks: " + " ".join(ALL_NOTEBOOKS))
 
-if not notebook_path and not options.inside_container:
+if LOAD_NOTEBOOK is None and not options.inside_container:
 
     DEFAULT_NAME = "radiopadre-default.ipynb"
 
@@ -1056,10 +1079,6 @@ for url in urls:
 
 # now we're ready to start the container
 if not attaching_to_ports and not options.virtual_env:
-    docker = subprocess.check_output("which docker", shell=True).strip()
-    if not docker:
-        bye("docker binary not found")
-
     docker_local = make_dir("~/.radiopadre/.docker-local")
     js9_tmp = make_dir("~/.radiopadre/.js9-tmp")
 
@@ -1120,7 +1139,7 @@ if not attaching_to_ports and not options.virtual_env:
 
     # pause to let the Jupyter server spin up
     t0 = time.time()
-    time.sleep(1)
+    time.sleep(5)
     # then try to connect to it
     sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     for retry in range(1000):
@@ -1170,70 +1189,6 @@ if not attaching_to_ports and not options.virtual_env:
                 message("Killing the docker container")
                 subprocess.call(["docker", "kill", container_name], stdout=DEVNULL)
             sys.exit(status)
-    #
-    # if status:
-    #     message("Terminating the docker processes -- give it a few seconds".format(exc))
-    #     docker_process.terminate()
-    #     docker_process.wait()
-    #
-    # sys.exit(status)
-
-    # # now wait for the container to report the notebook is started...
-    # poller = Poller("docker")
-    # poller.register_process(docker_process)
-    # if not options.docker_detach:
-    #     poller.register_file(sys.stdin, "stdin")
-    #
-    # try:
-    #     while True:
-    #         fdlist = poller.poll()
-    #         for fname, fobj in fdlist:
-    #             try:
-    #                 line = fobj.readline()
-    #             except EOFError:
-    #                 line = ''
-    #             if not line:
-    #                 break
-    #             if fobj == sys.stdin:
-    #                 if line[0].upper() == "Q":
-    #                     message("detaching and exiting -- container will remain running")
-    #                     sys.exit(0)
-    #             else:
-    #                 line = line.strip()
-    #                 message("{}: {}".format(fname, line))
-    #                 if "Jupyter Notebook is running" in line:
-    #                     # start browser if requested, else simply print URL
-    #                     message("notebook startup detected")
-    #                     if browser:
-    #                         for url in urls:
-    #                             message("Driving browser: {options.browser_command} {url}")
-    #                             subprocess.Popen([options.browser_command, url])
-    #                     if options.docker_detach:
-    #                         message("detaching and exiting, container session will remain running.")
-    #                         sys.exit(0)
-    #                     elif options.remote:
-    #                         message("exiting: remote script will manage the container as needed.")
-    #                         import time; time.sleep(1000)
-    #                         sys.exit(0)
-    #                     else:
-    #                         message("\nType Q<Enter> to detach docker process, or Ctrl+C to kill it\n")
-    # except BaseException as exc:
-    #     if type(exc) is KeyboardInterrupt:
-    #         message("Caught Ctrl+C")
-    #         status = 1
-    #     elif type(exc) is SystemExit:
-    #         status = exc.code
-    #         message("Exiting with status {}".format(status))
-    #     else:
-    #         message("Caught exception {}, terminating docker processes -- give it a few seconds".format(exc))
-    #         status = 1
-    #
-    # if status:
-    #     message("Terminating the docker processes -- give it a few seconds".format(exc))
-    #     docker_process.terminate()
-    #     docker_process.wait()
-    #
-    # sys.exit(status)
 
 
 
