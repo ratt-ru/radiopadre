@@ -94,6 +94,8 @@ class CasaTable(radiopadre.file.FileBase):
         self._error = self._dir_obj = None
         self._table = table
         self._writeable = table and table.iswritable()
+        self._num_locks = 0
+        self._writeable_lock = False
         self._subtables_obj = None
         self._parent = parent
         self._dynamic_attributes = set()  # keep track of attributes added in scan_impl
@@ -110,9 +112,17 @@ class CasaTable(radiopadre.file.FileBase):
         elif self._table is None:
             raise RuntimeError("table not open: this is a bug")
         else:
-            self._table.lock(write=write)
+            # lock first time. If write-lock requested and no write lock set, lock again
+            if not self._num_locks or (write and not self._writeable_lock):
+                self._writeable_lock = write
+                self._table.lock(write=write)
+            self._num_locks += 1
             yield self._table
-            self._table.unlock()
+            # unlock
+            self._num_locks -= 1
+            if self._num_locks <= 0:
+                self._num_locks = 0
+                self._table.unlock()
 
     @property
     def wtable(self):
@@ -186,13 +196,42 @@ class CasaTable(radiopadre.file.FileBase):
 
     def putcol(self, colname, coldata, start=0, nrow=-1, rowincr=1, blc=None, trc=None, incr=None):
         with self.wtable as tab:
+            msg = TransientMessage("Writing column {}".format(colname))
             return tab.putcol(colname, coldata, start, nrow, rowincr) if blc is None else \
                    tab.putcolslice(colname, coldata, blc, trc, incr, start, nrow, rowincr)
 
+    def copycol(self, fromcol, tocol):
+        with self.wtable as tab:
+            print "locked",tab.haslock()
+            if tocol not in tab.colnames():
+                self.addcol(tocol, likecol=fromcol)
+            msg = TransientMessage("Copying column {} to {}".format(fromcol, tocol))
+            tab.putcol(tocol, tab.getcol(fromcol))
+
+    def delcol(self, *columns):
+        with self.wtable as tab:
+            tab.removecols(columns)
+
+    def addcol(self, colname, likecol='DATA', coltype=None):
+        with self.wtable as tab:
+            if colname in tab.colnames():
+                raise IOError("column {} already exists".format(colname))
+            msg = TransientMessage("Adding column {} (based on {})".format(colname, likecol))
+            # new column needs to be inserted -- get column description from column 'like_col'
+            desc = tab.getcoldesc(likecol)
+            desc['name'] = colname
+            desc['comment'] = desc['comment'].replace(" ", "_")  # got this from Cyril, not sure why
+            dminfo = tab.getdminfo(likecol)
+            dminfo["NAME"] =  "{}-{}".format(dminfo["NAME"], colname)
+            # if a different type is specified, insert that
+            if coltype:
+                desc['valueType'] = coltype
+            tab.addcols(desc, dminfo)
 
     def getcol(self, colname, start=0, nrow=-1, rowincr=1, blc=None, trc=None, incr=None, flagrow=False, flag=False):
         """Like standard getcol() or getcolslice() of a CASA table, but can also read a flag column to make a masked array"""
         with self.table as tab:
+            msg = TransientMessage("Reading column {}".format(colname))
             coldata = tab.getcol(colname, start, nrow, rowincr) if blc is None else \
                       tab.getcolslice(colname, blc, trc, incr, start, nrow, rowincr)
             if coldata is None:
