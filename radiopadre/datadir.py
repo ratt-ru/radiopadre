@@ -6,9 +6,6 @@ import subprocess
 
 from .file import FileBase, autodetect_file_type
 from .filelist import FileList
-from .fitsfile import FITSFile
-from .imagefile import ImageFile
-from .casatable import CasaTable
 from .textfile import NumberedLineList
 from .render import render_table, render_preamble, render_refresh_button, rich_string, render_url, render_title
 
@@ -166,38 +163,6 @@ class DataDir(FileList):
                 object = filetype(path)
             content.append(object)
         self._set_list(content, self._sort)
-
-    def _typed_subset(self, filetype, title):
-        if os.path.samefile(self.fullpath, radiopadre.ROOTDIR):
-            title = self.title + " [{}]".format(title)
-        else:
-            title = " [{}]".format(title)
-        return FileList([f for f in self if type(f) is filetype], path=self.fullpath, classobj=filetype, title=title, parent=self)
-
-    @property
-    def dirs(self):
-        if self._dirs is None:
-            self._dirs = self._typed_subset(DataDir, title="Subdirectories")
-        return self._dirs
-
-    @property
-    def fits(self):
-        if self._fits is None:
-            # make separate lists of fits files and image files
-            self._fits = self._typed_subset(FITSFile, title="FITS files")
-        return self._fits
-
-    @property
-    def images(self):
-        if self._images is None:
-            self._images = self._typed_subset(ImageFile, title="Images")
-        return self._images
-    
-    @property
-    def tables(self):
-        if self._tables is None:
-            self._tables = self._typed_subset(CasaTable, title="Tables")
-        return self._tables
 
     def __getitem__(self, *args, **kw):
         self._load()

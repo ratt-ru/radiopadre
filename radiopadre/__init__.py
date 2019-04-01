@@ -194,10 +194,13 @@ def get_cache_dir(path, subdir=None):
     if ABSROOTDIR is None:
         raise RuntimeError("radiopadre.init() must be called first")
     basedir = _strip_slash(os.path.abspath(os.path.dirname(path)))
-    if not _is_subdir(basedir, ABSROOTDIR):
+    if _is_subdir(basedir, ABSROOTDIR):
+        # if in a subdirectory off the root, this becomes the relative path to it, else ""
+        reldir = basedir[len(ABSROOTDIR):]
+    elif _is_subdir(basedir, SHADOW_HOME+ABSROOTDIR):
+        reldir = basedir[len(SHADOW_HOME)+len(ABSROOTDIR):]
+    else:
         raise RuntimeError("Trying to access {}, which is outside the {} hierarchy".format(basedir, ABSROOTDIR))
-    # if in a subdirectory off the root, this becomes the relative path to it, else ""
-    reldir = basedir[len(ABSROOTDIR):]
     cacheurl = CACHE_URL_ROOT + reldir + "/.radiopadre"
     shadowdir = SHADOW_HOME + basedir
     cachedir = None
@@ -258,7 +261,7 @@ def _init_js_side():
     reset_code = """
         var width = $(".rendered_html")[0].clientWidth;
         console.log("reset display, width is", window.innerWidth, window.innerHeight);
-        Jupyter.notebook.kernel.execute(`import radiopadre; radiopadre.set_window_sizes(
+        Jupyter.notebook.kernel.execute(`print "executing reset"; import radiopadre; radiopadre.set_window_sizes(
                                                 ${width}, 
                                                 ${window.innerWidth}, ${window.innerHeight})`);
     """
@@ -279,6 +282,11 @@ def _init_js_side():
             {}
             </script>
          """.format(warns, os.environ['USER'], reset_code)
+    # <style>
+    #     .container {{ width:100% !important; }}
+    # </style>
+
+    # print "executing reset code"
 
     display(HTML(html))
 

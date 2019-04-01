@@ -102,7 +102,8 @@ def render_preamble():
     """Renders HTML preamble.
     Include this in the HTML of each cell to make sure that #NOTEBOOK_FILES# in links is correctly substituted
     """
-    return """<script>document.radiopadre.fixup_hrefs()</script>"""
+    return ""
+    # return """<script>document.radiopadre.fixup_hrefs()</script>"""
 
 
 def render_url(fullpath): # , prefix="files"):
@@ -120,7 +121,9 @@ def render_url(fullpath): # , prefix="files"):
 
 
 def render_title(title):
-    return title.html if type(title) is RichString else "<b>{}</b>".format(htmlize(title))
+    if title:
+        return title.html if type(title) is RichString else "<b>{}</b>".format(htmlize(title))
+    return ''
 
 def render_error(message):
     return "<SPAN style='color: red'><P>{}</P></SPAN>".format(htmlize(message))
@@ -132,7 +135,10 @@ def show_exception(message, exc_class=RuntimeError):
 def render_status_message(msg, bgcolor='lightblue'):
     return "<SPAN style='background: {};'><B>{}</B></SPAN>".format(bgcolor, htmlize(msg))
 
-def render_table(data, labels, html=set(), ncol=1, links=None,
+def show_table(data, **kw):
+    display(HTML(render_table(data, **kw)))
+
+def render_table(data, labels=None, html=set(), ncol=1, links=None,
                  header=True, numbering=True,
                  styles={},
                  actions=None,
@@ -140,6 +146,9 @@ def render_table(data, labels, html=set(), ncol=1, links=None,
                  ):
     if not data:
         return "no content"
+    if labels is None:
+        labels = ["col{}".format(i) for i in range(len(data[0]))]
+        header = False
     txt = "<div id='{}'>".format(div_id) if div_id else "<div>"
     for code in preamble.itervalues():
         txt += code+"\n"
@@ -224,23 +233,19 @@ class TransientMessage(object):
         if background is None:
             background = TransientMessage.default_backgrounds.get(color, 'transparent')
         html = """
-            <DIV id={id} style="color: {color}; background-color: {background}; position: absolute; right: 0; top: 0;">&nbsp;{message}&nbsp;</DIV>
+            <DIV id={id} style="color: {color}; display: inline; background-color: {background}; position: absolute; right: 0; top: 0;">&nbsp;{message}&nbsp;</DIV>
             """.format(**locals())
         self.timeout = timeout
         if timeout:
             timeout = timeout*1000
-            html += """
-            <SCRIPT type="text/javascript">
-            $('#{id}').delay({timeout}).fadeOut('slow');
-            </SCRIPT>
-            """.format(**locals())
+            html += """<SCRIPT type="text/javascript">
+                        $('#{id}').delay({timeout}).fadeOut('slow');
+                        </SCRIPT>""".format(**locals())
         # hide previous message
         if TransientMessage.last_message_id:
-            html += """
-                <SCRIPT type="text/javascript">
-                $('#{}').hide();
-                </SCRIPT>
-            """.format(TransientMessage.last_message_id)
+            html += """<SCRIPT type="text/javascript">
+                        $('#{}').hide();
+                        </SCRIPT>""".format(TransientMessage.last_message_id)
         TransientMessage.last_message_id = self.id
         # display
         display(HTML(html))
