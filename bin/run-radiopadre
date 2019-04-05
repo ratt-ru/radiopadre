@@ -141,7 +141,7 @@ parser.add_argument("--no-default",action="store_true",
                        "a radiopadre-default.ipynb with some boilerplate. Use this option to disable.")
 parser.add_argument("-a", "--auto-load",action="store_true",
                   help="automatically load first notebook found, if one is not given explicitly.")
-parser.add_argument("--verbose", action="store_true",
+parser.add_argument("-v", "--verbose", action="store_true",
                   help="Enable verbose output.")
 
 parser.add_argument("arguments", nargs="*",
@@ -495,6 +495,7 @@ if remote_host:
         if options.docker_dev:
             assert(padre_exec is not None)
             padre_exec += " --docker-dev"
+            message("Running remote in Docker-dev mode with image {options.docker_image}")
         else:
             if options.verbose:
                 message("copying run script and default notebook to {}:.radiopadre/tmp".format(remote_host))
@@ -506,6 +507,7 @@ if remote_host:
             scp_to_remote(tmpfile.name, ".radiopadre/tmp/notebooks")
             tmpfile = None
             padre_exec = "~/.radiopadre/tmp/bin/run-radiopadre"
+            message("Running remote in Docker mode with image {options.docker_image}")
 
         if options.update:
             padre_exec += " --update --docker-image " + options.docker_image

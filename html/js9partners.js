@@ -341,6 +341,8 @@ JS9pPartneredDisplays.prototype.applyZoomPan = function(im, imp)
                 JS9.SetZoom(this._current_zoompan.zoom, {display:im})
             if( this._current_zoompan.x != pan.x || this._current_zoompan.y != pan.y )
                 JS9.SetPan(this._current_zoompan.x, this._current_zoompan.y, {display:im})
+            this._current_zoompan = JS9.GetPan({display:im})
+            this._current_zoompan.zoom = JS9.GetZoom({display:im})
         } else {
             JS9p.log("not applying saved zoom-pan (sizes mismatch)")
             this._current_zoompan = null
@@ -562,6 +564,7 @@ JS9pPartneredDisplays.prototype.onSetZoomPan = function(im, imp)
 
 JS9pPartneredDisplays.prototype.onImageDisplay = function(im, imp)
 {
+    JS9p.log(`  onImageDisplay: ${im.id} on ${im.display.id}: entering`)
     if( this.current_image[im.display.id] === im )
     {
         JS9p.log(`  onImageDisplay: ${im.id} already displayed on ${im.display.id} -- skipping`)
@@ -616,6 +619,7 @@ JS9pPartneredDisplays.prototype.onImageDisplay = function(im, imp)
         this.setStatusRebin("---")
     }
     delete this._block_callbacks
+    JS9p.log(`  onImageDisplay: ${im.id} on ${im.display.id}: finished`)
 }
 
 
@@ -644,9 +648,9 @@ var JS9p = {
         var imp = im._js9p
         if( imp ) {
             if( imp.partnered_displays._block_callbacks ) {
-                JS9p.log(`--blocked ${method}`,im.id,im,args)
+                JS9p.log(`--blocked ${method}`,im.id,im.display.id,im,args)
             } else {
-                JS9p.log(`invoking ${method}`,im.id,im,args)
+                JS9p.log(`invoking ${method}`,im.id,im.display.id,im,args)
                 imp.partnered_displays[method](im,imp, ...args)
             }
         }
