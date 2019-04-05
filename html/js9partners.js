@@ -334,10 +334,11 @@ JS9pPartneredDisplays.prototype.applyZoomPan = function(im, imp)
 {
     if( this._current_zoompan && !im._rebinned ) {
         if( this._current_zoompan.imp.size.equals(imp.size) ) {
-            JS9p.log("applying saved zoom-pan (sizes match)")
-            if( this._current_zoompan.zoom != JS9.GetZoom({display:im}) )
-                JS9.SetZoom(this._current_zoompan.zoom, {display:im})
+            zoom = JS9.GetZoom({display:im})
             pan = JS9.GetPan({display:im})
+            JS9p.log("applying saved zoom-pan (sizes match)", im.id, this._current_zoompan, zoom, pan)
+            if( this._current_zoompan.zoom != zoom )
+                JS9.SetZoom(this._current_zoompan.zoom, {display:im})
             if( this._current_zoompan.x != pan.x || this._current_zoompan.y != pan.y )
                 JS9.SetPan(this._current_zoompan.x, this._current_zoompan.y, {display:im})
         } else {
@@ -550,8 +551,11 @@ JS9pPartneredDisplays.prototype.checkZoomRegion = function(im, imp, xreg)
 JS9pPartneredDisplays.prototype.onSetZoomPan = function(im, imp)
 {
     if( im._zoomed || im._nonzoom ) {
-        this._current_zoompan = JS9.GetPan({display:im})
-        this._current_zoompan.zoom = JS9.GetZoom({display:im})
+        zoom = JS9.GetZoom({display:im})
+        pan = JS9.GetPan({display:im})
+        console.log("onSetZoomPan:", im.id, this._current_zoompan, zoom, pan)
+        this._current_zoompan = pan
+        this._current_zoompan.zoom = zoom
         this._current_zoompan.imp = imp
     }
 }
