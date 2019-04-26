@@ -1025,10 +1025,14 @@ else:
 
 make_dir(".radiopadre")
 
-JUPYTER_OPTS += [
-    "--NotebookApp.token='{}'".format(session_id),
-    "--NotebookApp.custom_display_url='http://localhost:{}'".format(userside_jupyter_port)
-]
+
+# when running natively (i.e. in a virtual environment), the notebook app doesn't pass the token to
+# the browser command properly... so let it pick its own token then
+if options.remote or options.inside_container or not options.virtual_env:
+    JUPYTER_OPTS += [
+        "--NotebookApp.token='{}'".format(session_id),
+        "--NotebookApp.custom_display_url='http://localhost:{}'".format(userside_jupyter_port)
+    ]
 
 #=== figure out whether we initialize or load a notebook
 
@@ -1076,8 +1080,11 @@ if LOAD_NOTEBOOK:
     urls.append("http://localhost:{}/notebooks/{}?token={}".format(userside_jupyter_port, LOAD_NOTEBOOK, session_id))
 if LOAD_DIR:
     urls.append("http://localhost:{}/?token={}".format(userside_jupyter_port, session_id))
-for url in urls:
-    message("Browse to URL: {url}")
+
+# desist from printing this if running purely locally, in a virtualenv, as the notebook app handles this for us
+if options.remote or options.inside_container or not options.virtual_env:
+    for url in urls:
+        message("Browse to URL: {url}")
 
 # now we're ready to start the container
 if not attaching_to_ports and not options.virtual_env:
