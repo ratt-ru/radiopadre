@@ -11,7 +11,7 @@ REPO = "git@github.com:ratt-ru/radiopadre.git"
 BRANCH = "master"
 
 # ports used when running inside a container
-CONTAINER_PORTS = 11001, 11002, 11003
+CONTAINER_PORTS = 11001, 11002, 11003, 11004, 11005
 
 # docker image to use
 DEFAULT_DOCKER_IMAGE = "osmirnov/radiopadre:latest"
@@ -141,7 +141,7 @@ parser.add_argument("--no-default",action="store_true",
                        "a radiopadre-default.ipynb with some boilerplate. Use this option to disable.")
 parser.add_argument("-a", "--auto-load",action="store_true",
                   help="automatically load first notebook found, if one is not given explicitly.")
-parser.add_argument("--verbose", action="store_true",
+parser.add_argument("-v", "--verbose", action="store_true",
                   help="Enable verbose output.")
 
 parser.add_argument("arguments", nargs="*",
@@ -495,6 +495,7 @@ if remote_host:
         if options.docker_dev:
             assert(padre_exec is not None)
             padre_exec += " --docker-dev"
+            message("Running remote in Docker-dev mode with image {options.docker_image}")
         else:
             if options.verbose:
                 message("copying run script and default notebook to {}:.radiopadre/tmp".format(remote_host))
@@ -506,14 +507,15 @@ if remote_host:
             scp_to_remote(tmpfile.name, ".radiopadre/tmp/notebooks")
             tmpfile = None
             padre_exec = "~/.radiopadre/tmp/bin/run-radiopadre"
+            message("Running remote in Docker mode with image {options.docker_image}")
 
         if options.update:
             padre_exec += " --update --docker-image " + options.docker_image
 
-    # allocate 3 suggested ports (in resume mode, this will be overridden by the session settings)
+    # allocate 5 suggested ports (in resume mode, this will be overridden by the session settings)
     starting_port = 10000 + os.getuid()*3
     ports = []
-    for _ in range(3):
+    for _ in range(5):
         starting_port = find_unused_port(starting_port+1, 10000)
         ports.append(starting_port)
 
@@ -583,13 +585,15 @@ if remote_host:
                         session_id = match.group(1)
                         continue
                     # check for notebook port, and launch second ssh when we have it
-                    match = re.match(".*Selected ports: ([\d]+):([\d]+):([\d]+)\s+([\d]+):([\d]+):([\d]+)[\s]*$",line)
+                    match = re.match(".*Selected ports: ([\d]+):([\d]+):([\d]+):([\d]+):([\d]+)" +
+                                     "\s+([\d]+):([\d]+):([\d]+):([\d]+):([\d]+)[\s]*$", line)
                     if match:
                         ports = map(int, match.groups())
-                        remote_jupyter_port, remote_js9helper_port, remote_http_port = remote_ports = ports[:3]
-                        local_ports = ports[3:]
+                        remote_jupyter_port, remote_js9helper_port, remote_http_port, remote_carta_port,\
+                            remote_carta_ws_port = remote_ports = ports[:5]
+                        local_ports = ports[5:]
                         if options.verbose:
-                            message("Detected ports {}:{}:{} -> {}:{}:{}".format(*ports))
+                            message("Detected ports {}:{}:{}:{}:{} -> {}:{}:{}:{}:{}".format(*ports))
                         ssh2_args = ["ssh"] + SSH_MUX_OPTS + ["-O", "forward", remote_host]
                         for loc, rem in zip(local_ports, remote_ports):
                             ssh2_args += [ "-L", "localhost:{}:localhost:{}".format(loc, rem)]
@@ -684,7 +688,7 @@ def ps_containers():
 def read_session_info(dirname):
     """Reads the given session ID file. Returns session_id, ports, or else throws a ValueError"""
     comps = open(dirname + "/info").read().strip().split(" ")
-    if len(comps) != 7:
+    if len(comps) != 11:
         raise ValueError("invalid session dir " + dirname)
     session_id = comps[0]
     try:
@@ -798,7 +802,8 @@ else:
 if attaching_to_ports:
     # session_id and container_name already set above. Ports read from session file and printed to the console
     # for the benefit of the remote end (if any)
-    jupyter_port, helper_port, http_port, userside_jupyter_port, userside_helper_port, userside_http_port = \
+    jupyter_port, helper_port, http_port, carta_port, carta_ws_port, \
+    userside_jupyter_port, userside_helper_port, userside_http_port, userside_carta_port, userside_carta_ws_port = \
         attaching_to_ports
 # INSIDE CONTAINER: internal ports are fixed, userside ports are passed in, name is passed in, session ID is read from file
 elif options.inside_container:
@@ -806,9 +811,10 @@ elif options.inside_container:
     container_name = os.environ['RADIOPADRE_CONTAINER_NAME']
     session_id, _ = read_session_info("{}/{}".format(SESSION_INFO_DIR, container_name))
     os.environ['RADIOPADRE_SESSION_ID'] = session_id
-    jupyter_port, helper_port, http_port = CONTAINER_PORTS
+    jupyter_port, helper_port, http_port, carta_port, carta_ws_port = CONTAINER_PORTS
     message("  Inside container, using fixed ports {} {} {}".format(jupyter_port, helper_port, http_port))
-    userside_jupyter_port, userside_helper_port, userside_http_port = map(int, options.inside_container.split(":"))
+    userside_jupyter_port, userside_helper_port, userside_http_port, userside_carta_port, userside_carta_ws_port = \
+            map(int, options.inside_container.split(":"))
 # NORMAL MODE: find unused internal ports. Userside ports are passed from remote if in remote mode, or same in local mode
 else:
     if not options.virtual_env:
@@ -820,14 +826,17 @@ else:
     jupyter_port = find_unused_port(1024)
     helper_port = find_unused_port(jupyter_port + 1)
     http_port = find_unused_port(helper_port + 1)
-    selected_ports = [jupyter_port, helper_port, http_port]
+    carta_port = find_unused_port(http_port + 1)
+    carta_ws_port = find_unused_port(carta_port + 1)
+    selected_ports = [jupyter_port, helper_port, http_port, carta_port, carta_ws_port]
 
     if options.remote:
         userside_ports = map(int, options.remote.split(":"))
     else:
         userside_ports = selected_ports
 
-    userside_jupyter_port, userside_helper_port, userside_http_port = userside_ports
+    userside_jupyter_port, userside_helper_port, userside_http_port, userside_carta_port, userside_carta_ws_port = \
+            userside_ports
 
     os.environ['RADIOPADRE_SESSION_ID'] = session_id = uuid.uuid4().hex
 
@@ -836,14 +845,16 @@ else:
         session_info_dir = "{}/{}".format(SESSION_INFO_DIR, container_name)
         make_dir(session_info_dir)
         session_info_file = session_info_dir + "/info"
-        open(session_info_file, "w").write("{} {} {} {} {} {} {}".format(session_id, *(selected_ports+userside_ports)))
+        open(session_info_file, "w").write("{} {} {} {} {} {} {} {} {} {} {}".format(
+                                            session_id, *(selected_ports+userside_ports)))
         os.chmod(session_info_file, 0600)
         open(session_info_dir + "/js9prefs.js", "w").write("JS9Prefs.globalOpts.helperPort = {};\n".format(userside_helper_port))
 
 # print port assignments to console -- in remote mode, remote script will parse this out
 if not options.inside_container:
-    message("  Selected ports: {}:{}:{} {}:{}:{}".format(jupyter_port, helper_port, http_port,
-                                                       userside_jupyter_port, userside_helper_port, userside_http_port))
+    message("  Selected ports: {}:{}:{}:{}:{} {}:{}:{}:{}:{}".format(
+        jupyter_port, helper_port, http_port, carta_port, carta_ws_port,
+        userside_jupyter_port, userside_helper_port, userside_http_port, userside_carta_port, userside_carta_ws_port))
     message("  Session ID/notebook token is '{}'".format(session_id))
     if container_name is not None:
         message("  Container name: {container_name}")
@@ -1023,6 +1034,10 @@ else:
 
 make_dir(".radiopadre")
 
+
+# when running natively (i.e. in a virtual environment), the notebook app doesn't pass the token to
+# the browser command properly... so let it pick its own token then
+#if options.remote or options.inside_container or not options.virtual_env:
 JUPYTER_OPTS += [
     "--NotebookApp.token='{}'".format(session_id),
     "--NotebookApp.custom_display_url='http://localhost:{}'".format(userside_jupyter_port)
@@ -1074,8 +1089,11 @@ if LOAD_NOTEBOOK:
     urls.append("http://localhost:{}/notebooks/{}?token={}".format(userside_jupyter_port, LOAD_NOTEBOOK, session_id))
 if LOAD_DIR:
     urls.append("http://localhost:{}/?token={}".format(userside_jupyter_port, session_id))
-for url in urls:
-    message("Browse to URL: {url}")
+
+# desist from printing this if running purely locally, in a virtualenv, as the notebook app handles this for us
+if options.remote or options.inside_container or not options.virtual_env:
+    for url in urls:
+        message("Browse to URL: {url}")
 
 # now we're ready to start the container
 if not attaching_to_ports and not options.virtual_env:
@@ -1117,8 +1135,9 @@ if not attaching_to_ports and not options.virtual_env:
     # add image
     docker_opts += [ docker_image,
                      "/radiopadre/bin/run-radiopadre",
-                     "--inside-container", "{}:{}:{}".format(
-                                userside_jupyter_port, userside_helper_port, userside_http_port),
+                     "--inside-container", "{}:{}:{}:{}:{}".format(
+                                userside_jupyter_port, userside_helper_port, userside_http_port,
+                                userside_carta_port, userside_carta_ws_port),
                      "--workdir", PADRE_WORKDIR,
                    ]
     # add arguments
@@ -1133,7 +1152,10 @@ if not attaching_to_ports and not options.virtual_env:
 
     message("Running {}".format(" ".join(docker_opts)))
     message("  (If the image is not yet available locally, this can take a few minutes the first time you run.)")
-    docker_process = subprocess.Popen(docker_opts, stdout=DEVNULL)
+    if options.docker_debug:
+        docker_process = subprocess.Popen(docker_opts, stdin=sys.stdin, stdout=sys.stdout, stderr=sys.stderr)
+    else:
+        docker_process = subprocess.Popen(docker_opts, stdout=DEVNULL)
                                       #stdin=sys.stdin, stdout=sys.stdout, stderr=sys.stderr,
                                       #env=os.environ)
 
@@ -1241,8 +1263,7 @@ else:
 
 
 JUPYTER_OPTS.append("--port={}".format(jupyter_port))
-if not browser:
-    JUPYTER_OPTS += ["--no-browser", "--browser=/dev/null"] # --no-browser alone seems to be ignored
+JUPYTER_OPTS += ["--no-browser", "--browser=/dev/null"] # --no-browser alone seems to be ignored
 
 if options.inside_container:
     JUPYTER_OPTS += ["--allow-root", "--ip=0.0.0.0"] # --no-browser alone seems to be ignored
@@ -1304,6 +1325,45 @@ try:
     finally:
         os.chdir(ROOTDIR)
 
+    ## start CARTA backend
+    carta_dir = carta_exec = None
+
+    if options.inside_container:
+        carta_dir, carta_exec = "/", "/carta/carta"
+        if not os.access(carta_exec, os.X_OK):
+             carta_exec = None
+    else:
+        try:
+            carta_exec = subprocess.check_output("which carta", shell=True).strip()
+        except subprocess.CalledProcessError:
+            carta_exec = None
+
+    if not carta_exec:
+        message("CARTA backend not found, omitting", file=sys.stderr)
+    else:
+        if carta_dir:
+            os.chdir(carta_dir)
+        try:
+            # if options.inside_container:
+            #     xvfb  = subprocess.check_output("which Xvfb", shell=True).strip()
+            #     args = [xvfb, "-displayfd", "1", "-auth", "/dev/null" ]
+            #     child_processes.append(subprocess.Popen(xvfb, stdin=DEVZERO,
+            #                   stdout=sys.stdout if options.verbose else DEVNULL,
+            #                   stderr=sys.stderr if options.verbose else DEVNULL, shell=True))
+            #     os.environ['DISPLAY'] = ':0'
+
+            args = [carta_exec, "--remote", "--root={}".format(ROOTDIR), "--folder={}".format(ROOTDIR),
+                    "--port={}".format(carta_ws_port), "--fport={}".format(carta_port)]
+            message("Starting CARTA backend {} (in {})".format(" ".join(args), os.getcwd()), file=sys.stderr)
+            os.environ['RADIOPADRE_CARTA_PORT'] = str(userside_carta_port)
+            os.environ['RADIOPADRE_CARTA_WS_PORT'] = str(userside_carta_ws_port)
+
+            child_processes.append(subprocess.Popen(args, stdin=DEVZERO,
+                          stdout=sys.stderr if options.verbose else DEVNULL,
+                          stderr=sys.stderr if options.verbose else DEVNULL))
+        finally:
+            os.chdir(ROOTDIR)
+
     ## start jupyter process
 
     jupyter_path = PADRE_VENV + "/bin/jupyter"
@@ -1319,6 +1379,23 @@ try:
     #                                  env=os.environ)
 
     child_processes.append(notebook_proc)
+
+    # launch browser
+    url = "http://localhost:{}?token={}".format(userside_jupyter_port, session_id)
+    if browser:
+        message("running {} {}\r".format(options.browser_command, url))
+        message("  if this fails, specify a correct browser invocation command with --browser-command and rerun,")
+        message("  or else browse to the URL given above (\"Browse to URL:\") yourself.")
+        try:
+            time.sleep(2)
+            subprocess.call([options.browser_command, url], stdout=DEVNULL)
+        except OSError as exc:
+            if exc.errno == 2:
+                message("{} not found".format(options.browser_command))
+            else:
+                raise
+    elif not options.remote and not options.inside_container:
+        message("Please point your browser to {}".format(url))
 
     notebook_proc.wait()
     message("Notebook process done")
