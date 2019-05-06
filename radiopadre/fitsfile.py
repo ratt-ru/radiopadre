@@ -16,6 +16,10 @@ from radiopadre.render import rich_string, render_preamble, render_title, render
 from radiopadre import js9, settings, imagefile
 from .textfile import NumberedLineList
 
+_carta_port = os.environ.get("RADIOPADRE_CARTA_PORT")
+_carta_ws_port = os.environ.get("RADIOPADRE_CARTA_WS_PORT")
+_use_carta = _carta_port and _carta_ws_port
+
 
 def read_html_template(filename, subs):
     js9_source = os.path.join(js9.DIRNAME, filename)
@@ -723,4 +727,16 @@ class FITSFile(radiopadre.file.FileBase):
             <button id="" title="display using JS9 in a new browser tab" style="font-size: 0.9em;"
                     onclick="window.open('{newtab_html}', '_blank')">&#8663;JS9</button>
         """.format(**subs)
+
+        if _use_carta:
+            folder = os.path.dirname(self.fullpath)
+            if folder.startswith(radiopadre.ROOTDIR):
+                folder = "/" + folder[len(radiopadre.ROOTDIR):]
+
+            subs['newtab_carta_html'] = "http://localhost:{}/?socketUrl=ws://localhost:{}&folder={}&file={}".format(
+                                            _carta_port, _carta_ws_port, folder, self.name)
+            code += """
+                    <button id="" title="display using CARTA in a new browser tab" style="font-size: 0.9em;"
+                            onclick="window.open('{newtab_carta_html}', '_blank')">&#8663;C</button>
+                    """.format(**subs)
         return code
