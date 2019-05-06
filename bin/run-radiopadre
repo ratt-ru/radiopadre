@@ -14,7 +14,7 @@ BRANCH = "master"
 CONTAINER_PORTS = 11001, 11002, 11003, 11004, 11005
 
 # docker image to use
-DEFAULT_DOCKER_IMAGE = "osmirnov/radiopadre:latest"
+DEFAULT_DOCKER_IMAGE = "osmirnov/radiopadre:release"
 
 # system uname
 UNAME = subprocess.check_output("uname").strip()
