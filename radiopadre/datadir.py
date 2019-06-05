@@ -122,15 +122,20 @@ class DataDir(FileList):
         else:
             incdir, excdir = self._include, self._exclude
 
-        for root, dirs, files in os.walk(self.fullpath):
+        for root, dirs, files in os.walk(self.fullpath, followlinks=True):
             subdirs = []
             # Check for matching files
             for name in files:
                 path = os.path.join(root, name)
-                filetype = autodetect_file_type(path)
-                if filetype is not None and _matches(name if self._browse_mode else path, self._include, self._exclude):
-                    list.append(self, (filetype, path))
-                    self.nfiles += 1
+                # check for symlinks to dirs
+                if os.path.isdir(path):
+                    dirs.append(name)
+                # else handle as file
+                else:
+                    filetype = autodetect_file_type(path)
+                    if filetype is not None and _matches(name if self._browse_mode else path, self._include, self._exclude):
+                        list.append(self, (filetype, path))
+                        self.nfiles += 1
             # Check for matching directories
             for name in dirs:
                 path = os.path.join(root, name)

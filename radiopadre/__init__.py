@@ -318,10 +318,20 @@ def _ls(recursive=False, *args):
     """
     sort = None
     patterns = []
-    fixed_names = []
+    basedir = None
 
     # split all arguments on whitespace and form one big list
     arguments = list(itertools.chain(*[arg.split() for arg in args]))
+
+    # the following combinations of arguments are supported
+    # - nothing (scan '.' with default patterns)
+    # - no directory, one or more patterns (scan '.' with given patterns)
+    # - one directory, no patterns (scan directory with default patterns)
+    # - one directory, multiple patterns (scan directory with given patterns)
+    # - multiple directories (not supported for now until https://github.com/ratt-ru/radiopadre-devel/issues/41 is fixed)
+
+    def _is_pattern(filename):
+        return '*' in filename or '?' in filename
 
     for arg in arguments:
         # arguments starting with "-" are sort keys. 'R' forces recursive mode
@@ -329,34 +339,38 @@ def _ls(recursive=False, *args):
             sort = arg[1:]
             if 'R' in sort:
                 recursive = True
-        # arguments with *? are include patterns. A slash forces recursive mode
-        elif '*' in arg or '?' in arg:
-            patterns.append(arg)
+        # arguments with *? are patterns
+        elif _is_pattern(arg):
+            # does this include a directory
             if '/' in arg:
-                recursive = True
+                dirname, pattern = os.path.split(arg)
+                if _is_pattern(dirname):
+                    recursive = True
+                    patterns.append(arg)
+                elif not os.path.exists(dirname):
+                    raise IOError("Directory {} does not exist".format(dirname))
+                else:
+                    if basedir is not None and basedir != dirname:
+                        raise TypeError("More than one directory given to ls(), this is currently not supported")
+                    basedir = dirname
+                    if pattern:
+                        patterns.append(pattern)
+            # no directory, just a straight up pattern
+            else:
+                patterns.append(arg)
+
         # arguments without *? are a directory name, or a static pattern
         else:
-            fixed_names.append(arg)
+            if os.path.exists(arg) and autodetect_file_type(arg) is DataDir:
+                if basedir is not None and basedir != arg:
+                    raise TypeError("More than one directory given to ls(), this is currently not supported")
+                basedir = arg
+            else:
+                patterns.append(arg)
 
-    single_file = False
-    basedir = '.'
+    single_file = len(patterns) == 1 and not _is_pattern(patterns[0])
 
-    # single directory specified -- this is what we want to scan
-    if len(fixed_names) == 1:
-        file_type = autodetect_file_type(fixed_names[0])
-        if file_type is DataDir:
-            basedir = fixed_names[0]
-    # else only one filename is specified: return that one file
-        elif not patterns:
-            if file_type is None:
-                return show_exception("{}: no such file or directory".format(fixed_names[0]), IOError)
-            single_file = True
-            patterns = fixed_names
-    # multiple things specified -- add them to patterns
-    else:
-        patterns += fixed_names
-
-    title = rich_string(os.path.abspath(basedir) if basedir == '.' else basedir, bold=True)
+    title = rich_string(basedir or os.getcwd(), bold=True)
 
     dd = DataDir(basedir or '.', include=patterns or None, recursive=recursive, title=title, sort=sort)
 
