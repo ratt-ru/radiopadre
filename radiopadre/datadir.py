@@ -122,15 +122,20 @@ class DataDir(FileList):
         else:
             incdir, excdir = self._include, self._exclude
 
-        for root, dirs, files in os.walk(self.fullpath):
+        for root, dirs, files in os.walk(self.fullpath, followlinks=True):
             subdirs = []
             # Check for matching files
             for name in files:
                 path = os.path.join(root, name)
-                filetype = autodetect_file_type(path)
-                if filetype is not None and _matches(name if self._browse_mode else path, self._include, self._exclude):
-                    list.append(self, (filetype, path))
-                    self.nfiles += 1
+                # check for symlinks to dirs
+                if os.path.isdir(path):
+                    dirs.append(name)
+                # else handle as file
+                else:
+                    filetype = autodetect_file_type(path)
+                    if filetype is not None and _matches(name if self._browse_mode else path, self._include, self._exclude):
+                        list.append(self, (filetype, path))
+                        self.nfiles += 1
             # Check for matching directories
             for name in dirs:
                 path = os.path.join(root, name)
@@ -140,9 +145,15 @@ class DataDir(FileList):
                                 (not self._browse_mode or self._include_empty or os.listdir(path)):
                         list.append(self, (filetype, path))
                         self.ndirs += 1
-                    # Check for directories to descend into
-                    if self._recursive and filetype is DataDir and _matches(name, self._include_dir, self._exclude_dir):
+                    # Check for directories to descend into.
+                    # In browse mode (no patterns), only descend into DataDir.
+                    if self._browse_mode:
+                        if self._recursive and filetype is DataDir and _matches(name, self._include_dir, self._exclude_dir):
+                            subdirs.append(name)
+                    # Else always descend (we'll match the path against a pattern)
+                    else:
                         subdirs.append(name)
+
             # Descend into specified subdirs
             dirs[:] = subdirs
 
