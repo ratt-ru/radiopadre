@@ -62,6 +62,17 @@ def make_link(src, dest, rm_fr=False):
             os.unlink(dest)
     os.symlink(os.path.abspath(src), dest)
 
+def find_which(command):
+    """
+    Returns the equivalent of `which command`, or None is command is not found
+    """
+    try:
+        binary = subprocess.check_output("which {}".format(command), shell=True).strip()
+    except subprocess.CalledProcessError as exc:
+        if exc.returncode == 1:
+            return None
+        raise
+    return binary
 
 def find_unused_port (base, maxtries=1000):
     """Helper function. Finds an unused server port"""
@@ -116,7 +127,15 @@ parser.add_argument("--venv-no-casacore", action="store_true",
 parser.add_argument("--venv-no-js9", action="store_true",
                   help="virtualenv: Ignore JS9 installation errors, if bootstrapping.")
 
-parser.add_argument("-D", "--docker-dev", action="store_true",
+parser.add_argument("-D", "--docker", action="store_true",
+                  help="forces use of Docker for container mode. Default is to use Singularity if found, and fall\n"
+                    "back to Docker if not.")
+
+parser.add_argument("-S", "--singularity", action="store_true",
+                  help="forces use of Singularity for container mode. Fail if Singularity is not found.")
+
+
+parser.add_argument("--docker-dev", action="store_true",
                   help="runs radiopadre via a container, but mounts the host-installed\n"
                        "version of radiopadre inside it. Intended for developers.")
 parser.add_argument("--docker-image", type=str, metavar="IMAGE", default=DEFAULT_DOCKER_IMAGE,
@@ -255,8 +274,8 @@ default_notebook_code = """{
    "source": [
     "# execute this with Ctrl+Enter\\n",
     "from radiopadre import ls, settings\\n",
-    "ls = ls()\\n",
-    "ls"
+    "dd = ls()\\n",
+    "dd"
    ]
   },
   {
@@ -265,7 +284,7 @@ default_notebook_code = """{
    "metadata": {},
    "outputs": [],
    "source": [
-    "ls[0]"
+    "dd[0]"
    ]
   }
  ],
@@ -378,6 +397,7 @@ if remote_host:
         message("Checking installation on {remote_host}.")
     has_venv = check_remote_command("virtualenv") and check_remote_command("pip")
     has_git = check_remote_command("git")
+    has_singularity = check_remote_command("singularity")
     has_docker = check_remote_command("docker")
 
     ## Look for remote launch script
@@ -485,17 +505,31 @@ if remote_host:
                 scp_to_remote(copy_initial_notebook, notebook_path)
             notebook_path = nbpath
 
-    # run remote in docker mode
+    # run remote in container mode
     if not options.virtual_env:
-        if not has_docker:
-            help_yourself("{} doesn't appear to have Docker installed.".format(remote_host),
-                          "Ask the admin to install Docker on {} and to add you to the docker group. Otherwise, use "
-                          "--virtual-env mode?".format(remote_host))
+        if options.singularity and not has_singularity:
+            help_yourself("{} doesn't appear to have Singularity installed.".format(remote_host),
+                          "Ask the admin to install Docker on {}".format(remote_host))
+        if options.docker:
+            has_singularity = False
+            if not has_docker:
+                help_yourself("{} doesn't appear to have Docker installed.".format(remote_host),
+                              "Ask the admin to install Docker on {} and to add you to the docker group.".format(remote_host))
+
+        if has_singularity:
+            padre_exec += "--singularity"
+            message("Using remote {has_singularity} to run in container mode")
+        elif has_docker:
+            padre_exec += "--docker"
+            message("Using remote {has_docker} to run in container mode")
+        else:
+            help_yourself("{} doesn't appear to have Singularity or Docker installed.".format(remote_host),
+                          "Ask the admin to install either on {}. Otherwise, use --virtual-env mode?".format(remote_host))
 
         if options.docker_dev:
             assert(padre_exec is not None)
             padre_exec += " --docker-dev"
-            message("Running remote in Docker-dev mode with image {options.docker_image}")
+            message("Running remote in docker-dev mode with image {options.docker_image}")
         else:
             if options.verbose:
                 message("copying run script and default notebook to {}:.radiopadre/tmp".format(remote_host))
@@ -666,11 +700,19 @@ if remote_host:
 message("Welcome to Radiopadre!")
 
 if options.virtual_env:
-    docker = None
+    docker = singularity = None
 else:
-    docker = subprocess.check_output("which docker", shell=True).strip()
-    if not docker:
-        bye("docker binary not found")
+    singularity = find_which("singularity")
+    docker = find_which("docker")
+    if options.singularity and not singularity:
+        bye("singularity binary not found")
+    if options.docker:
+        singularity = None
+        if not docker:
+            bye("docker binary not found")
+        message("Using {docker} for container mode")
+    else:
+        message("Using {singularity} for container mode")
 
 child_processes = []
 
@@ -1298,10 +1340,8 @@ try:
         js9helper = js9dir +"/js9Helper.js"
         if os.path.exists(js9helper):
             message("Starting {js9helper} on port {helper_port} in {SHADOWDIR}")
-            try:
-                nodejs = subprocess.check_output("which nodejs || which node", shell=True)
-            except subprocess.CalledProcessError:
-                nodejs = None
+            nodejs = find_which("nodejs") or find_which("node")
+            if not nodejs:
                 bye("Unable to find nodejs or node -- can't run js9helper. You need to apt-get install nodejs perhaps?")
             try:
                 os.chdir(SHADOWDIR)
@@ -1333,10 +1373,7 @@ try:
         if not os.access(carta_exec, os.X_OK):
              carta_exec = None
     else:
-        try:
-            carta_exec = subprocess.check_output("which carta", shell=True).strip()
-        except subprocess.CalledProcessError:
-            carta_exec = None
+        carta_exec = find_which("carta")
 
     if not carta_exec:
         message("CARTA backend not found, omitting", file=sys.stderr)
@@ -1345,7 +1382,7 @@ try:
             os.chdir(carta_dir)
         try:
             # if options.inside_container:
-            #     xvfb  = subprocess.check_output("which Xvfb", shell=True).strip()
+            #     xvfb  = find_which("which Xvfb")
             #     args = [xvfb, "-displayfd", "1", "-auth", "/dev/null" ]
             #     child_processes.append(subprocess.Popen(xvfb, stdin=DEVZERO,
             #                   stdout=sys.stdout if options.verbose else DEVNULL,
