@@ -699,7 +699,7 @@ if remote_host:
 
 message("Welcome to Radiopadre!")
 
-if options.virtual_env:
+if options.virtual_env or options.inside_container:
     docker = singularity = None
 else:
     singularity = find_which("singularity")
@@ -710,9 +710,13 @@ else:
         singularity = None
         if not docker:
             bye("docker binary not found")
+    if singularity:
+        message("Using {singularity} for container mode")
+        docker = None
+    elif docker:
         message("Using {docker} for container mode")
     else:
-        message("Using {singularity} for container mode")
+        bye("neither singularity nor docker found. Use --virtual-env perhaps?")
 
 child_processes = []
 
@@ -844,19 +848,18 @@ else:
 if attaching_to_ports:
     # session_id and container_name already set above. Ports read from session file and printed to the console
     # for the benefit of the remote end (if any)
-    jupyter_port, helper_port, http_port, carta_port, carta_ws_port, \
-    userside_jupyter_port, userside_helper_port, userside_http_port, userside_carta_port, userside_carta_ws_port = \
-        attaching_to_ports
+    jupyter_port, helper_port, http_port, carta_port, carta_ws_port = selected_ports = attaching_to_ports[:5]
+    userside_ports = attaching_to_ports[5:]
 # INSIDE CONTAINER: internal ports are fixed, userside ports are passed in, name is passed in, session ID is read from file
 elif options.inside_container:
     message("started the radiopadre container")
     container_name = os.environ['RADIOPADRE_CONTAINER_NAME']
     session_id, _ = read_session_info("{}/{}".format(SESSION_INFO_DIR, container_name))
     os.environ['RADIOPADRE_SESSION_ID'] = session_id
-    jupyter_port, helper_port, http_port, carta_port, carta_ws_port = CONTAINER_PORTS
-    message("  Inside container, using fixed ports {} {} {}".format(jupyter_port, helper_port, http_port))
-    userside_jupyter_port, userside_helper_port, userside_http_port, userside_carta_port, userside_carta_ws_port = \
-            map(int, options.inside_container.split(":"))
+    ports = map(int, options.inside_container.split(":"))
+    selected_ports = ports[:5]
+    userside_ports = ports[5:]
+    message("  Inside container, using ports {}".format(ports))
 # NORMAL MODE: find unused internal ports. Userside ports are passed from remote if in remote mode, or same in local mode
 else:
     if not options.virtual_env:
@@ -865,20 +868,14 @@ else:
     else:
         container_name = None
         message("  Starting new session in virtual environment")
-    jupyter_port = find_unused_port(1024)
-    helper_port = find_unused_port(jupyter_port + 1)
-    http_port = find_unused_port(helper_port + 1)
-    carta_port = find_unused_port(http_port + 1)
-    carta_ws_port = find_unused_port(carta_port + 1)
-    selected_ports = [jupyter_port, helper_port, http_port, carta_port, carta_ws_port]
+    selected_ports = [ find_unused_port(1024) ]
+    for i in range(4):
+        selected_ports.append(find_unused_port(selected_ports[-1] + 1))
 
     if options.remote:
         userside_ports = map(int, options.remote.split(":"))
     else:
         userside_ports = selected_ports
-
-    userside_jupyter_port, userside_helper_port, userside_http_port, userside_carta_port, userside_carta_ws_port = \
-            userside_ports
 
     os.environ['RADIOPADRE_SESSION_ID'] = session_id = uuid.uuid4().hex
 
@@ -890,13 +887,15 @@ else:
         open(session_info_file, "w").write("{} {} {} {} {} {} {} {} {} {} {}".format(
                                             session_id, *(selected_ports+userside_ports)))
         os.chmod(session_info_file, 0600)
+        userside_helper_port = userside_ports[1]
         open(session_info_dir + "/js9prefs.js", "w").write("JS9Prefs.globalOpts.helperPort = {};\n".format(userside_helper_port))
+
+jupyter_port, helper_port, http_port, carta_port, carta_ws_port = selected_ports
+userside_jupyter_port, userside_helper_port, userside_http_port, userside_carta_port, userside_carta_ws_port = userside_ports
 
 # print port assignments to console -- in remote mode, remote script will parse this out
 if not options.inside_container:
-    message("  Selected ports: {}:{}:{}:{}:{} {}:{}:{}:{}:{}".format(
-        jupyter_port, helper_port, http_port, carta_port, carta_ws_port,
-        userside_jupyter_port, userside_helper_port, userside_http_port, userside_carta_port, userside_carta_ws_port))
+    message("  Selected ports: {}:{}:{}:{}:{} {}:{}:{}:{}:{}".format(*(selected_ports+userside_ports)))
     message("  Session ID/notebook token is '{}'".format(session_id))
     if container_name is not None:
         message("  Container name: {container_name}")
@@ -1050,11 +1049,22 @@ if not options.virtual_env:
     docker_image = options.docker_image
     if docker_image[0] == ":":
         docker_image = DEFAULT_DOCKER_IMAGE.split(":")[0] + docker_image
-    message("  Using radiopadre Docker image {docker_image}")
-    if options.update:
-        message("  Calling docker pull to make sure the image is up-to-date.")
-        message("  (This may take a few minutes if it isn't....)")
-        subprocess.call("docker pull {}".format(docker_image), shell=True)
+    if singularity:
+        singularity_image = os.path.expanduser("~/.radiopadre/{}.singularity.img".format(docker_image.replace("/", "_")))
+        if options.update and os.path.exists(singularity_image):
+            os.unlink(singularity_image)
+        if not os.path.exists(singularity_image):
+            message("  Rebuilding radiopadre Singularity image {singularity_image} from docker://{docker_image}")
+            message("  (This may take a few minutes....)")
+            subprocess.call([singularity, "build", singularity_image, "docker://{}".format(docker_image)])
+        else:
+            message("  Using radiopadre Singularity image {singularity_image}")
+    elif docker:
+        message("  Using radiopadre Docker image {docker_image}")
+        if options.update:
+            message("  Calling docker pull to make sure the image is up-to-date.")
+            message("  (This may take a few minutes if it isn't....)")
+            subprocess.call([docker, "pull", docker_image])
 
 elif not options.inside_container:
     message("  Using radiopadre install at {PADRE_PATH}")
@@ -1144,44 +1154,71 @@ if not attaching_to_ports and not options.virtual_env:
 
     message("Container name: {container_name}")  # remote script will parse it
 
-    ##################### NB: skip -d flag for debugging
+    if singularity:
+        os.environ["RADIOPADRE_CONTAINER_NAME"] = container_name
+        os.environ["XDG_RUNTIME_DIR"] = ""
+        docker_opts = ["--workdir", ABSROOTDIR ]
+        # setup mounts for work dir and home dir, if needed
+        homedir = os.path.expanduser("~")
+        docker_opts += [
+            "-B", "{}:{}{}".format(ABSROOTDIR, ABSROOTDIR, ":ro" if orig_rootdir else ""),
+            # hides /home/user/.local, which if exposed, can confuse jupyter and ipython
+            "-B", "{}:{}/.local".format(docker_local, homedir),
+            # mount session info directory (needed to serve e.g. js9prefs.js)
+            "-B", "{}:{}".format(session_info_dir, LOCAL_SESSION_DIR),
+            "-B", "{}:{}".format(session_info_dir, SHADOW_SESSION_DIR),
+            # mount a writeable tmp dir for the js9 install -- needed by js9helper
+            "-B", "{}:/.radiopadre/venv/js9-www/tmp".format(js9_tmp),
+        ]
+        if options.docker_dev:
+            docker_opts += ["-B", "{}:/radiopadre".format(PADRE_PATH)]
+        if not options.docker_debug:
+            command = [singularity, "instance.start"] + docker_opts + \
+                      [singularity_image, container_name]
+            message("running {}".format(" ".join(command)))
+            subprocess.call(command)
+            docker_opts = [singularity, "exec", "instance://{}".format(container_name)]
+        else:
+            docker_opts = [singularity, "exec" ] + docker_opts + [singularity_image]
+        container_ports = selected_ports
+    elif docker:
+        docker_opts = [ docker, "run", "--rm", "--name", container_name, "-w", ABSROOTDIR,
+                            "--user", "{}:{}".format(os.getuid(), os.getgid()),
+                            "-e", "USER={}".format(os.environ["USER"]),
+                            "-e", "HOME={}".format(os.environ["HOME"]),
+                            "-e", "RADIOPADRE_CONTAINER_NAME={}".format(container_name)
+                      ]
+        # enable detached mode if not debugging
+        if not options.docker_debug:
+            docker_opts.append("-d")
+        for port1, port2 in zip(selected_ports, CONTAINER_PORTS):
+            docker_opts += [ "-p", "{}:{}/tcp".format(port1, port2)]
+        container_ports = CONTAINER_PORTS
+        # setup mounts for work dir and home dir, if needed
+        homedir = os.path.expanduser("~")
+        docker_opts += [
+                         "-v", "{}:{}{}".format(ABSROOTDIR, ABSROOTDIR, ":ro" if orig_rootdir else ""),
+                         "-v", "{}:{}".format(homedir, homedir),
+                         # hides /home/user/.local, which if exposed, can confuse jupyter and ipython
+                         "-v", "{}:{}/.local".format(docker_local, homedir),
+                         # mount session info directory (needed to serve e.g. js9prefs.js)
+                         "-v", "{}:{}".format(session_info_dir, LOCAL_SESSION_DIR),
+                         "-v", "{}:{}".format(session_info_dir, SHADOW_SESSION_DIR),
+                         # mount a writeable tmp dir for the js9 install -- needed by js9helper
+                         "-v", "{}:/.radiopadre/venv/js9-www/tmp".format(js9_tmp),
+                         "--label", "radiopadre.user={}".format(USER),
+                         "--label", "radiopadre.dir={}".format(os.getcwd()),
+        ]
+        if options.docker_dev:
+            docker_opts += [ "-v", "{}:/radiopadre".format(PADRE_PATH) ]
+        # add image
+        docker_opts.append(docker_image)
 
-    docker_opts = [ docker, "run", "--rm", "--name", container_name, "-w", ABSROOTDIR,
-                        "--user", "{}:{}".format(os.getuid(), os.getgid()),
-                        "-e", "USER={}".format(os.environ["USER"]),
-                        "-e", "HOME={}".format(os.environ["HOME"]),
-                        "-e", "RADIOPADRE_CONTAINER_NAME={}".format(container_name)
-                  ]
-    # enable detached mode if not debugging
-    if not options.docker_debug:
-        docker_opts.append("-d")
-    for port1, port2 in zip(selected_ports, CONTAINER_PORTS):
-        docker_opts += [ "-p", "{}:{}/tcp".format(port1, port2)]
-    # setup mounts for work dir and home dir, if needed
-    homedir = os.path.expanduser("~")
-    docker_opts += [
-                     "-v", "{}:{}{}".format(ABSROOTDIR, ABSROOTDIR, ":ro" if orig_rootdir else ""),
-                     "-v", "{}:{}".format(homedir, homedir),
-                     # hides /home/user/.local, which if exposed, can confuse jupyter and ipython
-                     "-v", "{}:{}/.local".format(docker_local, homedir),
-                     # mount session info directory (needed to serve e.g. js9prefs.js)
-                     "-v", "{}:{}".format(session_info_dir, LOCAL_SESSION_DIR),
-                     "-v", "{}:{}".format(session_info_dir, SHADOW_SESSION_DIR),
-                     # mount a writeable tmp dir for the js9 install -- needed by js9helper
-                     "-v", "{}:/.radiopadre/venv/js9-www/tmp".format(js9_tmp),
-                     "--label", "radiopadre.user={}".format(USER),
-                     "--label", "radiopadre.dir={}".format(os.getcwd()),
-    ]
-    if options.docker_dev:
-        docker_opts += [ "-v", "{}:/radiopadre".format(PADRE_PATH) ]
-    # add image
-    docker_opts += [ docker_image,
-                     "/radiopadre/bin/run-radiopadre",
-                     "--inside-container", "{}:{}:{}:{}:{}".format(
-                                userside_jupyter_port, userside_helper_port, userside_http_port,
-                                userside_carta_port, userside_carta_ws_port),
+    docker_opts += [ "/radiopadre/bin/run-radiopadre",
+                     "--inside-container", ":".join(map(str, container_ports + userside_ports)),
                      "--workdir", PADRE_WORKDIR,
                    ]
+
     # add arguments
     if options.docker_debug:
         docker_opts.append("--docker-debug")
@@ -1193,7 +1230,8 @@ if not attaching_to_ports and not options.virtual_env:
         docker_opts.append(notebook_path)
 
     message("Running {}".format(" ".join(docker_opts)))
-    message("  (If the image is not yet available locally, this can take a few minutes the first time you run.)")
+    if not singularity:
+        message("  (If the image is not yet available locally, this can take a few minutes the first time you run.)")
     if options.docker_debug:
         docker_process = subprocess.Popen(docker_opts, stdin=sys.stdin, stdout=sys.stdout, stderr=sys.stderr)
     else:
