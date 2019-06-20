@@ -45,3 +45,4 @@ RUN rm radiopadre/CARTA-v1.1-remote.tar.gz
 #RUN chmod -R a+rX squashfs-root
 #RUN rm radiopadre/CARTA-v1.1-ubuntu.AppImage
 
+CMD sleep infinity

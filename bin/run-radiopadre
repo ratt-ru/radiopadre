@@ -389,7 +389,7 @@ if remote_host:
         Checks that remote host has a particular command available.
         Returns True or False, or raises an exception on other errors.
         """
-        return bool(ssh_remote("which "+command, fail_retcode=1, stderr=DEVNULL))
+        return (ssh_remote("which "+command, fail_retcode=1, stderr=DEVNULL) or "").strip()
 
     # Check for various remote bits
 
@@ -1193,7 +1193,7 @@ if not attaching_to_ports and not options.virtual_env:
             docker_opts.append("-d")
         for port1, port2 in zip(selected_ports, CONTAINER_PORTS):
             docker_opts += [ "-p", "{}:{}/tcp".format(port1, port2)]
-        container_ports = CONTAINER_PORTS
+        container_ports = list(CONTAINER_PORTS)
         # setup mounts for work dir and home dir, if needed
         homedir = os.path.expanduser("~")
         docker_opts += [
