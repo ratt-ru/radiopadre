@@ -1,17 +1,18 @@
 import os
 import time
 import math
+import contextlib
 
 from IPython.display import display, HTML
 
 import radiopadre
 from radiopadre import settings
-from radiopadre.render import DisplayableItem, render_refresh_button, rich_string, render_url, TransientMessage
+from radiopadre.render import RenderableElement, render_refresh_button, rich_string, render_url, TransientMessage
 from collections import OrderedDict
 from radiopadre import casacore_tables
 
 
-class ItemBase(DisplayableItem):
+class ItemBase(RenderableElement):
     """Base class referring to an abstract displayable data item.
 
     Properties:
@@ -89,6 +90,15 @@ class ItemBase(DisplayableItem):
     def info(self, value):
         self._info = rich_string(value)
 
+    @property
+    def thumb(self):
+        return self._rendering_proxy('render_thumb')
+
+    @property
+    def render(self):
+        return self._rendering_proxy('render_html')
+
+
     def __str__(self):
         """str() returns the plain-text version of the file content. Calls self.render_text()."""
         self.rescan()
@@ -109,19 +119,7 @@ class ItemBase(DisplayableItem):
         """
         self.rescan()
         self.clear_message()
-        return self.render_html(**kw)
-
-    def show(self, *args, **kw):
-        """
-        Renders the object.
-
-        Default version alls _load() to load content, then calls self._render_html(), passing along all arguments,
-        then displays the returned HTML using IPython.display
-        """
-        self.rescan()
-        html = self.render_html(*args, **kw)
-        self.clear_message()
-        display(HTML(html))
+        return RenderableElement._repr_html_(self, **kw)
 
     def watch(self, *args, **kw):
         """
@@ -132,14 +130,14 @@ class ItemBase(DisplayableItem):
 
     # These methods are meant to be reimplemented by subclasses
 
-    def render_text(self, *args, **kw):
+    def render_text(self, **kw):
         """
         Method to be implemented by subclasses. Default version falls back to summary().
         :return: plain-text rendering of file content
         """
         return rich_string(self.summary).text
 
-    def render_html(self, *args, **kw):
+    def render_html(self, **kw):
         """
         Method to be implemented by subclasses. Default version falls back to summary().
         :return: HTML rendering of file content
@@ -173,6 +171,15 @@ class ItemBase(DisplayableItem):
         if self._message is not None:
             self._message.hide()
             self._message = None
+
+    @contextlib.contextmanager
+    def transient_message(self, msg, color='blue'):
+        self.message(msg, color=color)
+        try:
+            yield self._message
+        finally:
+            self.clear_message()
+
 
 
 class FileBase(ItemBase):
@@ -312,19 +319,69 @@ class FileBase(ItemBase):
         """
         pass
 
-    def _action_buttons_(self, preamble=OrderedDict(), postscript=OrderedDict(), div_id=""):
+    def _action_buttons_(self, context):
         """
         Returns HTML code associated with available actions for this file. Can be None.
 
-        :param preamble: HTML code rendered before e.g. list of files. Insert your own
-                         as appropriate.
-        :param postscript: HTML code rendered after e.g. list of files. Insert your own
-                         as appropriate.
-        :param div_id:   unique ID corresponding to rendered chunk of HTML code
+        :param context: a RenderingContext object
         :return: HTML code for action buttons, or None
         """
         return None
 
+
+    def render_thumb(self, showpath=False, url=None, context=None, prefix="", **kw):
+        """
+        Renders a "thumbnail view" of the file, using _render_thumb_impl() for the content
+        """
+        title = self._render_title_link(context=context, showpath=showpath, url=url, **kw)
+        thumb_content = self._render_thumb_impl(context=context, **kw)
+        action_buttons = self._action_buttons_(context=context) or ""
+
+        if action_buttons:
+            action_buttons = """<tr style="background: transparent"><td style="padding: 0; padding-top: 2px">{}</td></tr>""".format(action_buttons)
+
+        return """
+            <div style="width: 100%">
+            <table style="border: 0px; text-align: left; width: 100%">
+                <tr style="border: 0px; text-align: left">
+                    <td style="padding: 0">
+                        <table style="border: 0px; text-align: left; width: 100%">
+                            <tr>
+                                <td style="border: 0px; text-align: left; width: 3em">{prefix}</td>
+                                <td style="border: 0px; text-align: center; max-width: 99%">{title}</td>
+                            </tr>
+                        </table>
+                    </td>
+                </tr>
+                {action_buttons}
+                <tr style="border: 0px; text-align: left; background: transparent">
+                    <td style="border: 0px; text-align: center; width: 100%;">
+                    <div style="position: relative">
+                        <div>
+                            {thumb_content}
+                        </div>
+                    </div>
+                    </td>
+                </tr>
+            </table>
+            </div>
+            """.format(**locals())
+
+    def _render_title_link(self, showpath=False, url=None, **kw):
+        """Renders the name of the file, with a download link (if downloading should be supported)"""
+        name = self.path if showpath else self.name
+        if self.is_downloadable:
+            url = url or render_url(self.fullpath)
+            return "<a href='{url}' target='_blank'>{name}</a>".format(**locals())
+        else:
+            return "{name}".format(**locals())
+
+    def _render_thumb_impl(self, **kw):
+        return self.summary
+
+    @property
+    def is_downloadable(self):
+        return True
 
     @staticmethod
     def sort_list(filelist, opt="dxnt"):

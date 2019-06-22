@@ -3,27 +3,34 @@ import cgi
 import os.path
 from collections import OrderedDict
 import uuid
+import itertools
 
 from IPython.display import display, HTML, Javascript
 
 import radiopadre
 
-class DisplayableItem(object):
+class RenderingContext(object):
+    def __init__(self):
+        self.div_id = uuid.uuid4().hex
+        self.preamble = OrderedDict()
+        self.postscript = OrderedDict()
+
+    def finalize_html(self, html):
+        return "\n".join(itertools.chain(self.preamble.values(), [html], self.postscript.values()))
+
+_default_rendering_context = RenderingContext()
+
+class RenderableElement(object):
     """
     Abstract base class for an object that can render itself as text or html
     """
-    def render_text(self, *args, **kw):
+    def render_text(self, **kw):
         """Render text version"""
         return NotImplementedError
 
-    def render_html(self, *args, **kw):
+    def render_html(self, context=_default_rendering_context, **kw):
         """Render full HTML version"""
         return NotImplementedError
-
-    def render_thumb(self, *args, **kw):
-        """Render "clickable thumbnail" HTML version"""
-        return self.render_html(self, *args, **kw)
-
 
     def __str__(self):
         return self.render_text()
@@ -35,17 +42,48 @@ class DisplayableItem(object):
         if not cycle:
             p.text(self.render_text())
 
-    def _repr_html_(self, **kw):
+    def _repr_html_(self, context=None, **kw):
         """
         Internal method called by Jupyter to get an HTML rendering of an object.
         """
-        return self.render_html(**kw)
+        context = context or RenderingContext()
+        return context.finalize_html(self.render_html(context=context, **kw))
+
+    def _rendering_proxy(self, method, **kw):
+        return RenderingProxy(self, method, kw.copy())
 
     def show(self, **kw):
-        display(HTML(self.render_html(**kw)))
+        display(HTML(self._repr_html_(**kw)))
 
 
-class RichString(DisplayableItem):
+
+class RenderingProxy(RenderableElement):
+    def __init__(self, elem, method, kwargs={}):
+        self._elem = elem
+        self._method = method
+        self._kw = kwargs
+
+    def __call__(self, **kwargs):
+        kw = self._kw.copy()
+        kw.update(kwargs)
+        return RenderingProxy(self._elem, self._method, kw)
+
+    def render_text(self):
+        return self._elem.render_text()
+
+    def render_html(self, **kwargs):
+        kw = self._kw.copy()
+        kw.update(kwargs)
+        html = getattr(self._elem, self._method)(**kw)
+        if isinstance(html, RenderableElement):
+            return html.render_html(**kw)
+        else:
+            return html
+
+
+
+
+class RichString(RenderableElement):
     """
     A rich_string object contains a plain string and an HTML version of itself, and will render itself
     in a notebook front-end appropriately
@@ -78,10 +116,10 @@ class RichString(DisplayableItem):
     def __repr__(self):
         return self._text
 
-    def render_text(self, *args, **kw):
+    def render_text(self, **kw):
         return self.text
 
-    def render_html(self, *args, **kw):
+    def render_html(self, **kw):
         return self._html
 
     def __call__(self):
@@ -112,9 +150,6 @@ class RichString(DisplayableItem):
             self._text = other + self._text
             self._html = other + self._html
         return self
-
-    def show(self):
-        display(HTML(self.html))
 
 
 def htmlize(text):
@@ -179,16 +214,15 @@ def render_table(data, labels=None, html=set(), ncol=1, links=None,
                  header=True, numbering=True,
                  styles={},
                  actions=None,
-                 preamble=OrderedDict(), postscript=OrderedDict(), div_id=None
+                 context=None
                  ):
     if not data:
         return "no content"
     if labels is None:
         labels = ["col{}".format(i) for i in range(len(data[0]))]
         header = False
-    txt = "<div id='{}'>".format(div_id) if div_id else "<div>"
-    for code in preamble.itervalues():
-        txt += code+"\n"
+    txt = "<div id='{}'>".format(context.div_id) if context else "<div>"
+
     txt += """<table style="border: 1px; text-align: left; {}">""".format(styles.get("TABLE",""))
     if header:
         txt += """<tr style="border: 0px; border-bottom: 1px double; text-align: center">"""
@@ -250,10 +284,9 @@ def render_table(data, labels=None, html=set(), ncol=1, links=None,
                     txt += """</td>"""
         txt += """</tr>\n"""
     txt += "</table>"
-    for code in postscript.itervalues():
-        txt += code+"\n"
     txt += "</div>"
-    return txt
+
+    return context.finalize_html(txt) if context else txt
 
 class TransientMessage(object):
     """

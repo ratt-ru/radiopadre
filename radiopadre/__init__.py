@@ -13,6 +13,7 @@ from radiopadre_utils.notebook_utils import scrub_cell
 
 from radiopadre import settings_manager
 from radiopadre.render import render_error, show_exception, TransientMessage
+from radiopadre.table import tabulate
 
 _startup_warnings = []
 

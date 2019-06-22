@@ -20,11 +20,10 @@ class FileList(FileBase, list):
                             ["{}: {}".format(i, d.path) for i, d in enumerate(filelist)]))
 
     def __init__(self, content=None, path="", extcol=False, showpath=False,
-                 classobj=None, title=None, parent=None,
+                 title=None, parent=None,
                  sort="xnt"):
         self._extcol = extcol
         self._showpath = showpath
-        self._classobj = classobj
         self._parent = parent
         self._sort = sort or ""
         self.nfiles = self.ndirs = 0
@@ -35,18 +34,13 @@ class FileList(FileBase, list):
 
         if content is not None:
             self._set_list(content, sort)
-            # if all content is of same type, set the classobj
-            if len(content):
-                type0 = type(content[0])
-                if issubclass(type0, FileBase) and not self._classobj and len(set([type(x) for x in content])) == 1:
-                    self._classobj = classobj = type0
 
-        # For every _show_xxx() method defined in the class object,
-        # create a corresponding self.xxx() method that maps to it
-        for method in dir(classobj):
-            if method.startswith("_show_"):
-                func = getattr(classobj, method)
-                setattr(self, method[6:], lambda func=func,**kw:self._call_collective_method(func, **kw))
+        # # For every _show_xxx() method defined in the class object,
+        # # create a corresponding self.xxx() method that maps to it
+        # for method in dir(classobj):
+        #     if method.startswith("_show_"):
+        #         func = getattr(classobj, method)
+        #         setattr(self, method[6:], lambda func=func,**kw:self._call_collective_method(func, **kw))
 
     def _set_list(self, content, sort=None):
         if sort:
@@ -68,16 +62,17 @@ class FileList(FileBase, list):
         self.description = desc
         self.size = desc
 
-    def _call_collective_method(self, method, **kw):
-        # display(HTML(render_refresh_button(full=self._parent and self._parent.is_updated())))
-        if not self:
-            display(HTML("<p>0 files</p>"))
+    def _get_collective_method(self, method):
+        """If all contents belong to the same class, and that class has the given method defined, return it.
+        Else return None."""
+        # are we a single-class list?
+        object_classes = set([type(x) for x in self])
+        if len(object_classes) != 1:
             return None
-        kw.setdefault('title', self.title + ": %d file%s" % (len(self), "s" if len(self) > 1 else ""))
-        kw.setdefault('showpath', self._showpath)
-        method(self, **kw)
+        return getattr(object_classes.pop(), method, None)
 
-    def render_html(self, ncol=None, **kw):
+
+    def render_html(self, ncol=None, context=None, **kw):
         self._load()
         html = render_preamble() + self._header_html()
                # + render_refresh_button(full=self._parent and self._parent.is_updated())
@@ -88,12 +83,14 @@ class FileList(FileBase, list):
         primary_sort = sort and sort[0]
 
         # if class object has a summary function, use that
-        html_summary = getattr(self._classobj, "_html_summary", None)
+        html_summary = self._get_collective_method('_html_summary')
+
         if html_summary:
-            return html + html_summary(self, primary_sort=primary_sort, sort_arrow=arrow)
-        # else fall back to normal filelist
+            return html + html_summary(self, context=context, primary_sort=primary_sort, sort_arrow=arrow)
         if not self:
             return html
+
+        # else fall back to normal filelist
         # auto-set 1 or 2 columns based on filename length
         if ncol is None:
             max_ = max([len(df.basename) for df in self])
@@ -123,17 +120,18 @@ class FileList(FileBase, list):
                      df.size, df.mtime_str) for df in self]
             links = [(link(df), None, None) for df in self]
         # get "action buttons" associated with each file
-        preamble = OrderedDict()
-        postscript = OrderedDict()
-        div_id = uuid.uuid4().hex
-        actions = [ df._action_buttons_(preamble=preamble, postscript=postscript, div_id=div_id) for df in self ]
+        actions = [ df._action_buttons_(context) for df in self ]
         html += render_table(data, labels, links=links, ncol=ncol, actions=actions,
-                             preamble=preamble, postscript=postscript, div_id=div_id)
+                             context=context)
         return html
 
     def render_text(self):
         self._load()
         return FileList.list_to_string(self)
+
+    @property
+    def is_downloadable(self):
+        return False
 
     def _scan_impl(self):
         FileBase._scan_impl(self)
@@ -143,6 +141,26 @@ class FileList(FileBase, list):
     # def watch(self,*args,**kw):
     #     display(HTML(render_refresh_button()))
     #     self.show_all(*args,**kw)
+
+    def render_thumbnail_catalog(self, ncol=None, mincol=None, maxcol=None, npix=None, context=None, **kw):
+        self._load()
+        with self.transient_message("Rendering thumbnails, please wait..."):
+            thumbs = [item.thumb(npix=npix, prefix=num) for num, item in enumerate(self)]
+
+            html = render_preamble() + self._header_html()
+
+            action_buttons = self._get_collective_method('_collective_action_buttons_')
+            if action_buttons:
+                html += action_buttons(self, context=context)
+
+            html += radiopadre.tabulate(thumbs, ncol=ncol,
+                                mincol=mincol or settings.thumb.mincol, maxcol=maxcol or settings.thumb.maxcol,
+                                zebra=False, align="center").render_html(context=context, **kw)
+        return html
+
+    @property
+    def thumbs(self):
+        return self._rendering_proxy('render_thumbnail_catalog')
 
     def show_all(self, *args, **kw):
         # display(HTML(render_refresh_button(full=self._parent and self._parent.is_updated())))
@@ -179,7 +197,6 @@ class FileList(FileBase, list):
 
         return FileList(files if accepted_patterns else list(self),
                         path=self.fullpath, extcol=self._extcol, showpath=self._showpath, sort=sort or self._sort,
-                        classobj=self._classobj,
                         title=title, parent=self._parent)
 
     # def thumbs(self, max=100, **kw):
@@ -206,7 +223,6 @@ class FileList(FileBase, list):
             return FileList(list.__getitem__(self, item),
                             path=self.fullpath, extcol=self._extcol, showpath=self._showpath,
                             sort=self._sort,
-                            classobj=self._classobj,
                             title=title, parent=self._parent)
         elif type(item) is str:
             newlist = self.__call__(item)
@@ -225,13 +241,22 @@ class FileList(FileBase, list):
     def __getslice__(self, start, stop):
         return self.__getitem__(slice(start, stop))
 
+    def __iadd__(self, other):
+        return self + other
+
+    def __add__(self, other):
+        if not isinstance(other, FileList):
+            raise TypeError("can't add object of type {} to {}".format(type(other), type(self)))
+        self._load()
+        other._load()
+        return FileList(content=list.__add__(self, other), path=self.path, sort=self._sort)
+
     def sort(self, opt="dxnt"):
         self._load()
         title = "{}, [sort: {}]".format(self._title, opt)
         return FileList(FileBase.sort_list(self, opt),
                         path=self.fullpath, extcol=self._extcol, showpath=self._showpath,
                         sort=opt,
-                        classobj=self._classobj,
                         title=title, parent=self._parent)
 
     def _typed_subset(self, filetype, title):
@@ -239,7 +264,7 @@ class FileList(FileBase, list):
             title = self.title + " [{}]".format(title)
         else:
             title = " [{}]".format(title)
-        return FileList([f for f in self if type(f) is filetype], path=self.fullpath, classobj=filetype, title=title,
+        return FileList([f for f in self if type(f) is filetype], path=self.fullpath, title=title,
                         parent=self, sort="")
 
     @property

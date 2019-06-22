@@ -7,7 +7,7 @@ from IPython.display import HTML, display
 from radiopadre.file import ItemBase, FileBase
 from radiopadre.render import render_title, render_url, render_preamble, rich_string
 from radiopadre import settings
-
+from radiopadre import tabulate
 
 class NumberedLineList(ItemBase):
     def __init__ (self, enumerated_lines=[], title=None):
@@ -110,7 +110,7 @@ class NumberedLineList(ItemBase):
                 txt += "{}: {}\n".format(line_num + 1, line.strip())
         return txt
 
-    def render_html(self, head=None, tail=None, full=None, grep=None, fs=None, slicer=None, subtitle=None):
+    def render_html(self, head=None, tail=None, full=None, grep=None, fs=None, slicer=None, subtitle=None, **kw):
         self.rescan(load=False)
         txt = render_preamble()
         fs = settings.text.get(fs=fs)
@@ -160,12 +160,6 @@ class NumberedLineList(ItemBase):
         txt += "\n</DIV>\n"
         return txt
 
-    def _render(self, head=0, tail=0, full=None, grep=None, fs=None, slicer=None, title=None):
-        self.rescan(load=True)
-        head, tail = self._get_lines(head, tail, full, grep, slicer)
-        return rich_string(self.render_text(head, tail, title=title),
-                           self.render_html(head, tail, fs=fs, title=title))
-
     def grep(self, regex, fs=None):
         self.show(grep=regex, fs=fs, subtitle=" (grep: {})".format(regex))
 
@@ -177,6 +171,25 @@ class NumberedLineList(ItemBase):
 
     def full(self, fs=None):
         self.show(full=True, fs=fs)
+
+    def extract(self, regexp, groups=slice(None)):
+        regexp = re.compile(regexp)
+        if type(groups) is int:
+            groups = slice(groups, groups+1)
+        elif type(groups) not in (list, tuple, slice):
+            raise TypeError("invalid groups argument of type {}".format(type(groups)))
+        rows = []
+        for _, line in self.lines:
+            match = regexp.match(line)
+            if not match:
+                continue
+            grps = match.groups()
+            if type(groups) is slice:
+                rows.append(list(grps[groups]))
+            else:
+                rows.append([grps[i] for i in groups])
+        return tabulate(rows, tw=1)
+
 
     def __getitem__(self, item):
         self.rescan(load=True)

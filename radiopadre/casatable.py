@@ -132,6 +132,9 @@ class CasaTable(radiopadre.file.FileBase):
     def table(self):
         return self.lock_table(False)
 
+    @property
+    def is_downloadable(self):
+        return False
 
     def _scan_impl(self):
         radiopadre.file.FileBase._scan_impl(self)
@@ -202,7 +205,6 @@ class CasaTable(radiopadre.file.FileBase):
 
     def copycol(self, fromcol, tocol):
         with self.wtable as tab:
-            print "locked",tab.haslock()
             if tocol not in tab.colnames():
                 self.addcol(tocol, likecol=fromcol)
             msg = TransientMessage("Copying column {} to {}".format(fromcol, tocol))
