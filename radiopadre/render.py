@@ -8,7 +8,44 @@ from IPython.display import display, HTML, Javascript
 
 import radiopadre
 
-class RichString(object):
+class DisplayableItem(object):
+    """
+    Abstract base class for an object that can render itself as text or html
+    """
+    def render_text(self, *args, **kw):
+        """Render text version"""
+        return NotImplementedError
+
+    def render_html(self, *args, **kw):
+        """Render full HTML version"""
+        return NotImplementedError
+
+    def render_thumb(self, *args, **kw):
+        """Render "clickable thumbnail" HTML version"""
+        return self.render_html(self, *args, **kw)
+
+
+    def __str__(self):
+        return self.render_text()
+
+    def _repr_pretty_(self, p, cycle):
+        """
+        Implementation for the pretty-print method. Default uses render_text().
+        """
+        if not cycle:
+            p.text(self.render_text())
+
+    def _repr_html_(self, **kw):
+        """
+        Internal method called by Jupyter to get an HTML rendering of an object.
+        """
+        return self.render_html(**kw)
+
+    def show(self, **kw):
+        display(HTML(self.render_html(**kw)))
+
+
+class RichString(DisplayableItem):
     """
     A rich_string object contains a plain string and an HTML version of itself, and will render itself
     in a notebook front-end appropriately
@@ -38,13 +75,13 @@ class RichString(object):
     def __bool__(self):
         return bool(self.text)
 
-    def __str__ (self):
-        return self._text
-
     def __repr__(self):
         return self._text
 
-    def _repr_html_(self):
+    def render_text(self, *args, **kw):
+        return self.text
+
+    def render_html(self, *args, **kw):
         return self._html
 
     def __call__(self):

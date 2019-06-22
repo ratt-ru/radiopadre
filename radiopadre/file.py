@@ -6,14 +6,13 @@ from IPython.display import display, HTML
 
 import radiopadre
 from radiopadre import settings
-from radiopadre.render import render_refresh_button, rich_string, render_url, TransientMessage
+from radiopadre.render import DisplayableItem, render_refresh_button, rich_string, render_url, TransientMessage
 from collections import OrderedDict
 from radiopadre import casacore_tables
 
 
-class ItemBase(object):
+class ItemBase(DisplayableItem):
     """Base class referring to an abstract displayable data item.
-
 
     Properties:
         summary:        short summary of item content
@@ -102,15 +101,15 @@ class ItemBase(object):
         if not cycle:
             p.text(self.render_text())
 
-    def _repr_html_(self):
+    def _repr_html_(self, **kw):
         """
         Internal method called by Jupyter to get an HTML rendering of an object.
-        Our version makes use of subclass methods, which are mean to implement this behaviour:
+        Our version makes use of subclass methods, which are meant to implement this behaviour:
         _load() to load content, then _render_html() to render it
         """
         self.rescan()
         self.clear_message()
-        return self.render_html()
+        return self.render_html(**kw)
 
     def show(self, *args, **kw):
         """

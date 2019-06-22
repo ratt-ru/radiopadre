@@ -51,10 +51,43 @@ class ImageFile(radiopadre.file.FileBase):
 
     @property
     def thumb(self):
-        return ImageFile._render_thumbs([self])
+        return HTML(self.render_thumb())
 
     def render_html(self, *args, **kw):
-        return self.thumb
+        return self.render_thumb(*args, **kw)
+
+    @staticmethod
+    def render_thumbnail(name, imagepath, original_url=None, action_buttons=None, width=None, npix=None, mtime=0):
+        html  = """<table style="border: 0px; text-align: left">\n"""
+        html += """<tr style="border: 0px; text-align: left">\n"""
+        url = render_url(imagepath)
+        html += """<td style="border: 0px; text-align: center"><a href='{}' target='_blank'>{}</a></tr>""".\
+            format(original_url or url, name)
+        html += """</tr><tr style="border: 0px; text-align: left">\n"""
+
+        npix_thumb = int(settings.plot.screen_dpi * (width or settings.plot.width / settings.thumb.maxcol))
+        npix = npix or npix_thumb
+
+        thumb_realfile, thumb = _make_thumbnail(imagepath, npix_thumb)
+
+        html += """<td style="border: 0px; text-align: left"><div style="position: relative"><div>"""
+        if thumb:
+            html += "<a href='{}?mtime={}' target='_blank'><img src='{}' width={} alt='?'></a>".format(
+                url, mtime, render_url(thumb), npix)
+        else:
+            html += "<a href='{}?mtime={}' target='_blank'><img src='{}?mtime={}' width={} alt='?'></a>".format(
+                url, mtime, url, mtime, npix)
+        if action_buttons:
+            html += """<div style="position: absolute; top: 0; left: 0">{}</div>""".format(action_buttons)
+        html += "</td></tr>\n"
+        html += "</table>"
+
+        return html
+
+    def render_thumb(self, showpath=False, npix=None, width=None, action_buttons=None, *args, **kw):
+        name = self.fullpath if showpath else self.basename
+        return ImageFile.render_thumbnail(name, self.fullpath, render_url(self.fullpath),
+                                                npix=npix, width=width, action_buttons=action_buttons)
 
     def show(self, width=None, **kw):
         display(Image(self.fullpath, width=width and width * 100))
