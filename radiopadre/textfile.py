@@ -149,7 +149,8 @@ class NumberedLineList(ItemBase):
                     </DIV>
                 </DIV>\n""".format(**locals())
 
-        txt += """<DIV style="display: table; width: 100%; font-size: {fs}em; line-height: 1.2em">""".format(**locals())
+        lh = fs*1.2
+        txt += """<DIV style="display: table; width: 100%; font-size: {fs}em; line-height: {fs}em">""".format(**locals())
         firstlast = self._lines[0][0], self._lines[-1][0]
         for line_num, line in head:
             txt += render_line(line_num, cgi.escape(line), firstlast, fs=fs)
@@ -159,6 +160,48 @@ class NumberedLineList(ItemBase):
                 txt += render_line(line_num, cgi.escape(line), firstlast, fs=fs)
         txt += "\n</DIV>\n"
         return txt
+
+    def _render_thumb_impl(self, fs=0.5, head=None, tail=None, **kw):
+        self.rescan(load=True)
+        head = settings.text.get(head=head)
+        tail = settings.text.get(tail=tail)
+        head, tail = self._get_lines(head, tail)
+        lh = fs*1.2
+        # html = """<DIV style="display: table; width: 100%; font-size: {fs}em; line-height: {lh}em">""".format(**locals())
+        #
+        # def render_line(line):
+        #     # background = "#f2f2f2" if line_num != "..." else "none"
+        #     line = unicode(line, "utf-8").encode("ascii", "xmlcharrefreplace")
+        #     return """
+        #         <DIV style="display: table-row; height=1em">
+        #             <DIV style="display: table-cell; height=1em; text-align: left"><PRE>{line}</PRE>
+        #             </DIV>
+        #         </DIV>\n""".format(**locals())
+        #
+        # for line_num, line in head:
+        #     html += render_line(cgi.escape(line))
+        # if tail:
+        #     html += render_line("...")
+        #     for line_num, line in tail:
+        #         html += render_line(cgi.escape(line))
+        # html += "\n</DIV>\n"
+        # return html
+
+        text = "".join([h[1] for h in head])
+        if tail:
+            text += "...\n"
+            text += "".join([t[1] for t in tail])
+        text = unicode(cgi.escape(text), "utf-8").encode("ascii", "xmlcharrefreplace")
+
+        text = """
+                <DIV style="display: table-cell; font-size: {fs}em; text-align: left; 
+                        overflow: auto; text-decoration: none !important">
+                    <PRE style="white-space: pre-wrap; overflow: auto; width=100%">{text}</PRE>
+                </DIV>
+            """.format(**locals())
+        url = render_url(self.fullpath)
+
+        return """<A HREF='{url}' target='_blank' style="text-decoration: none">{text}</A>""".format(**locals())
 
     def grep(self, regex, fs=None):
         self.show(grep=regex, fs=fs, subtitle=" (grep: {})".format(regex))

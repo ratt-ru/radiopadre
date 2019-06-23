@@ -142,10 +142,10 @@ class FileList(FileBase, list):
     #     display(HTML(render_refresh_button()))
     #     self.show_all(*args,**kw)
 
-    def render_thumbnail_catalog(self, ncol=None, mincol=None, maxcol=None, npix=None, context=None, **kw):
+    def render_thumbnail_catalog(self, ncol=None, mincol=None, maxcol=None, context=None, **kw):
         self._load()
         with self.transient_message("Rendering thumbnails, please wait..."):
-            thumbs = [item.thumb(npix=npix, prefix=num) for num, item in enumerate(self)]
+            thumbs = [item.thumb(prefix=num, **kw) for num, item in enumerate(self)]
 
             html = render_preamble() + self._header_html()
 

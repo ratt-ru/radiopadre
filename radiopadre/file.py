@@ -2,6 +2,7 @@ import os
 import time
 import math
 import contextlib
+import hashlib
 
 from IPython.display import display, HTML
 
@@ -180,6 +181,60 @@ class ItemBase(RenderableElement):
         finally:
             self.clear_message()
 
+    def render_thumb(self, context=None, prefix="", **kw):
+        """
+        Renders a "thumbnail view" of the file, using _render_thumb_impl() for the content
+        """
+        title = self._render_title_link(context=context, **kw)
+        thumb_content = self._render_thumb_impl(context=context, **kw)
+        action_buttons = self._action_buttons_(context=context) or ""
+
+        if action_buttons:
+            action_buttons = """<tr style="background: transparent"><td style="padding: 0; padding-top: 2px">{}</td></tr>""".format(action_buttons)
+
+        return """
+            <div style="width: 100%">
+            <table style="border: 0px; text-align: left; width: 100%">
+                <tr style="border: 0px; text-align: left">
+                    <td style="padding: 0">
+                        <table style="border: 0px; text-align: left; width: 100%">
+                            <tr>
+                                <td style="border: 0px; text-align: left; width: 3em">{prefix}</td>
+                                <td style="border: 0px; text-align: center; max-width: 99%">{title}</td>
+                            </tr>
+                        </table>
+                    </td>
+                </tr>
+                {action_buttons}
+                <tr style="border: 0px; text-align: left; background: transparent">
+                    <td style="border: 0px; text-align: center; width: 100%; padding-right: 0; padding-left: 0">
+                    <div style="position: relative">
+                        <div>
+                            {thumb_content}
+                        </div>
+                    </div>
+                    </td>
+                </tr>
+            </table>
+            </div>
+            """.format(**locals())
+
+    def _render_title_link(self, **kw):
+        """Renders the name of the item and/or link"""
+        return self.title
+
+    def _render_thumb_impl(self, **kw):
+        return self.summary
+
+    def _action_buttons_(self, context):
+        """
+        Returns HTML code associated with available actions for this file. Can be None.
+
+        :param context: a RenderingContext object
+        :return: HTML code for action buttons, or None
+        """
+        return None
+
 
 
 class FileBase(ItemBase):
@@ -254,6 +309,8 @@ class FileBase(ItemBase):
         self.basepath, self.ext = os.path.splitext(self.path)
         self.basename = os.path.basename(self.basepath)
 
+        self._subproduct_cache = {}
+
         # directory key set up for sorting purposes
         # directories sort themselves before files
         isdir = int(os.path.isdir(self.fullpath))
@@ -264,6 +321,7 @@ class FileBase(ItemBase):
         self._loaded_mtime = None
         if load:
             self._load()
+
 
     def _load(self):
         """Helper method, calls _load_impl() if not already done"""
@@ -319,54 +377,6 @@ class FileBase(ItemBase):
         """
         pass
 
-    def _action_buttons_(self, context):
-        """
-        Returns HTML code associated with available actions for this file. Can be None.
-
-        :param context: a RenderingContext object
-        :return: HTML code for action buttons, or None
-        """
-        return None
-
-
-    def render_thumb(self, showpath=False, url=None, context=None, prefix="", **kw):
-        """
-        Renders a "thumbnail view" of the file, using _render_thumb_impl() for the content
-        """
-        title = self._render_title_link(context=context, showpath=showpath, url=url, **kw)
-        thumb_content = self._render_thumb_impl(context=context, **kw)
-        action_buttons = self._action_buttons_(context=context) or ""
-
-        if action_buttons:
-            action_buttons = """<tr style="background: transparent"><td style="padding: 0; padding-top: 2px">{}</td></tr>""".format(action_buttons)
-
-        return """
-            <div style="width: 100%">
-            <table style="border: 0px; text-align: left; width: 100%">
-                <tr style="border: 0px; text-align: left">
-                    <td style="padding: 0">
-                        <table style="border: 0px; text-align: left; width: 100%">
-                            <tr>
-                                <td style="border: 0px; text-align: left; width: 3em">{prefix}</td>
-                                <td style="border: 0px; text-align: center; max-width: 99%">{title}</td>
-                            </tr>
-                        </table>
-                    </td>
-                </tr>
-                {action_buttons}
-                <tr style="border: 0px; text-align: left; background: transparent">
-                    <td style="border: 0px; text-align: center; width: 100%;">
-                    <div style="position: relative">
-                        <div>
-                            {thumb_content}
-                        </div>
-                    </div>
-                    </td>
-                </tr>
-            </table>
-            </div>
-            """.format(**locals())
-
     def _render_title_link(self, showpath=False, url=None, **kw):
         """Renders the name of the file, with a download link (if downloading should be supported)"""
         name = self.path if showpath else self.name
@@ -375,9 +385,6 @@ class FileBase(ItemBase):
             return "<a href='{url}' target='_blank'>{name}</a>".format(**locals())
         else:
             return "{name}".format(**locals())
-
-    def _render_thumb_impl(self, **kw):
-        return self.summary
 
     @property
     def is_downloadable(self):
@@ -414,6 +421,45 @@ class FileBase(ItemBase):
 
     _sort_attributes = dict(d="_dirkey", x="ext", n="basepath", s="_byte_size", t="mtime")
 
+    def _get_cache_file(self, cache_subdir, ext="png", keydict={}, **kw):
+        """
+        Helper method. Returns filename, URL and update status of a cache file corresponding to this fileitem, plus
+        optional keys.
+
+        Update status is True if fileitem is newer and/or keys have changed and/or PNG file does not exist.
+        Update status is False if PNG file can be reused.
+
+        """
+        # init paths, if not already done so
+        if cache_subdir not in self._subproduct_cache:
+            self._subproduct_cache[cache_subdir] = path, url = radiopadre.get_cache_dir(self.fullpath, cache_subdir)
+        else:
+            path, url = self._subproduct_cache[cache_subdir]
+
+        # make name from components
+        filename = ".".join([self.basename] + ["{}-{}".format(*item) for item in keydict.items()] + [ext])
+
+        filepath = "{}/{}".format(path, filename)
+        update = not os.path.exists(filepath) or self.mtime > os.path.getmtime(filepath)
+
+        # check hashes
+        if not update:
+            checksum = hashlib.md5()
+            for key, value in kw.items():
+                checksum.update(str(key))
+                checksum.update(str(value))
+            digest = checksum.digest()
+            # check hash file
+            hashfile = filepath + ".md5"
+            if not os.path.exists(hashfile) or open(hashfile).read() != digest:
+                update = True
+                open(hashfile, 'w').write(digest)
+
+        return filepath, "{}/{}".format(url, filename), update
+
+
+
+
 
 def autodetect_file_type(path):
     """
@@ -425,6 +471,7 @@ def autodetect_file_type(path):
     from .datadir import DataDir
     from .casatable import CasaTable
     from .htmlfile import HTMLFile
+    from .pdffile import PDFFile
 
     if not os.path.exists(path):
         return None
@@ -439,6 +486,8 @@ def autodetect_file_type(path):
         return FITSFile
     elif ext in [".html" ]:
         return HTMLFile
+    elif ext in [".pdf"]:
+        return PDFFile
     elif ext in [".png", ".jpg", ".jpeg"]:
         return ImageFile
     elif ext in [".txt", ".log", ".py", ".sh"]:

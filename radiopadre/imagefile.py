@@ -2,6 +2,7 @@ from __future__ import division
 
 import os
 import traceback
+import hashlib
 import PIL.Image
 from IPython.display import HTML, Image, display
 
@@ -38,7 +39,6 @@ def _make_thumbnail(image, width):
 
     return thumb, thumb_url
 
-
 class ImageFile(radiopadre.file.FileBase):
 
     # @staticmethod
@@ -68,7 +68,6 @@ class ImageFile(radiopadre.file.FileBase):
 
     def _render_thumb_impl(self, npix=None, **kw):
         return ImageFile._render_thumbnail(self.fullpath, npix=npix)
-
 
     def render_html(self, **kw):
         return self.render_thumb(**kw)

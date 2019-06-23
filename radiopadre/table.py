@@ -51,7 +51,7 @@ class Table(RenderableElement):
     def render_text(self, **kw):
         cells = {(irow,icol): self._get_cell_text(irow, icol) for irow in range(self._nrow) for icol in range(self._ncol)}
 
-        colwidth = [max([len(cells[irow,icol]) for irow in range(self._nrow)]) for icol in range(self._ncol)]
+        colwidth = [max(max([len(cells[irow,icol]) for irow in range(self._nrow)]), 1) for icol in range(self._ncol)]
 
         text = ""
 

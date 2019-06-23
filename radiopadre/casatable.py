@@ -364,145 +364,144 @@ class CasaTable(radiopadre.file.FileBase):
             desc = ""
         return slicer, desc, colformat
 
-    def render_html(self, firstrow=0, nrows=100, native=False, allcols=False, _=None, **columns):
-        msg = TransientMessage("Rendering {}, please wait...".format(self.fullpath), timeout=0)
+    def render_html(self, firstrow=0, nrows=100, native=False, allcols=False, _=None, context=None, **columns):
+        with self.transient_message("Rendering {}, please wait...".format(self.fullpath)):
+            html = self._header_html() + "\n\n"
+            #       render_refresh_button(full=self._parent and self._parent.is_updated())
+            with self.table as tab:
+                if isinstance(tab, Exception):
+                    return html + rich_string("Error accessing table {}: {}".format(self.basename, tab))
+                # if first row is not specified, and columns not specified, fall back on casacore's own HTML renderer
+                if native:
+                    return html + tab._repr_html_()
 
-        html = self._header_html() + "\n\n"
-        #       render_refresh_button(full=self._parent and self._parent.is_updated())
-        with self.table as tab:
-            if isinstance(tab, Exception):
-                return html + rich_string("Error accessing table {}: {}".format(self.basename, tab))
-            # if first row is not specified, and columns not specified, fall back on casacore's own HTML renderer
-            if native:
-                return html + tab._repr_html_()
+                # empty? return
+                if not self.nrows:
+                    return html
 
-            # empty? return
-            if not self.nrows:
-                return html
+                firstrow = firstrow or 0
 
-            firstrow = firstrow or 0
-
-            # get subset of columns to use, and slicer objects
-            column_slicers = {}
-            column_formats = {}
-            default_slicer = default_slicer_desc = None
-            # _ keyword sets up default column slicer
-            if _ is not None:
-                default_slicer, default_slicer_desc, _ = self._parse_column_argument(_, "default")
-            # any other optional keywords put us into column selection mode
-            column_selection = []
-            skip_columns = set()
-            have_explicit_columns = False
-            # build up column selection from arguments
-            if columns:
-                for col, slicer in columns.items():
-                    if slicer is None:
-                        skip_columns.add(col)
-                    else:
-                        have_explicit_columns = True
-                        if col in self.columns:
-                            slicer, desc, colformat = self._parse_column_argument(slicer, "column {}".format(col))
-                            column_formats[col] = colformat
-                            column_slicers[col] = slicer, desc
-                            column_selection.append(col)
+                # get subset of columns to use, and slicer objects
+                column_slicers = {}
+                column_formats = {}
+                default_slicer = default_slicer_desc = None
+                # _ keyword sets up default column slicer
+                if _ is not None:
+                    default_slicer, default_slicer_desc, _ = self._parse_column_argument(_, "default")
+                # any other optional keywords put us into column selection mode
+                column_selection = []
+                skip_columns = set()
+                have_explicit_columns = False
+                # build up column selection from arguments
+                if columns:
+                    for col, slicer in columns.items():
+                        if slicer is None:
+                            skip_columns.add(col)
                         else:
-                            html += render_error("No such column: {}".format(col))
+                            have_explicit_columns = True
+                            if col in self.columns:
+                                slicer, desc, colformat = self._parse_column_argument(slicer, "column {}".format(col))
+                                column_formats[col] = colformat
+                                column_slicers[col] = slicer, desc
+                                column_selection.append(col)
+                            else:
+                                html += render_error("No such column: {}".format(col))
 
-            # if no columns at all were selected,
-            if allcols or not have_explicit_columns:
-                column_selection = [col for col in self.columns if col not in skip_columns]
+                # if no columns at all were selected,
+                if allcols or not have_explicit_columns:
+                    column_selection = [col for col in self.columns if col not in skip_columns]
 
-            # else use ours
-            if firstrow > self.nrows-1:
-                return html + render_error("Starting row {} out of range".format(firstrow))
-            nrows = min(self.nrows-firstrow, nrows)
-            labels = ["row"] + list(column_selection)
-            colvalues = {}
-            styles = {}
-            for icol, colname in enumerate(column_selection):
-                style = None
-                shape_suffix = ""
-                formatter = error = colval = None
-                column_has_shape = False
+                # else use ours
+                if firstrow > self.nrows-1:
+                    return html + render_error("Starting row {} out of range".format(firstrow))
+                nrows = min(self.nrows-firstrow, nrows)
+                labels = ["row"] + list(column_selection)
+                colvalues = {}
+                styles = {}
+                for icol, colname in enumerate(column_selection):
+                    style = None
+                    shape_suffix = ""
+                    formatter = error = colval = None
+                    column_has_shape = False
 
-                # figure out formatting of measures/quanta columns
-                colkw = tab.getcolkeywords(colname)
-                units = colkw.get("QuantumUnits", [])
-                measinfo = colkw.get('MEASINFO', {})
-                meastype = measinfo.get('type')
+                    # figure out formatting of measures/quanta columns
+                    colkw = tab.getcolkeywords(colname)
+                    units = colkw.get("QuantumUnits", [])
+                    measinfo = colkw.get('MEASINFO', {})
+                    meastype = measinfo.get('type')
 
-                if units:
-                    same_units = all([u==units[0] for u in units[1:]])
-                    if same_units:
-                        units = units[0]
-                    formatter = lambda value:self._render_quantity(value, units=units, format=column_formats.get(colname))
-                    if same_units and meastype != 'direction':
-                        labels[icol+1] += ", {}".format(units)
-                # getcol() is prone to "RuntimeError: ...  no array in row N", so explicitly ignore that and render empty column
-                try:
-                    colvalues[icol] = colval = tab.getcol(colname, firstrow, nrows)
-                except RuntimeError:
-                    colvalues[icol] = [""]*nrows
-                    continue
-                except Exception as exc:
-                    error = exc
-
-                if not error:
+                    if units:
+                        same_units = all([u==units[0] for u in units[1:]])
+                        if same_units:
+                            units = units[0]
+                        formatter = lambda value:self._render_quantity(value, units=units, format=column_formats.get(colname))
+                        if same_units and meastype != 'direction':
+                            labels[icol+1] += ", {}".format(units)
+                    # getcol() is prone to "RuntimeError: ...  no array in row N", so explicitly ignore that and render empty column
                     try:
                         colvalues[icol] = colval = tab.getcol(colname, firstrow, nrows)
-                        # work around variable-shaped string columns
-                        if type(colval) is dict:
-                            if 'array' not in colval or 'shape' not in colval:
-                                raise TypeError("unknown column shape")
-                            colvalues[icol] = colval = np.array(colval['array'], dtype=object).reshape(colval['shape'])
-                        column_has_shape = type(colval) is np.ndarray and colval.ndim > 1
-                        if column_has_shape:
-                            shape_suffix = " ({})".format("x".join(map(str, colval.shape[1:])))
+                    except RuntimeError:
+                        colvalues[icol] = [""]*nrows
+                        continue
                     except Exception as exc:
                         error = exc
 
-                # render the value
-                if not error:
-                    # apply slicer, if specified for this column. Render error if incorrect
-                    if colname in column_slicers:
-                        slicer, desc = column_slicers[colname]
-                        slicer = [slice(None)] + slicer
+                    if not error:
                         try:
-                            colvalues[icol] = colvalues[icol][tuple(slicer)]
-                        except IndexError as exc:
+                            colvalues[icol] = colval = tab.getcol(colname, firstrow, nrows)
+                            # work around variable-shaped string columns
+                            if type(colval) is dict:
+                                if 'array' not in colval or 'shape' not in colval:
+                                    raise TypeError("unknown column shape")
+                                colvalues[icol] = colval = np.array(colval['array'], dtype=object).reshape(colval['shape'])
+                            column_has_shape = type(colval) is np.ndarray and colval.ndim > 1
+                            if column_has_shape:
+                                shape_suffix = " ({})".format("x".join(map(str, colval.shape[1:])))
+                        except Exception as exc:
                             error = exc
-                        if desc:
-                            shape_suffix += " " + desc
-                    # else try to apply default slicer, if applicable. Retain column on error
-                    elif default_slicer and column_has_shape and colval.ndim > len(default_slicer):
-                        slicer = [Ellipsis] + default_slicer
+
+                    # render the value
+                    if not error:
+                        # apply slicer, if specified for this column. Render error if incorrect
+                        if colname in column_slicers:
+                            slicer, desc = column_slicers[colname]
+                            slicer = [slice(None)] + slicer
+                            try:
+                                colvalues[icol] = colvalues[icol][tuple(slicer)]
+                            except IndexError as exc:
+                                error = exc
+                            if desc:
+                                shape_suffix += " " + desc
+                        # else try to apply default slicer, if applicable. Retain column on error
+                        elif default_slicer and column_has_shape and colval.ndim > len(default_slicer):
+                            slicer = [Ellipsis] + default_slicer
+                            try:
+                                colvalues[icol] = colvalues[icol][tuple(slicer)]
+                                if default_slicer_desc:
+                                    shape_suffix += " " + default_slicer_desc
+                            except IndexError:
+                                pass
+
+                    if formatter and not error:
                         try:
-                            colvalues[icol] = colvalues[icol][tuple(slicer)]
-                            if default_slicer_desc:
-                                shape_suffix += " " + default_slicer_desc
-                        except IndexError:
-                            pass
+                            colvalues[icol] = map(formatter, colvalues[icol])
+                        except Exception as exc:
+                            error = exc
 
-                if formatter and not error:
-                    try:
-                        colvalues[icol] = map(formatter, colvalues[icol])
-                    except Exception as exc:
-                        error = exc
+                    labels[icol+1] += shape_suffix
 
-                labels[icol+1] += shape_suffix
+                    # on any error, fill column with "(error)"
+                    if error:
+                        colvalues[icol] = ["(error)"]*nrows
+                        html += render_error("Column {}: {}: {}".format(colname, error.__class__.__name__, str(error)))
+                        style = "color: red"
+                    if style:
+                        styles[labels[icol+1]] = style
 
-                # on any error, fill column with "(error)"
-                if error:
-                    colvalues[icol] = ["(error)"]*nrows
-                    html += render_error("Column {}: {}: {}".format(colname, error.__class__.__name__, str(error)))
-                    style = "color: red"
-                if style:
-                    styles[labels[icol+1]] = style
+                data = [[self.rownumbers[firstrow+i]] + [colvalues[icol][i] for icol,col in enumerate(column_selection)] for i in xrange(nrows)]
 
-            data = [[self.rownumbers[firstrow+i]] + [colvalues[icol][i] for icol,col in enumerate(column_selection)] for i in xrange(nrows)]
-
-            html += render_table(data, labels, styles=styles, numbering=False)
-            return html
+                html += render_table(data, labels, styles=styles, numbering=False)
+                return html
 
     def _select_rows_columns(self, rows, columns, desc):
         with self.table as tab:

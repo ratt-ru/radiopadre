@@ -15,6 +15,8 @@ RUN docker-apt-install \
     wcslib-dev \
     git \
     nodejs \
+    phantomjs \
+    ghostscript \
     ipython python-aplpy python-astropy \
     python-matplotlib python-pil python-casacore \
     wget lsof iproute2

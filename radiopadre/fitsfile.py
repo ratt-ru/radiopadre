@@ -266,37 +266,7 @@ class FITSFile(radiopadre.file.FileBase):
 
 
     def _get_png_file(self, keydict={}, **kw):
-        """
-        Helper method. Returns filename, URL and update status of PNG cache file corresponding to this FITS file, plus
-        optional keys (e.g. for axis unrolling).
-
-        Update status is True if FITS file is newer, or PNG file does not exist
-
-        """
-        # init paths, if not already done so
-        if self._png_dir is None:
-            self._png_dir, self._png_url = radiopadre.get_cache_dir(self.fullpath, "fits-render")
-
-        # make name from components
-        pngname = ".".join([self.basename] + ["{}-{}".format(*item) for item in keydict.items()] + ["png"])
-
-        pngpath = "{}/{}".format(self._png_dir, pngname)
-        update = not os.path.exists(pngpath) or self.mtime > os.path.getmtime(pngpath)
-
-        # check hashes
-        if not update:
-            checksum = hashlib.md5()
-            for key, value in kw.items():
-                checksum.update(str(key))
-                checksum.update(str(value))
-            digest = checksum.digest()
-            # check hash file
-            hashfile = pngpath + ".md5"
-            if not os.path.exists(hashfile) or open(hashfile).read() != digest:
-                update = True
-                open(hashfile, 'w').write(digest)
-
-        return pngpath, "{}/{}".format(self._png_url, pngname), update
+        return self._get_cache_file("fits-render", "png", keydict)
 
 
     def _render_plots(self,
