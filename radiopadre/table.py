@@ -10,7 +10,7 @@ class Table(RenderableElement):
         self._nrow = len(items)
         self._ncol = 0
         self._tr_style = "" if zebra else "background: transparent"
-        self._td_style = "align: {}".format(align)
+        self._td_style = "align: {}; text-align: {};".format(align, align)
 
         for irow,row in enumerate(items):
             self._ncol = max(len(row), self._ncol)

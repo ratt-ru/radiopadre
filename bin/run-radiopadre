@@ -517,10 +517,10 @@ if remote_host:
                               "Ask the admin to install Docker on {} and to add you to the docker group.".format(remote_host))
 
         if has_singularity:
-            padre_exec += "--singularity"
+            padre_exec += " --singularity"
             message("Using remote {has_singularity} to run in container mode")
         elif has_docker:
-            padre_exec += "--docker"
+            padre_exec += " --docker"
             message("Using remote {has_docker} to run in container mode")
         else:
             help_yourself("{} doesn't appear to have Singularity or Docker installed.".format(remote_host),
@@ -540,7 +540,7 @@ if remote_host:
             tmpfile.file.flush()
             scp_to_remote(tmpfile.name, ".radiopadre/tmp/notebooks")
             tmpfile = None
-            padre_exec = "~/.radiopadre/tmp/bin/run-radiopadre"
+            padre_exec = "~/.radiopadre/tmp/bin/" + padre_exec
             message("Running remote in Docker mode with image {options.docker_image}")
 
         if options.update:
@@ -570,6 +570,7 @@ if remote_host:
     # start ssh subprocess to launch notebook
     args = list(SSH_OPTS) + [padre_exec]
 
+    message("running {args}")
     ssh = subprocess.Popen(args, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 
     poller = Poller()

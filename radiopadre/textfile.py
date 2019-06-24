@@ -149,8 +149,8 @@ class NumberedLineList(ItemBase):
                     </DIV>
                 </DIV>\n""".format(**locals())
 
-        lh = fs*1.2
-        txt += """<DIV style="display: table; width: 100%; font-size: {fs}em; line-height: {fs}em">""".format(**locals())
+        lh = fs*1.5
+        txt += """<DIV style="display: table; width: 100%; font-size: {fs}em; line-height: {lh}em">""".format(**locals())
         firstlast = self._lines[0][0], self._lines[-1][0]
         for line_num, line in head:
             txt += render_line(line_num, cgi.escape(line), firstlast, fs=fs)
@@ -204,16 +204,19 @@ class NumberedLineList(ItemBase):
         return """<A HREF='{url}' target='_blank' style="text-decoration: none">{text}</A>""".format(**locals())
 
     def grep(self, regex, fs=None):
-        self.show(grep=regex, fs=fs, subtitle=" (grep: {})".format(regex))
+        return self._rendering_proxy('render_html', 'grep', grep=regex, fs=fs, subtitle=" (grep: {})".format(regex))
 
-    def head(self, num=None, fs=None):
-        self.show(head=num, tail=0, fs=fs)
+    @property
+    def head(self):
+        return self._rendering_proxy('render_html', 'head', arg0='head', tail=0)
 
-    def tail(self, num=None, fs=None):
-        self.show(head=0, tail=num, fs=fs)
+    @property
+    def tail(self):
+        return self._rendering_proxy('render_html', 'head', arg0='tail', head=0)
 
-    def full(self, fs=None):
-        self.show(full=True, fs=fs)
+    @property
+    def full(self):
+        return self._rendering_proxy('render_html', 'full', full=True)
 
     def extract(self, regexp, groups=slice(None)):
         regexp = re.compile(regexp)
@@ -223,7 +226,7 @@ class NumberedLineList(ItemBase):
             raise TypeError("invalid groups argument of type {}".format(type(groups)))
         rows = []
         for _, line in self.lines:
-            match = regexp.match(line)
+            match = regexp.search(line)
             if not match:
                 continue
             grps = match.groups()
@@ -231,7 +234,8 @@ class NumberedLineList(ItemBase):
                 rows.append(list(grps[groups]))
             else:
                 rows.append([grps[i] for i in groups])
-        return tabulate(rows, tw=1)
+        self.message("{} lines match".format(len(rows)), timeout=2)
+        return tabulate(rows)
 
 
     def __getitem__(self, item):

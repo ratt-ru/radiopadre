@@ -160,7 +160,7 @@ class FileList(FileBase, list):
 
     @property
     def thumbs(self):
-        return self._rendering_proxy('render_thumbnail_catalog')
+        return self._rendering_proxy('render_thumbnail_catalog', 'thumbs', arg0='ncol')
 
     def show_all(self, *args, **kw):
         # display(HTML(render_refresh_button(full=self._parent and self._parent.is_updated())))

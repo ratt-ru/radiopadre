@@ -93,11 +93,11 @@ class ItemBase(RenderableElement):
 
     @property
     def thumb(self):
-        return self._rendering_proxy('render_thumb')
+        return self._rendering_proxy('render_thumb', 'thumb')
 
     @property
     def render(self):
-        return self._rendering_proxy('render_html')
+        return self._rendering_proxy('render_html', 'render')
 
 
     def __str__(self):

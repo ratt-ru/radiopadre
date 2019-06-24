@@ -49,8 +49,8 @@ class RenderableElement(object):
         context = context or RenderingContext()
         return context.finalize_html(self.render_html(context=context, **kw))
 
-    def _rendering_proxy(self, method, **kw):
-        return RenderingProxy(self, method, kw.copy())
+    def _rendering_proxy(self, method, name, arg0=None, **kw):
+        return RenderingProxy(self, method, name, arg0=arg0, kwargs=kw.copy())
 
     def show(self, **kw):
         display(HTML(self._repr_html_(**kw)))
@@ -58,14 +58,24 @@ class RenderableElement(object):
 
 
 class RenderingProxy(RenderableElement):
-    def __init__(self, elem, method, kwargs={}):
+    def __init__(self, elem, method, name, arg0=None, kwargs={}):
         self._elem = elem
+        self._name = name
         self._method = method
         self._kw = kwargs
+        self._arg0 = arg0
 
-    def __call__(self, **kwargs):
+    def __call__(self, *args, **kwargs):
         kw = self._kw.copy()
         kw.update(kwargs)
+
+        # check single argument
+        if self._arg0:
+            if args:
+                if len(args) > 1:
+                    raise TypeError("at most one non-keyword argument expected in call to {}()")
+                kw[self._arg0] = args[0]
+
         return RenderingProxy(self._elem, self._method, kw)
 
     def render_text(self):
