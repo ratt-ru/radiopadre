@@ -1,11 +1,12 @@
 import cgi
 import re
+import codecs
 
 import IPython.display
 from IPython.display import HTML, display
 
 from radiopadre.file import ItemBase, FileBase
-from radiopadre.render import render_title, render_url, render_preamble, rich_string
+from radiopadre.render import render_title, render_url, render_preamble, rich_string, htmlize
 from radiopadre import settings
 from radiopadre import tabulate
 
@@ -103,11 +104,11 @@ class NumberedLineList(ItemBase):
         if not head and not tail:
             return txt
         for line_num, line in head:
-            txt += "{}: {}\n".format(line_num+1, line.strip())
+            txt += "{}: {}\n".format(line_num+1, line.encode("utf-8").strip())
         if tail:
             txt += "...\n"
             for line_num, line in tail:
-                txt += "{}: {}\n".format(line_num + 1, line.strip())
+                txt += "{}: {}\n".format(line_num + 1, line.encode("utf-8").strip())
         return txt
 
     def render_html(self, head=None, tail=None, full=None, grep=None, fs=None, slicer=None, subtitle=None, **kw):
@@ -137,7 +138,6 @@ class NumberedLineList(ItemBase):
             border_bottom = border_style if line_num == firstlast[1] else "none"
             border_rl = border_style if line_num != "..." else "none"
             background = "#f2f2f2" if line_num != "..." else "none"
-            line = unicode(line, "utf-8").encode("ascii", "xmlcharrefreplace")
             return """
                 <DIV style="display: table-row; height=1em">
                     <DIV style="display: table-cell; border-top: {border_top}; border-bottom: {border_bottom};
@@ -153,11 +153,11 @@ class NumberedLineList(ItemBase):
         txt += """<DIV style="display: table; width: 100%; font-size: {fs}em; line-height: {lh}em">""".format(**locals())
         firstlast = self._lines[0][0], self._lines[-1][0]
         for line_num, line in head:
-            txt += render_line(line_num, cgi.escape(line), firstlast, fs=fs)
+            txt += render_line(line_num, htmlize(line), firstlast, fs=fs)
         if tail:
             txt += render_line("...", "", firstlast, fs=fs)
             for line_num, line in tail:
-                txt += render_line(line_num, cgi.escape(line), firstlast, fs=fs)
+                txt += render_line(line_num, htmlize(line), firstlast, fs=fs)
         txt += "\n</DIV>\n"
         return txt
 
@@ -191,7 +191,7 @@ class NumberedLineList(ItemBase):
         if tail:
             text += "...\n"
             text += "".join([t[1] for t in tail])
-        text = unicode(cgi.escape(text), "utf-8").encode("ascii", "xmlcharrefreplace")
+        text = htmlize(text)
 
         text = """
                 <DIV style="display: table-cell; font-size: {fs}em; text-align: left; 
@@ -231,9 +231,9 @@ class NumberedLineList(ItemBase):
                 continue
             grps = match.groups()
             if type(groups) is slice:
-                rows.append(list(grps[groups]))
+                rows.append([rich_string(txt) for txt in grps[groups]])
             else:
-                rows.append([grps[i] for i in groups])
+                rows.append([rich_string(grps[i]) for i in groups])
         self.message("{} lines match".format(len(rows)), timeout=2)
         return tabulate(rows)
 
@@ -263,6 +263,6 @@ class TextFile(FileBase, NumberedLineList):
         self._scan_impl()
 
     def _load_impl(self):
-        self.lines = enumerate(file(self.fullpath).readlines())
+        self.lines = enumerate(codecs.open(self.fullpath, encoding='utf-8').readlines())
         self.description = "{} lines, modified {}".format(len(self), self.mtime_str)
 

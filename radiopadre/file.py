@@ -187,7 +187,7 @@ class ItemBase(RenderableElement):
         """
         title = self._render_title_link(context=context, **kw)
         thumb_content = self._render_thumb_impl(context=context, **kw)
-        action_buttons = self._action_buttons_(context=context) or ""
+        action_buttons = self._action_buttons_(context=context, defaults=kw) or ""
 
         if action_buttons:
             action_buttons = """<tr style="background: transparent"><td style="padding: 0; padding-top: 2px">{}</td></tr>""".format(action_buttons)

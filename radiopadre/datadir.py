@@ -21,7 +21,9 @@ def _match_pattern(path, pattern):
     if pattern.startswith("./"):
         pattern = pattern[2:]
     if '/' in pattern:
-        return fnmatch.fnmatch(path, pattern)
+        patt_dir, patt_name = os.path.split(pattern)
+        path_dir, path_name = os.path.split(path)
+        return fnmatch.fnmatch(patt_dir, path_dir) and fnmatch.fnmatch(patt_name, path_name)
     else:
         return fnmatch.fnmatch(os.path.basename(path), pattern)
 
@@ -147,12 +149,13 @@ class DataDir(FileList):
                         self.ndirs += 1
                     # Check for directories to descend into.
                     # In browse mode (no patterns), only descend into DataDir.
-                    if self._browse_mode:
-                        if self._recursive and filetype is DataDir and _matches(name, self._include_dir, self._exclude_dir):
+                    if self._recursive:
+                        if self._browse_mode:
+                            if filetype is DataDir and _matches(name, self._include_dir, self._exclude_dir):
+                                subdirs.append(name)
+                        # Else descend unless directory excluded specifically
+                        elif _matches(name, ["*"], self._exclude_dir):
                             subdirs.append(name)
-                    # Else always descend (we'll match the path against a pattern)
-                    else:
-                        subdirs.append(name)
 
             # Descend into specified subdirs
             dirs[:] = subdirs

@@ -76,7 +76,7 @@ class RenderingProxy(RenderableElement):
                     raise TypeError("at most one non-keyword argument expected in call to {}()")
                 kw[self._arg0] = args[0]
 
-        return RenderingProxy(self._elem, self._method, kw)
+        return RenderingProxy(self._elem, self._method, self._name, arg0=self._arg0, kwargs=kw)
 
     def render_text(self):
         return self._elem.render_text()
@@ -103,7 +103,10 @@ class RichString(RenderableElement):
         if html:
             self._html = html
         else:
-            text = cgi.escape(text)
+            if type(text) is unicode:
+                text = text.encode("ascii", "xmlcharrefreplace")
+            else:
+                text = cgi.escape(text)
             self._html = "<B>{}</B>".format(text) if bold else text
 
     def copy(self):
@@ -167,8 +170,10 @@ def htmlize(text):
         return ''
     elif type(text) is RichString:
         return text.html
+    elif type(text) is unicode:
+        return text.encode("ascii", "xmlcharrefreplace")
     else:
-        return cgi.escape(str(text))
+        return unicode(str(text), "utf-8").encode("ascii", "xmlcharrefreplace")
 
 def rich_string(text, html=None, bold=False):
     if text is None:

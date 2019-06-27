@@ -266,7 +266,7 @@ class FITSFile(radiopadre.file.FileBase):
 
 
     def _get_png_file(self, keydict={}, **kw):
-        return self._get_cache_file("fits-render", "png", keydict)
+        return self._get_cache_file("fits-render", "png", keydict, **kw)
 
 
     def _render_plots(self,
@@ -667,12 +667,10 @@ class FITSFile(radiopadre.file.FileBase):
         """.format(**subs)
 
         if _use_carta:
-            folder = os.path.dirname(self.fullpath)
-            if folder.startswith(radiopadre.ROOTDIR):
-                folder = "/" + folder[len(radiopadre.ROOTDIR):]
+            filepath = os.path.relpath(os.path.abspath(self.fullpath), radiopadre.SERVER_BASEDIR)
 
-            subs['newtab_carta_html'] = "http://localhost:{}/?socketUrl=ws://localhost:{}&folder={}&file={}".format(
-                                            _carta_port, _carta_ws_port, folder, self.name)
+            subs['newtab_carta_html'] = "http://localhost:{}/?socketUrl=ws://localhost:{}&file={}".format(
+                                            _carta_port, _carta_ws_port, filepath)
             code += """
                     <button id="" title="display using CARTA in a new browser tab" style="font-size: 0.9em;"
                             onclick="window.open('{newtab_carta_html}', '_blank')">&#8663;C</button>
