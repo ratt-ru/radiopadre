@@ -99,7 +99,7 @@ class RichString(RenderableElement):
     in a notebook front-end appropriately
     """
     def __init__(self, text, html=None, bold=False):
-        self._text = text
+        self._text = text.encode("utf-8") if type(text) is unicode else text
         if html:
             self._html = html
         else:
