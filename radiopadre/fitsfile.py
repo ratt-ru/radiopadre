@@ -411,7 +411,7 @@ class FITSFile(radiopadre.file.FileBase):
 
             if unroll is None:
                 # show single image
-                image, url, update = self._get_png_file(vmin=vmin, vmax=vmax, cmap=cmap, scale=scale)
+                image, url, update = self._get_png_file(vmin=vmin, vmax=vmax, cmap=cmap, scale=scale, zoom=zoom)
                 if update or refresh:
                     fig = plt.figure(figsize=(width, width), dpi=settings.plot.screen_dpi)
                     fig.add_axes([0, 0, 1, 1])
@@ -438,7 +438,7 @@ class FITSFile(radiopadre.file.FileBase):
                 plt.figure(figsize=(width * ncol, width * nrow), dpi=settings.plot.screen_dpi)
                 # plt.suptitle(self.basename)
                 for iplot in range(dims[unroll]):
-                    image, url, update = self._get_png_file(vmin=vmin, vmax=vmax, cmap=cmap, scale=scale,
+                    image, url, update = self._get_png_file(vmin=vmin, vmax=vmax, cmap=cmap, scale=scale, zoom=zoom,
                                                             keydict={axis_type[unroll]: iplot})
                     if update or refresh:
                         fig = plt.figure(figsize=(width, width), dpi=settings.plot.screen_dpi)
