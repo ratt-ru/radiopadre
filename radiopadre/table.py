@@ -1,16 +1,32 @@
 from IPython.display import HTML, Image, display
 
-from radiopadre.render import RenderableElement, rich_string, render_url, TransientMessage
+from radiopadre.render import RenderableElement, rich_string
+from collections import OrderedDict
+import itertools
 
 _NULL_CELL = rich_string("")
 
 class Table(RenderableElement):
-    def __init__ (self, items, zebra=True, align="left", cw=None, tw=None):
+    def __init__ (self, items, zebra=True, align="left", cw="auto", tw="auto", fs=None, lh=1.5, styles={}):
         self._data = {}
         self._nrow = len(items)
         self._ncol = 0
-        self._tr_style = "" if zebra else "background: transparent"
-        self._td_style = "align: {}; text-align: {};".format(align, align)
+        self._styles = styles.copy()
+
+        if zebra:
+            self.set_style("table-row-even", "background", "#D0D0D0")
+            self.set_style("table-row-odd", "background", "#FFFFFF")
+        elif zebra is False:
+            self.set_style("table-row-even", "background", "transparent")
+            self.set_style("table-row-odd", "background", "transparent")
+        if align:
+            self.set_style("table-cell", "align", align)
+            self.set_style("table-cell", "text-align", align)
+
+        if fs is not None:
+            self.set_style("table", "font-size", "{}em".format(fs))
+        if lh is not None:
+            self.set_style("table", "line-height", "{}em".format(lh*(fs or 1)))
 
         for irow,row in enumerate(items):
             self._ncol = max(len(row), self._ncol)
@@ -24,23 +40,54 @@ class Table(RenderableElement):
                 self._data[irow, icol] = item
 
         # work out column widths
-        if cw is None:
-            self.col_width = {}
-        elif type(cw) is dict:
-            self.col_width = cw
-        else:
-            if len(cw) != self._ncol:
-                raise ValueError("number of elements in width must match number of columns")
-            self.col_width = {i: w for i, w in enumerate(cw)}
+        if cw is not None:
+            if cw is "auto":
+                cw = {}
+            elif type(cw) in (list, tuple):
+                cw = {i: w for i, w in enumerate(cw)}
+            # set styles
+            for icol in range(self._ncol):
+                width = cw.get(icol, "auto")
+                if type(width) in (float, int):
+                    width = "{:.2%}".format(width)
+                self.set_style("col{}".format(icol), "width", width)
+
         # if any column widths are set, set table width
-        if tw is None:
-            # set to 100% if any column width is set explicitly to a string
-            if any([type(w) is str for w in self.col_width.values()]):
-                tw = 1
-            # else set to sum of fractional widths
-            else:
-                tw = sum([w for w in self.col_width.values() if type(w) is float])
-        self.tab_width = tw
+        if tw is not None:
+            if tw is "auto":
+                # set to 100% if any column width is set explicitly to a string
+                if any([type(w) is str for w in cw.values()]):
+                    tw = 1
+                # else set to sum of fractional widths
+                elif cw and all([type(w) is float for w in cw.values()]):
+                    tw = sum(cw.values())
+                else:
+                    tw = "auto"
+
+            if type(tw) in (int, float):
+                self.set_style("table", "width", "{:.1%}".format(tw))
+            elif tw is not None:
+                self.set_style("table", "width", tw)
+
+        self.set_style("table", "border", "0px")
+        self.set_style("table-cell", "vertical-align", "top")
+        self.set_style("table-cell", "padding-left", "2px")
+        self.set_style("table-cell", "padding-right", "2px")
+
+    def set_style(self, element, attribute, value):
+        style = self._styles.setdefault(element, OrderedDict())
+        if value is None:
+            if attribute in style:
+                del style[attribute]
+        else:
+            style[attribute] = value
+
+    def get_styles(self, *elements):
+        styles = OrderedDict()
+        for element in elements:
+            if element in self._styles:
+                styles.update(self._styles[element])
+        return "; ".join(["{}: {}".format(attr, value) for attr,value in styles.items()])
 
     def _get_cell_text(self, irow, icol):
         return self._data.get((irow, icol), _NULL_CELL).render_text()
@@ -62,30 +109,47 @@ class Table(RenderableElement):
         return text
 
     def render_html(self, context=None, **kw):
-        if self.tab_width:
-            if type(self.tab_width) in (int, float):
-                tab_width = "width: {:.1%}".format(self.tab_width)
-            else:
-                tab_width = "width: {}".format(self.tab_width)
-        else:
-            tab_width = ""
-        html = """<table style="border: 0px; text-align: left; {}">\n""".format(tab_width)
+        html = """<DIV style="display: table; {}">\n""".format(self.get_styles("table"))
 
         for irow in range(self._nrow):
-            html += """<tr style = "border: 0px; text-align: left; {}">\n""".format(self._tr_style)
+            evenodd = "table-row-odd" if irow%2 else "table-row-even"
+            html += """<DIV style="display: table-row; {}">\n""".format(self.get_styles("table-row", evenodd, "row{}".format(irow)))
             for icol in range(self._ncol):
-                w = self.col_width.get(icol, "auto")
-                if type(w) in (int, float):
-                    w = "{:.0%}".format(w)
                 cell_html = self._get_cell_html(irow, icol, context)
-                html +=  """    <td style = "border: 0px; vertical-align: top; width: {}; {}">{}</td>""".format(
-                                    w, self._td_style, cell_html)
-            html += """</tr>\n"""
+                html +=  """    <DIV style="display: table-cell; {}">{}</DIV>""".format(
+                                    self.get_styles("table-cell", "col{}".format(icol), (irow, icol)), cell_html)
+            html += """</DIV>\n"""
 
-        html += "</table>\n"
+        html += "</DIV>\n"
 
         return html
 
+    def __getitem__(self, item):
+        rows = range(self._nrow)
+        cols = range(self._ncol)
+
+        def _apply(rows_or_cols, index):
+            if type(index) is slice:
+                return rows_or_cols[index]
+            elif type(index) is list:
+                return [rows_or_cols[x] for x in index]
+            elif type(index) is int:
+                return [rows_or_cols[index]]
+            else:
+                raise TypeError("invalid index {} of type {}".format(index, type(index)))
+
+        if type(item) is tuple and len(item) == 2:
+            rows = _apply(rows, item[0])
+            cols = _apply(cols, item[1])
+        else:
+            rows = _apply(rows, item)
+
+        return Table([[self._data.get((row, col), None) for col in cols] for row in rows],
+                     styles=self._styles,
+                     zebra=None, align=None, cw=None, tw=None, fs=None, lh=None)
+
+#    def __getslice__(self, *slicer):
+#        return self.__getitem__(slice(8slicer)
 
 
 def tabulate(items, ncol=0, mincol=0, maxcol=8, **kw):

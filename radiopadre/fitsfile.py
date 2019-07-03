@@ -626,7 +626,7 @@ class FITSFile(radiopadre.file.FileBase):
         """.format(**subs)
         return code
 
-    def _action_buttons_(self, context, defaults=None):
+    def _action_buttons_(self, context, defaults=None, **kw):
         """Renders JS9 buttons for image
         """
         # ignore less than 2D images

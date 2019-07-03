@@ -199,8 +199,8 @@ class ItemBase(RenderableElement):
                     <td style="padding: 0">
                         <table style="border: 0px; text-align: left; width: 100%">
                             <tr>
-                                <td style="border: 0px; text-align: left; width: 3em">{prefix}</td>
-                                <td style="border: 0px; text-align: center; max-width: 99%">{title}</td>
+                                <td style="border: 0px; background: #D0D0D0; text-align: left; width: 3em">{prefix}</td>
+                                <td style="border: 0px; background: #D0D0D0; text-align: center; max-width: 99%">{title}</td>
                             </tr>
                         </table>
                     </td>
@@ -226,7 +226,7 @@ class ItemBase(RenderableElement):
     def _render_thumb_impl(self, **kw):
         return self.summary
 
-    def _action_buttons_(self, context):
+    def _action_buttons_(self, context, **kw):
         """
         Returns HTML code associated with available actions for this file. Can be None.
 

@@ -242,6 +242,8 @@ class NumberedLineList(ItemBase):
         self.rescan(load=True)
         if type(item) is slice:
             return NumberedLineList(self._lines[item])
+        elif type(item) in (tuple, list):
+            return NumberedLineList([self._lines[x] for x in item])
         else:
             return self._lines[int(item)]
 
