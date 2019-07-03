@@ -251,6 +251,16 @@ class FileList(FileBase, list):
         other._load()
         return FileList(content=list.__add__(self, other), path=self.path, sort=self._sort)
 
+    def filter(self, conditional, name=None):
+        self._load()
+        name = name or getattr(conditional, '__name__') or str(conditional)
+        title = "{}, [filter: {}]".format(self._title, name)
+        return FileList([f for f in self if conditional(f)],
+                        path=self.fullpath, extcol=self._extcol, showpath=self._showpath,
+                        sort=self._sort,
+                        title=title, parent=self._parent)
+
+
     def sort(self, opt="dxnt"):
         self._load()
         title = "{}, [sort: {}]".format(self._title, opt)
@@ -265,7 +275,7 @@ class FileList(FileBase, list):
         else:
             title = " [{}]".format(title)
         return FileList([f for f in self if type(f) is filetype], path=self.fullpath, title=title,
-                        parent=self, sort="")
+                        parent=self, sort=self._sort)
 
     @property
     def dirs(self):
