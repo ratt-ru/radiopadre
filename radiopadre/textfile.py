@@ -155,7 +155,7 @@ class NumberedLineList(ItemBase):
         for line_num, line in head:
             txt += render_line(line_num, htmlize(line), firstlast, fs=fs)
         if tail:
-            txt += render_line("...", "", firstlast, fs=fs)
+            txt += render_line("&#8943;", "", firstlast, fs=fs)
             for line_num, line in tail:
                 txt += render_line(line_num, htmlize(line), firstlast, fs=fs)
         txt += "\n</DIV>\n"
@@ -189,7 +189,7 @@ class NumberedLineList(ItemBase):
 
         text = "".join([h[1] for h in head])
         if tail:
-            text += "...\n"
+            text += "          &#8943;\n"
             text += "".join([t[1] for t in tail])
         text = htmlize(text)
 
