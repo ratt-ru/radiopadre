@@ -375,7 +375,7 @@ def _ls(recursive=False, *args):
 
     dd = DataDir(basedir or '.', include=patterns or None, recursive=recursive, title=title, sort=sort)
 
-    if single_file:
+    if single_file and len(dd) > 0:
         return dd[0]
     else:
         dd.message(dd.summary.html)
