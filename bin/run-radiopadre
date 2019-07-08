@@ -135,8 +135,8 @@ parser.add_argument("-S", "--singularity", action="store_true",
                   help="forces use of Singularity for container mode. Fail if Singularity is not found.")
 
 
-parser.add_argument("--docker-dev", action="store_true",
-                  help="runs radiopadre via a container, but mounts the host-installed\n"
+parser.add_argument("-C", "--container-dev", action="store_true",
+                  help="runs radiopadre via a Docker or Singularity container, but mounts the host-installed\n"
                        "version of radiopadre inside it. Intended for developers.")
 parser.add_argument("--docker-image", type=str, metavar="IMAGE", default=DEFAULT_DOCKER_IMAGE,
                   help="Which Docker image to use. Default is %(default)s.")

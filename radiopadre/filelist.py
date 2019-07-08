@@ -19,7 +19,7 @@ class FileList(FileBase, list):
         return "{}:\n{}".format(filelist._header_text(), "\n".join(
                             ["{}: {}".format(i, d.path) for i, d in enumerate(filelist)]))
 
-    def __init__(self, content=None, path="", extcol=False, showpath=False,
+    def __init__(self, content=None, path=".", extcol=False, showpath=False,
                  title=None, parent=None,
                  sort="xnt"):
         self._extcol = extcol
@@ -29,8 +29,7 @@ class FileList(FileBase, list):
         self.nfiles = self.ndirs = 0
         self._fits = self._images = self._dirs = self._tables = self._html_files = None
 
-
-        FileBase.__init__(self, path, title=title)
+        FileBase.__init__(self, path or '.', title=title)
 
         if content is not None:
             self._set_list(content, sort)
@@ -53,6 +52,8 @@ class FileList(FileBase, list):
                 self.ndirs += 1
             else:
                 self.nfiles += 1
+        if len(set([os.path.dirname(item.fullpath) for item in self])) > 1:
+            self._showpath = True
         self._reset_summary()
 
     def _reset_summary(self):
@@ -249,7 +250,9 @@ class FileList(FileBase, list):
             raise TypeError("can't add object of type {} to {}".format(type(other), type(self)))
         self._load()
         other._load()
-        return FileList(content=list.__add__(self, other), path=self.path, sort=self._sort)
+        content = list.__add__(self, other)
+        showpath = self._showpath or other._showpath or self.fullpath != other.fullpath
+        return FileList(content=content, path=self.path, sort=None, showpath=showpath, title="")
 
     def filter(self, conditional, name=None):
         self._load()

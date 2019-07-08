@@ -3,11 +3,14 @@ from IPython.display import display, HTML, Javascript
 import os
 import fnmatch
 import subprocess
+import itertools
+import glob
+from collections import OrderedDict
 
 from .file import FileBase, autodetect_file_type
 from .filelist import FileList
 from .textfile import NumberedLineList
-from .render import render_table, render_preamble, render_refresh_button, rich_string, render_url, render_title
+from .render import rich_string, TransientMessage
 
 import radiopadre
 from radiopadre import settings
@@ -45,7 +48,7 @@ class DataDir(FileList):
                  include=None, exclude=None,
                  include_dir=None, exclude_dir=None,
                  include_empty=None, show_hidden=None,
-                 recursive=False,
+                 recursive=False, showpath=False,
                  title=None,
                  sort="dxnt"):
         """
@@ -81,7 +84,7 @@ class DataDir(FileList):
             self._exclude.append(".*")
             self._exclude_dir.append(".*")
 
-        FileList.__init__(self, content=None, path=name, sort=sort, title=title, showpath=recursive)
+        FileList.__init__(self, content=None, path=name, sort=sort, title=title, showpath=recursive or showpath)
 
         if include:
             self.title += "/{}".format(','.join(include))
@@ -211,5 +214,100 @@ class DataDir(FileList):
 
     def shx(self, command):
         return self.sh(command, exception=True)
+
+
+def _ls_impl(recursive, sort, arguments):
+    """Creates a DataDir or FileList from the given arguments (name and/or patterns)
+
+    - nothing (scan '.' with default patterns)
+    - one directory, no patterns (scan directory with default patterns)
+    - one or more patterns (use glob, make a FileList)
+
+    """
+    content = []
+    messages = []
+    showpath = False
+
+    for arg in arguments:
+        if os.path.isdir(arg):
+            filetype = autodetect_file_type(arg)
+            if arg[-1] == '/' or filetype is DataDir:
+                dd = DataDir(arg, recursive=recursive, title=arg, sort=sort, showpath=True)
+                if len(dd):
+                    content.append(dd)
+                    messages.append("{}: {} files".format(arg, len(dd)))
+            else:
+                content.append(FileList([filetype(arg)], sort=None))
+                messages.append("{}: {}".format(arg, filetype.__name__))
+        else:
+            files = []
+            for path in glob.glob(arg):
+                filetype = autodetect_file_type(path)
+                if filetype is not None:
+                    files.append(filetype(path))
+            if files:
+                content.append(FileList(files, sort=sort))
+                messages.append("{}: {} matches".format(arg, len(files)))
+            else:
+                messages.append("{}: no matches".format(arg))
+
+    global _transient_message
+    _transient_message = TransientMessage("; ".join(messages), color="blue" if content else "red")
+
+    if len(content) == 1:
+        return content[0]
+    else:
+        return FileList(itertools.chain(*content), path=".", title=", ".join(arguments), sort=None)
+
+
+def _ls(recursive, sort, unsplit_arguments):
+    # split all arguments on whitespace and form one big list
+    arguments = list(itertools.chain(*[arg.split() for arg in unsplit_arguments]))
+
+    # check for sort order and recursivity
+    sort = sort or ""
+    if arguments:
+        for arg in arguments:
+            # arguments starting with "-" are sort keys. 'R' forces recursive mode
+            if arg[0] == '-':
+                for char in arg[1:]:
+                    if char == 'R':
+                        recursive = True
+                    else:
+                        sort += char
+    else:
+        arguments = ["."]
+
+    return _ls_impl(sort=sort, recursive=recursive, arguments=arguments)
+
+
+
+def ls(*args):
+    """
+    Creates a DataDir from '.' non-recursively, optionally applying a file selection pattern.
+    Sorts in default order (directory, extension, name, mtime)
+    """
+    return _ls(False, '-dxnt', args)
+
+def lst(*args):
+    """
+    Creates a DataDir from '.' non-recursively, optionally applying a file selection pattern.
+    Sorts in time order (directory, mtime, extension, name)
+    """
+    return _ls(False, '-dtxn', args)
+
+def lsrt(*args):
+    """
+    Creates a DataDir from '.' non-recursively, optionally applying a file selection pattern.
+    Sorts in reverse time order (directory, -mtime, extension, name)
+    """
+    return _ls(False, '-rtdxn', args)
+
+def lsR(*args):
+    """
+    Creates a DataDir from '.' recursively, optionally applying a file selection pattern.
+    Sorts in default order (directory, extension, name, mtime)
+    """
+    return _ls(True, '-dxnt', args)
 
 
