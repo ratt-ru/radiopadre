@@ -135,7 +135,7 @@ parser.add_argument("-S", "--singularity", action="store_true",
                   help="forces use of Singularity for container mode. Fail if Singularity is not found.")
 
 
-parser.add_argument("-C", "--container-dev", action="store_true",
+parser.add_argument("-C", "--container-dev", "--docker-dev", action="store_true",
                   help="runs radiopadre via a Docker or Singularity container, but mounts the host-installed\n"
                        "version of radiopadre inside it. Intended for developers.")
 parser.add_argument("--docker-image", type=str, metavar="IMAGE", default=DEFAULT_DOCKER_IMAGE,
@@ -208,8 +208,8 @@ if options.inside_container and not options.docker_debug:
 ### PARSE ARGUMENTS
 
 # check for contradictions
-if options.virtual_env and options.docker_dev:
-    parser.error("can't use --virtual-env with --docker-dev")
+if options.virtual_env and options.container_dev:
+    parser.error("can't use --virtual-env with --container-dev")
 
 # running inside container uses venv mode by definition
 if options.inside_container:
@@ -318,7 +318,7 @@ default_notebook_code = """{
 
 if remote_host:
     # if options.docker:
-    #     if options.docker_dev:
+    #     if options.container_dev:
     #         parser.error("Can't combine -d/--docker and -D/--dev-docker modes")
     #     if options.init_remote:
     #         parser.error("Can't combine -d/--docker and --init-remote modes")
@@ -414,7 +414,7 @@ if remote_host:
 
     # look for remote installation, unless we're explicitly set to docker mode
 
-    if options.virtual_env or options.docker_dev:
+    if options.virtual_env or options.container_dev:
         for padre_exec in padre_execs:
             if check_remote_file(padre_exec):
                 message("Found remote radiopadre launch script at {}:{}".format(remote_host, padre_exec))
@@ -454,7 +454,7 @@ if remote_host:
                     help_yourself("git clone ran, but I still don't see the launch script {}:{}".format(remote_host, padre_exec))
                 message("Success! Running remote in bootstrap mode")
                 bootstrap = True
-            elif options.docker_dev:
+            elif options.container_dev:
                 message("no remote installation detected and --auto-init not given: can't run --dev-docker mode")
                 sys.exit(1)
             else:
@@ -526,10 +526,10 @@ if remote_host:
             help_yourself("{} doesn't appear to have Singularity or Docker installed.".format(remote_host),
                           "Ask the admin to install either on {}. Otherwise, use --virtual-env mode?".format(remote_host))
 
-        if options.docker_dev:
+        if options.container_dev:
             assert(padre_exec is not None)
-            padre_exec += " --docker-dev"
-            message("Running remote in docker-dev mode with image {options.docker_image}")
+            padre_exec += " --container-dev"
+            message("Running remote in container-dev mode with image {options.docker_image}")
         else:
             if options.verbose:
                 message("copying run script and default notebook to {}:.radiopadre/tmp".format(remote_host))
@@ -1171,7 +1171,7 @@ if not attaching_to_ports and not options.virtual_env:
             # mount a writeable tmp dir for the js9 install -- needed by js9helper
             "-B", "{}:/.radiopadre/venv/js9-www/tmp".format(js9_tmp),
         ]
-        if options.docker_dev:
+        if options.container_dev:
             docker_opts += ["-B", "{}:/radiopadre".format(PADRE_PATH)]
         if not options.docker_debug:
             command = [singularity, "instance.start"] + docker_opts + \
@@ -1210,7 +1210,7 @@ if not attaching_to_ports and not options.virtual_env:
                          "--label", "radiopadre.user={}".format(USER),
                          "--label", "radiopadre.dir={}".format(os.getcwd()),
         ]
-        if options.docker_dev:
+        if options.container_dev:
             docker_opts += [ "-v", "{}:/radiopadre".format(PADRE_PATH) ]
         # add image
         docker_opts.append(docker_image)
