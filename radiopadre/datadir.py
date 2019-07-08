@@ -278,7 +278,7 @@ def _ls(recursive, sort, unsplit_arguments):
     else:
         arguments = ["."]
 
-    return _ls_impl(sort=sort, recursive=recursive, arguments=arguments)
+    return _ls_impl(sort=sort, recursive=recursive, arguments=[arg for arg in arguments if arg[0] != '-'])
 
 
 
