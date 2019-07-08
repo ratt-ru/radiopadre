@@ -6,6 +6,7 @@ import os
 import pkg_resources
 import traceback
 import itertools
+from collections import OrderedDict
 
 from IPython.display import display, HTML, Javascript
 
@@ -35,7 +36,7 @@ except Exception,exc:
 
 
 from .file import autodetect_file_type
-from .datadir import DataDir
+from .datadir import DataDir, ls, lsR, lst, lsrt
 from .filelist import FileList
 from .fitsfile import FITSFile
 from .imagefile import ImageFile
@@ -311,104 +312,6 @@ def unprotect():
     display(HTML(render_status_message("""This notebook is now unprotected.
         All users can treat it as read-write.""")))
 
-def _ls(recursive=False, *args):
-    """Creates a DirList from the given arguments (name and/or patterns)
-
-    Args:
-        pattern: if specified, a wildcard pattern
-    """
-    sort = None
-    patterns = []
-    basedir = None
-
-    # split all arguments on whitespace and form one big list
-    arguments = list(itertools.chain(*[arg.split() for arg in args]))
-
-    # the following combinations of arguments are supported
-    # - nothing (scan '.' with default patterns)
-    # - no directory, one or more patterns (scan '.' with given patterns)
-    # - one directory, no patterns (scan directory with default patterns)
-    # - one directory, multiple patterns (scan directory with given patterns)
-    # - multiple directories (not supported for now until https://github.com/ratt-ru/radiopadre-devel/issues/41 is fixed)
-
-    def _is_pattern(filename):
-        return '*' in filename or '?' in filename
-
-    for arg in arguments:
-        # arguments starting with "-" are sort keys. 'R' forces recursive mode
-        if arg[0] == '-':
-            sort = arg[1:]
-            if 'R' in sort:
-                recursive = True
-        # arguments with *? are patterns
-        elif _is_pattern(arg):
-            # does this include a directory
-            if '/' in arg:
-                dirname, pattern = os.path.split(arg)
-                if _is_pattern(dirname):
-                    recursive = True
-                    patterns.append(arg)
-                elif not os.path.exists(dirname):
-                    raise IOError("Directory {} does not exist".format(dirname))
-                else:
-                    if basedir is not None and basedir != dirname:
-                        raise TypeError("More than one directory given to ls(), this is currently not supported")
-                    basedir = dirname
-                    if pattern:
-                        patterns.append(pattern)
-            # no directory, just a straight up pattern
-            else:
-                patterns.append(arg)
-
-        # arguments without *? are a directory name, or a static pattern
-        else:
-            if os.path.exists(arg) and autodetect_file_type(arg) is DataDir:
-                if basedir is not None and basedir != arg:
-                    raise TypeError("More than one directory given to ls(), this is currently not supported")
-                basedir = arg
-            else:
-                patterns.append(arg)
-
-    single_file = len(patterns) == 1 and not _is_pattern(patterns[0])
-
-    title = rich_string(basedir or os.getcwd(), bold=True)
-
-    dd = DataDir(basedir or '.', include=patterns or None, recursive=recursive, title=title, sort=sort)
-
-    if single_file:
-        return dd[0]
-    else:
-        dd.message(dd.summary.html)
-        return dd
-
-def ls(*args):
-    """
-    Creates a DataDir from '.' non-recursively, optionally applying a file selection pattern.
-    Sorts in default order (directory, extension, name, mtime)
-    """
-    return _ls(False, '-dxnt', *args)
-
-def lsR(*args):
-    """
-    Creates a DataDir from '.' recursively, optionally applying a file selection pattern.
-    Sorts in default order (directory, extension, name, mtime)
-    """
-    return _ls(True, '-dxnt', *args)
-
-
-def lst(*args):
-    """
-    Creates a DataDir from '.' non-recursively, optionally applying a file selection pattern.
-    Sorts in time order (directory, mtime, extension, name)
-    """
-    return _ls(False, '-dtxn', *args)
-
-def lsrt(*args):
-    """
-    Creates a DataDir from '.' non-recursively, optionally applying a file selection pattern.
-    Sorts in reverse time order (directory, -mtime, extension, name)
-    """
-    return _ls(False, '-rtdxn', *args)
 
 
 def copy_current_notebook(oldpath, newpath, cell=0, copy_dirs='dirs', copy_root='root'):
