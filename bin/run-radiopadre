@@ -1434,7 +1434,7 @@ try:
             os.environ['RADIOPADRE_CARTA_PORT'] = str(userside_carta_port)
             os.environ['RADIOPADRE_CARTA_WS_PORT'] = str(userside_carta_ws_port)
 
-            child_processes.append(subprocess.Popen(args, stdin=DEVZERO,
+            child_processes.append(subprocess.Popen(args, stdin=subprocess.PIPE,
                           stdout=sys.stderr if options.verbose else DEVNULL,
                           stderr=sys.stderr if options.verbose else DEVNULL))
         finally:
