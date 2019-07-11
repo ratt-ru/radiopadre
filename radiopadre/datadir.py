@@ -262,14 +262,14 @@ def _ls_impl(recursive, sort, arguments):
         return FileList(itertools.chain(*content), path=".", title=", ".join(arguments), sort=None)
 
 
-def _ls(recursive, sort, unsplit_arguments):
+def _ls(recursive, default_sort, unsplit_arguments):
     # split all arguments on whitespace and form one big list
     local_vars = inspect.currentframe().f_back.f_back.f_locals
     
     arguments = list(itertools.chain(*[arg.format(**local_vars).split() for arg in unsplit_arguments]))
 
     # check for sort order and recursivity
-    sort = sort or ""
+    sort = ""
     if arguments:
         for arg in arguments:
             # arguments starting with "-" are sort keys. 'R' forces recursive mode
@@ -282,7 +282,7 @@ def _ls(recursive, sort, unsplit_arguments):
     else:
         arguments = ["."]
 
-    return _ls_impl(sort=sort, recursive=recursive, arguments=[arg for arg in arguments if arg[0] != '-'])
+    return _ls_impl(sort=sort or default_sort, recursive=recursive, arguments=[arg for arg in arguments if arg[0] != '-'])
 
 
 
