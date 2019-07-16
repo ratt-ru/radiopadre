@@ -107,10 +107,18 @@ class CasaTable(radiopadre.file.FileBase):
         """Context manager. Sets lock on table. For use, see examples below."""
         if casacore_tables is None:
             raise RuntimeError("no casacore.tables installed")
-        elif write and not self._writeable:
+        # check for writability
+        writable = casacore_tables.tableiswritable(self.fullpath) if self._table is None else self._writeable
+
+        if write and not writable:
             raise IOError("table is not writable")
-        elif self._table is None:
-            raise RuntimeError("table not open: this is a bug")
+
+        # if table object is not open, we won't hold one outside of the context (and auto-locking is good enough)
+        if self._table is None:
+            tab = casacore_tables.table(self.fullpath, readonly=not write)
+            yield tab
+            tab.close()
+        # if table object is open (i.e. we were created with a query or a sub-table), count locks
         else:
             # lock first time. If write-lock requested and no write lock set, lock again
             if not self._num_locks or (write and not self._writeable_lock):
