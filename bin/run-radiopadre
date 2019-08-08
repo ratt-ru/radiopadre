@@ -74,9 +74,11 @@ def find_which(command):
         raise
     return binary
 
-def find_unused_port (base, maxtries=1000):
+def find_unused_port (base, maxtries=10000):
     """Helper function. Finds an unused server port"""
-    for i in range(maxtries):
+    if base > 65535:
+        base = 1025
+    for i in xrange(maxtries):
         serversocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         try:
             serversocket.bind(("localhost", base))
@@ -85,7 +87,7 @@ def find_unused_port (base, maxtries=1000):
         except:
             base += 1
             continue
-    return None
+    raise RuntimeError("unable to find free socket port")
 
 class Poller(object):
     """Poller class. Poor man's select.poll(). Damn you OS/X and your select.poll will-you-won'y-you bollocks"""
