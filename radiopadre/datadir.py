@@ -5,6 +5,8 @@ import fnmatch
 import subprocess
 import itertools
 import glob
+import traceback
+import inspect
 from collections import OrderedDict
 
 from .file import FileBase, autodetect_file_type
@@ -237,7 +239,7 @@ def _ls_impl(recursive, sort, arguments):
                     content.append(dd)
                     messages.append("{}: {} files".format(arg, len(dd)))
             else:
-                content.append(FileList([filetype(arg)], sort=None))
+                content.append(FileList([filetype(arg)], title=arg, sort=None))
                 messages.append("{}: {}".format(arg, filetype.__name__))
         else:
             files = []
@@ -246,7 +248,7 @@ def _ls_impl(recursive, sort, arguments):
                 if filetype is not None:
                     files.append(filetype(path))
             if files:
-                content.append(FileList(files, sort=sort))
+                content.append(FileList(files, sort=sort, title=arg))
                 messages.append("{}: {} matches".format(arg, len(files)))
             else:
                 messages.append("{}: no matches".format(arg))
@@ -260,12 +262,14 @@ def _ls_impl(recursive, sort, arguments):
         return FileList(itertools.chain(*content), path=".", title=", ".join(arguments), sort=None)
 
 
-def _ls(recursive, sort, unsplit_arguments):
+def _ls(recursive, default_sort, unsplit_arguments):
     # split all arguments on whitespace and form one big list
-    arguments = list(itertools.chain(*[arg.split() for arg in unsplit_arguments]))
+    local_vars = inspect.currentframe().f_back.f_back.f_locals
+    
+    arguments = list(itertools.chain(*[arg.format(**local_vars).split() for arg in unsplit_arguments]))
 
     # check for sort order and recursivity
-    sort = sort or ""
+    sort = ""
     if arguments:
         for arg in arguments:
             # arguments starting with "-" are sort keys. 'R' forces recursive mode
@@ -278,7 +282,7 @@ def _ls(recursive, sort, unsplit_arguments):
     else:
         arguments = ["."]
 
-    return _ls_impl(sort=sort, recursive=recursive, arguments=[arg for arg in arguments if arg[0] != '-'])
+    return _ls_impl(sort=sort or default_sort, recursive=recursive, arguments=[arg for arg in arguments if arg[0] != '-'])
 
 
 

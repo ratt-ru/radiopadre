@@ -254,13 +254,13 @@ class FileList(FileBase, list):
         showpath = self._showpath or other._showpath or self.fullpath != other.fullpath
         return FileList(content=content, path=self.path, sort=None, showpath=showpath, title="")
 
-    def filter(self, conditional, name=None):
+    def filter(self, conditional, title=None):
         self._load()
-        name = name or getattr(conditional, '__name__') or str(conditional)
+        name = title or getattr(conditional, '__name__') or str(conditional)
         title = "{}, [filter: {}]".format(self._title, name)
         return FileList([f for f in self if conditional(f)],
                         path=self.fullpath, extcol=self._extcol, showpath=self._showpath,
-                        sort=self._sort,
+                        sort=None,
                         title=title, parent=self._parent)
 
 
