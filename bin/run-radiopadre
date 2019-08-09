@@ -1164,7 +1164,7 @@ if not attaching_to_ports and not options.virtual_env:
         # setup mounts for work dir and home dir, if needed
         homedir = os.path.expanduser("~")
         docker_opts += [
-            "-B", "{}:{}{}".format(ABSROOTDIR, ABSROOTDIR, ":ro" if orig_rootdir else ""),
+            "-B", "{}:{}{}".format(ABSROOTDIR, ABSROOTDIR, ""), # ":ro" if orig_rootdir else ""),
             # hides /home/user/.local, which if exposed, can confuse jupyter and ipython
             "-B", "{}:{}/.local".format(docker_local, homedir),
             # mount session info directory (needed to serve e.g. js9prefs.js)

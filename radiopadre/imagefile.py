@@ -11,6 +11,7 @@ import radiopadre.file
 from radiopadre.render import render_title, render_url, render_preamble, rich_string, RichString
 from radiopadre import settings
 
+PIL.Image.MAX_IMAGE_PIXELS = 30000**2
 
 def _make_thumbnail(image, width):
     thumbdir, thumbdir_url = radiopadre.get_cache_dir(image, "thumbs")
