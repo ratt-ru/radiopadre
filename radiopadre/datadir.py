@@ -259,7 +259,7 @@ def _ls_impl(recursive, sort, arguments):
     if len(content) == 1:
         return content[0]
     else:
-        return FileList(itertools.chain(*content), path=".", title=", ".join(arguments), sort=None)
+        return FileList(itertools.chain(*content), path=".", title=", ".join(arguments), sort=sort)
 
 
 def _ls(recursive, default_sort, unsplit_arguments):

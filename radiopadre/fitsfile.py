@@ -469,8 +469,7 @@ class FITSFile(radiopadre.file.FileBase):
         """Makes a symlink from the cache directory to the FITS file. Needed for JS9 to load it."""
         cachedir, cachedir_url = radiopadre.get_cache_dir(self.fullpath, "js9-launch")
         symlink = "{}/{}".format(cachedir, self.name)
-        if not os.path.exists(symlink):
-            os.symlink(os.path.abspath(self.fullpath), symlink)
+        radiopadre._make_symlink(os.path.abspath(self.fullpath), symlink)
         # Cache dir is in the shadow hierarchy, so symlink will always be something like e.g.
         #    /home/user/.radiopadre/home/user/path/to/.radiopadre/js9-launch/x.fits
         # ...and if padre was started in /home/user/path, then jS9helper runs in its shadow equivalent,

@@ -62,7 +62,7 @@ def _is_subdir(subdir, parent):
 def _make_symlink(source, link_name):
     try:
         if os.path.lexists(link_name):
-            if os.path.samefile(os.path.realpath(link_name), source):
+            if os.path.exists(link_name) and os.path.samefile(link_name, source):
                 return
             else:
                 os.unlink(link_name)
