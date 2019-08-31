@@ -188,6 +188,7 @@ class ItemBase(RenderableElement):
         title = self._render_title_link(context=context, **kw)
         thumb_content = self._render_thumb_impl(context=context, **kw)
         action_buttons = self._action_buttons_(context=context, defaults=kw) or ""
+        path = self.path
 
         if action_buttons:
             action_buttons = """<tr style="background: transparent"><td style="padding: 0; padding-top: 2px">{}</td></tr>""".format(action_buttons)
@@ -200,7 +201,9 @@ class ItemBase(RenderableElement):
                         <table style="border: 0px; text-align: left; width: 100%">
                             <tr>
                                 <td style="border: 0px; background: #D0D0D0; text-align: left; width: 3em">{prefix}</td>
-                                <td style="border: 0px; background: #D0D0D0; text-align: center; max-width: 99%">{title}</td>
+                                <td title={path} style="border: 0px; background: #D0D0D0; text-align: center; max-width: 99%">
+                                    {title}
+                                </td>
                             </tr>
                         </table>
                     </td>

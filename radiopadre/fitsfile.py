@@ -228,12 +228,14 @@ class FITSFile(radiopadre.file.FileBase):
                 FITSFile._collective_action_buttons_(fits_files, context=context,
                                                      defaults=FITSFile.make_js9_defaults(**kw))
         actions = [ df._action_buttons_(context) for df in fits_files ]
+        labels = ("{}name".format(sort_arrow if primary_sort == "n" else ""),
+                  "{}size".format(sort_arrow if primary_sort == "s" else ""),
+                  "res",
+                  "axes",
+                  "{}modified".format(sort_arrow if primary_sort == "t" else ""))
+        tooltips = { (irow,labels[0]): df.path for irow, df in enumerate(fits_files) }
         html += render_table(data, html=("size", "axes", "res"),
-                             labels=("{}name".format(sort_arrow if primary_sort == "n" else ""),
-                                     "{}size".format(sort_arrow if primary_sort == "s" else ""),
-                                     "res",
-                                     "axes",
-                                     "{}modified".format(sort_arrow if primary_sort == "t" else "")),
+                             labels=labels, tooltips=tooltips,
                              actions=actions,
                              context=context)
         return html

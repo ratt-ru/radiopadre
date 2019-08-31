@@ -82,6 +82,7 @@ class FileList(FileBase, list):
         # find primary sort key ("d" and "r" excepted)
         sort = self._sort.replace("r", "").replace("d", "")
         primary_sort = sort and sort[0]
+        tooltips = {}
 
         # if class object has a summary function, use that
         html_summary = self._get_collective_method('_html_summary')
@@ -120,9 +121,11 @@ class FileList(FileBase, list):
             data = [((df.basepath if self._showpath else df.basename) + ext(df),
                      df.size, df.mtime_str) for df in self]
             links = [(link(df), None, None) for df in self]
+        tooltips = { (irow,labels[0]): df.path for irow, df in enumerate(self) }
         # get "action buttons" associated with each file
         actions = [ df._action_buttons_(context) for df in self ]
         html += render_table(data, labels, links=links, ncol=ncol, actions=actions,
+                             tooltips=tooltips,
                              context=context)
         return html
 

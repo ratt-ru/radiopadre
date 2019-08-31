@@ -227,7 +227,7 @@ def show_table(data, **kw):
 
 def render_table(data, labels=None, html=set(), ncol=1, links=None,
                  header=True, numbering=True,
-                 styles={},
+                 styles={}, tooltips={},
                  actions=None,
                  context=None
                  ):
@@ -277,7 +277,10 @@ def render_table(data, labels=None, html=set(), ncol=1, links=None,
                     col = col.html
                 elif not str(col).upper().startswith("<HTML>") and not i in html and not labels[i] in html:
                     col = cgi.escape(str(col))
-                txt += """<td style="border: 0px; text-align: left; """
+                tooltip = tooltips.get((irow, labels[i]),"")
+                if tooltip:
+                    tooltip = """title="{}" """.format(tooltip)
+                txt += """<td {}style="border: 0px; text-align: left; """.format(tooltip)
                 if ncol > 1 and icol < ncol - 1 and i == len(datum) - 1 and not actions:
                     txt += "border-right: 1px double; padding-right: 10px"
                 txt += "{}; {};".format(styles.get(labels[i], ""), styles.get((irow, labels[i]), ""))
