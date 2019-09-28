@@ -246,7 +246,7 @@ class CasaTable(radiopadre.file.FileBase):
                       tab.getcolslice(colname, blc, trc, incr, start, nrow, rowincr)
             if coldata is None:
                 return None
-            shape = coldata.shape
+            shape = coldata.shape if type(coldata) is np.ndarray else [len(coldata)]
             fr = fl = None
             if flagrow and "FLAG_ROW" in self.columns:
                 fr = tab.getcol("FLAG_ROW", start, nrow, rowincr)

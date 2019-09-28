@@ -3,7 +3,7 @@ FROM kernsuite/base:4
 ################################
 # install latest masters
 ################################
-RUN echo "deb-src http://ppa.launchpad.net/kernsuite/kern-4/ubuntu bionic main" > /etc/apt/sources.list.d/kernsuite-ubuntu-kern-4-bionic.list
+RUN echo "deb-src http://ppa.launchpad.net/kernsuite/kern-5/ubuntu bionic main" > /etc/apt/sources.list.d/kernsuite-ubuntu-kern-5-bionic.list
 RUN apt-get update
 RUN apt-get update
 RUN docker-apt-install \
