@@ -1,9 +1,6 @@
-import cgi
 import re
-import codecs
-
-import IPython.display
-from IPython.display import HTML, display
+import io
+import os.path
 
 from radiopadre.file import ItemBase, FileBase
 from radiopadre.render import render_title, render_url, render_preamble, rich_string, htmlize
@@ -258,6 +255,10 @@ class NumberedLineList(ItemBase):
 
 
 class TextFile(FileBase, NumberedLineList):
+
+    # do not attempt to read files above this size
+    MAXSIZE = 1000000
+
     def __init__(self, *args, **kw):
         NumberedLineList.__init__(self, [])
         FileBase.__init__(self, *args, **kw)
@@ -265,8 +266,19 @@ class TextFile(FileBase, NumberedLineList):
         self._scan_impl()
 
     def _load_impl(self):
-        self.lines = enumerate(codecs.open(self.fullpath, encoding='utf-8').readlines())
-        self.description = "{} lines, modified {}".format(len(self), self.mtime_str)
+        size = os.path.getsize(self.fullpath)
+        fobj = io.open(self.fullpath, encoding='utf-8')
+        if size <= self.MAXSIZE:
+            self.lines = enumerate(fobj.readlines())
+            self.description = "{} lines, modified {}".format(len(self), self.mtime_str)
+        else:
+            lines0 = enumerate(fobj.readlines(self.MAXSIZE//2))
+            fobj.seek(size - self.MAXSIZE//2)
+            lines1 = fobj.readlines()
+            lines1 = [(num-len(lines1), line) for num, line in enumerate(lines1)]
+            self.lines = list(lines0) + lines1
+            self.description = "large text ({}), modified {}".format(self.size, self.mtime_str)
+
 
     # def _action_buttons_(self, context, **kw):
     #     code = """

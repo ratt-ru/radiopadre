@@ -8,7 +8,7 @@ from collections import OrderedDict
 
 # default repo and branch to use when initializing a remote installation
 REPO = "git@github.com:ratt-ru/radiopadre.git"
-BRANCH = "master"
+BRANCH = "issue-39-40"
 
 # ports used when running inside a container
 CONTAINER_PORTS = 11001, 11002, 11003, 11004, 11005
