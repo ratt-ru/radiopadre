@@ -218,7 +218,7 @@ class DataDir(FileList):
         return self.sh(command, exception=True)
 
 
-def _ls_impl(recursive, sort, arguments):
+def _ls_impl(recursive, sort, arguments, kw):
     """Creates a DataDir or FileList from the given arguments (name and/or patterns)
 
     - nothing (scan '.' with default patterns)
@@ -256,6 +256,11 @@ def _ls_impl(recursive, sort, arguments):
     global _transient_message
     _transient_message = TransientMessage("; ".join(messages), color="blue" if content else "red")
 
+    # display section title
+    if 'section' in kw:
+        from radiopadre.layouts import Section
+        Section(kw['section'])
+
     if len(content) == 1:
         return content[0]
     else:
@@ -286,32 +291,32 @@ def _ls(recursive, default_sort, unsplit_arguments):
 
 
 
-def ls(*args):
+def ls(*args, **kw):
     """
     Creates a DataDir from '.' non-recursively, optionally applying a file selection pattern.
     Sorts in default order (directory, extension, name, mtime)
     """
-    return _ls(False, '-dxnt', args)
+    return _ls(False, '-dxnt', args, kw)
 
-def lst(*args):
+def lst(*args, **kw):
     """
     Creates a DataDir from '.' non-recursively, optionally applying a file selection pattern.
     Sorts in time order (directory, mtime, extension, name)
     """
-    return _ls(False, '-dtxn', args)
+    return _ls(False, '-dtxn', args, kw)
 
-def lsrt(*args):
+def lsrt(*args, **kw):
     """
     Creates a DataDir from '.' non-recursively, optionally applying a file selection pattern.
     Sorts in reverse time order (directory, -mtime, extension, name)
     """
-    return _ls(False, '-rtdxn', args)
+    return _ls(False, '-rtdxn', args, kw)
 
-def lsR(*args):
+def lsR(*args, **kw):
     """
     Creates a DataDir from '.' recursively, optionally applying a file selection pattern.
     Sorts in default order (directory, extension, name, mtime)
     """
-    return _ls(True, '-dxnt', args)
+    return _ls(True, '-dxnt', args, kw)
 
 
