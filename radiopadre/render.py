@@ -193,14 +193,15 @@ def render_preamble():
     # return """<script>document.radiopadre.fixup_hrefs()</script>"""
 
 
-def render_url(fullpath): # , prefix="files"):
+def render_url(fullpath, notebook=False): # , prefix="files"):
     """Converts a path relative to the notebook (i.e. kernel) to a URL that
     can be served by the notebook server, by prepending the notebook
     directory"""
     if fullpath.startswith('http://'):
         url = fullpath
     else:
-        url = os.path.normpath(os.path.join(radiopadre.FILE_URL_ROOT, fullpath))
+        url = os.path.normpath(os.path.join(radiopadre.FILE_URL_ROOT if not notebook else radiopadre.NOTEBOOK_URL_ROOT,
+                                            fullpath))
     # print "{} URL is {}".format(fullpath, url)
     return url
 

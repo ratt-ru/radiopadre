@@ -268,3 +268,12 @@ class TextFile(FileBase, NumberedLineList):
         self.lines = enumerate(codecs.open(self.fullpath, encoding='utf-8').readlines())
         self.description = "{} lines, modified {}".format(len(self), self.mtime_str)
 
+    # def _action_buttons_(self, context, **kw):
+    #     code = """
+    #         <button id="" title="load text file in a new browser tab" style="font-size: 0.9em;"
+    #                 onclick="window.open('{}', '_blank')">&#8663;txt</button>
+    #     """.format(render_url(self.fullpath))
+    #
+    #     return code
+    #
+    #

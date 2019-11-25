@@ -227,7 +227,7 @@ class ItemBase(RenderableElement):
         return self.title
 
     def _render_thumb_impl(self, **kw):
-        return self.summary
+        return self.description
 
     def _action_buttons_(self, context, **kw):
         """
@@ -475,6 +475,7 @@ def autodetect_file_type(path):
     from .casatable import CasaTable
     from .htmlfile import HTMLFile
     from .pdffile import PDFFile
+    from .notebook import NotebookFile
 
     if not os.path.exists(path):
         return None
@@ -495,6 +496,8 @@ def autodetect_file_type(path):
         return ImageFile
     elif ext in [".txt", ".log", ".py", ".sh"]:
         return TextFile
+    elif ext in [".ipynb"]:
+        return NotebookFile
     return FileBase
 
 

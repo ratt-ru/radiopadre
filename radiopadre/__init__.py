@@ -86,6 +86,7 @@ SHADOW_ROOTDIR = None   # "root" directory in shadow tree, e.g. ~/.radiopadre/ho
 
 SHADOW_URL_PREFIX = None   # URL prefix for HTTP server serving shadow tree (e.g. http://localhost:port/{SESSION_ID})
 FILE_URL_ROOT = None       # root URL for accessing files through Jupyter (e.g. /files/to)
+NOTEBOOK_URL_ROOT = None   # root URL for accessing notebooks through Jupyter (e.g. /notebooks/to)
 CACHE_URL_BASE = None      # base URL for cache, e.g. http://localhost:port/{SESSION_ID}/home/user/path
 CACHE_URL_ROOT = None      # URL for cache of root dir, e.g. http://localhost:port/{SESSION_ID}/home/user/path/to
 
@@ -111,6 +112,7 @@ def init(rootdir=None, verbose=True):
 
     global SHADOW_URL_PREFIX
     global FILE_URL_ROOT
+    global NOTEBOOK_URL_ROOT
     global SESSION_ID
     global CACHE_URL_ROOT
     global CACHE_URL_BASE
@@ -147,6 +149,7 @@ def init(rootdir=None, verbose=True):
         # /home/alien/path/to as /files/to/.content
         subdir = SHADOW_ROOTDIR[len(SERVER_BASEDIR):]   # this becomes "/to" (or "" if paths are the same)
         FILE_URL_ROOT = "/files{}/.radiopadre.content".format(subdir)
+        NOTEBOOK_URL_ROOT = "/notebooks{}/.radiopadre.content".format(subdir)
         # but do make sure that the .content symlink is in place!
         _make_symlink(ABSROOTDIR, SHADOW_ROOTDIR + "/.radiopadre.content")
     # else running in native mode
@@ -158,6 +161,7 @@ def init(rootdir=None, verbose=True):
         # for a server dir of /home/user/path, and an ABSROOTDIR of /home/oms/path/to, get the subdir
         subdir = ABSROOTDIR[len(SERVER_BASEDIR):]   # this becomes "/to" (or "" if paths are the same)
         FILE_URL_ROOT = "/files" + subdir
+        NOTEBOOK_URL_ROOT = "/notebooks" + subdir
         SHADOW_BASEDIR = SHADOW_HOME + SERVER_BASEDIR
 
     os.chdir(ABSROOTDIR)
