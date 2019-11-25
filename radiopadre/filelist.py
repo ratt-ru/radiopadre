@@ -102,7 +102,7 @@ class FileList(FileBase, list):
             return df.ext+"/" if os.path.isdir(df.path) else df.ext
 
         def link(df):
-            return None if os.path.isdir(df.fullpath) else render_url(df.fullpath)
+            return df.downloadable_url
 
         if self._extcol:
             labels = ("{}name".format(arrow if primary_sort == "n" else ""),
@@ -134,8 +134,8 @@ class FileList(FileBase, list):
         return FileList.list_to_string(self)
 
     @property
-    def is_downloadable(self):
-        return False
+    def downloadable_url(self):
+        return None
 
     def _scan_impl(self):
         FileBase._scan_impl(self)

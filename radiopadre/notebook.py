@@ -5,10 +5,8 @@ class NotebookFile(FileBase):
     def __init__(self, *args, **kw):
         FileBase.__init__(self, *args, **kw)
 
-    def _render_title_link(self, showpath=False, url=None, **kw):
-        """Renders the name of the file, with a download link"""
-        url = url or render_url(self.fullpath, notebook=True)
-        name = self.path if showpath else self.name
-        return "<a href='{url}' target='_blank'>{name}</a>".format(**locals())
+    @property
+    def downloadable_url(self):
+        return render_url(self.fullpath, notebook=True)
 
 

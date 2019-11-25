@@ -141,8 +141,8 @@ class CasaTable(radiopadre.file.FileBase):
         return self.lock_table(False)
 
     @property
-    def is_downloadable(self):
-        return False
+    def downloadable_url(self):
+        return None
 
     def _scan_impl(self):
         radiopadre.file.FileBase._scan_impl(self)

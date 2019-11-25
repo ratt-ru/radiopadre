@@ -383,15 +383,17 @@ class FileBase(ItemBase):
     def _render_title_link(self, showpath=False, url=None, **kw):
         """Renders the name of the file, with a download link (if downloading should be supported)"""
         name = self.path if showpath else self.name
-        if self.is_downloadable:
+        url = url or self.downloadable_url
+        if url:
             url = url or render_url(self.fullpath)
             return "<a href='{url}' target='_blank'>{name}</a>".format(**locals())
         else:
             return "{name}".format(**locals())
 
     @property
-    def is_downloadable(self):
-        return True
+    def downloadable_url(self):
+        """Returns downloadable URL for this file, or None if the file should not have a download link"""
+        return render_url(self.fullpath)
 
     @staticmethod
     def sort_list(filelist, opt="dxnt"):

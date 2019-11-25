@@ -263,8 +263,8 @@ class FITSFile(radiopadre.file.FileBase):
         return self.render_thumb(**kw)
 
     @property
-    def is_downloadable(self):
-        return False
+    def downloadable_url(self):
+        return None
 
 
     def _get_png_file(self, keydict={}, **kw):
