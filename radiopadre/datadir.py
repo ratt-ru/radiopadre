@@ -267,7 +267,7 @@ def _ls_impl(recursive, sort, arguments, kw):
         return FileList(itertools.chain(*content), path=".", title=", ".join(arguments), sort=sort)
 
 
-def _ls(recursive, default_sort, unsplit_arguments):
+def _ls(recursive, default_sort, unsplit_arguments, kw):
     # split all arguments on whitespace and form one big list
     local_vars = inspect.currentframe().f_back.f_back.f_locals
     
@@ -287,7 +287,7 @@ def _ls(recursive, default_sort, unsplit_arguments):
     else:
         arguments = ["."]
 
-    return _ls_impl(sort=sort or default_sort, recursive=recursive, arguments=[arg for arg in arguments if arg[0] != '-'])
+    return _ls_impl(sort=sort or default_sort, recursive=recursive, arguments=[arg for arg in arguments if arg[0] != '-'], kw=kw)
 
 
 
