@@ -1,19 +1,20 @@
 import os
 import time
 import math
+import contextlib
+import hashlib
 
 from IPython.display import display, HTML
 
 import radiopadre
 from radiopadre import settings
-from radiopadre.render import render_refresh_button, rich_string, render_url, TransientMessage
+from radiopadre.render import RenderableElement, render_refresh_button, rich_string, render_url, TransientMessage
 from collections import OrderedDict
 from radiopadre import casacore_tables
 
 
-class ItemBase(object):
+class ItemBase(RenderableElement):
     """Base class referring to an abstract displayable data item.
-
 
     Properties:
         summary:        short summary of item content
@@ -90,6 +91,15 @@ class ItemBase(object):
     def info(self, value):
         self._info = rich_string(value)
 
+    @property
+    def thumb(self):
+        return self._rendering_proxy('render_thumb', 'thumb')
+
+    @property
+    def render(self):
+        return self._rendering_proxy('render_html', 'render')
+
+
     def __str__(self):
         """str() returns the plain-text version of the file content. Calls self.render_text()."""
         self.rescan()
@@ -102,27 +112,15 @@ class ItemBase(object):
         if not cycle:
             p.text(self.render_text())
 
-    def _repr_html_(self):
+    def _repr_html_(self, **kw):
         """
         Internal method called by Jupyter to get an HTML rendering of an object.
-        Our version makes use of subclass methods, which are mean to implement this behaviour:
+        Our version makes use of subclass methods, which are meant to implement this behaviour:
         _load() to load content, then _render_html() to render it
         """
         self.rescan()
         self.clear_message()
-        return self.render_html()
-
-    def show(self, *args, **kw):
-        """
-        Renders the object.
-
-        Default version alls _load() to load content, then calls self._render_html(), passing along all arguments,
-        then displays the returned HTML using IPython.display
-        """
-        self.rescan()
-        html = self.render_html(*args, **kw)
-        self.clear_message()
-        display(HTML(html))
+        return RenderableElement._repr_html_(self, **kw)
 
     def watch(self, *args, **kw):
         """
@@ -133,14 +131,14 @@ class ItemBase(object):
 
     # These methods are meant to be reimplemented by subclasses
 
-    def render_text(self, *args, **kw):
+    def render_text(self, **kw):
         """
         Method to be implemented by subclasses. Default version falls back to summary().
         :return: plain-text rendering of file content
         """
         return rich_string(self.summary).text
 
-    def render_html(self, *args, **kw):
+    def render_html(self, **kw):
         """
         Method to be implemented by subclasses. Default version falls back to summary().
         :return: HTML rendering of file content
@@ -174,6 +172,72 @@ class ItemBase(object):
         if self._message is not None:
             self._message.hide()
             self._message = None
+
+    @contextlib.contextmanager
+    def transient_message(self, msg, color='blue'):
+        self.message(msg, color=color)
+        try:
+            yield self._message
+        finally:
+            self.clear_message()
+
+    def render_thumb(self, context=None, prefix="", **kw):
+        """
+        Renders a "thumbnail view" of the file, using _render_thumb_impl() for the content
+        """
+        title = self._render_title_link(context=context, **kw)
+        thumb_content = self._render_thumb_impl(context=context, **kw)
+        action_buttons = self._action_buttons_(context=context, defaults=kw) or ""
+        path = self.path
+
+        if action_buttons:
+            action_buttons = """<tr style="background: transparent"><td style="padding: 0; padding-top: 2px">{}</td></tr>""".format(action_buttons)
+
+        return """
+            <div style="width: 100%">
+            <table style="border: 0px; text-align: left; width: 100%">
+                <tr style="border: 0px; text-align: left">
+                    <td style="padding: 0">
+                        <table style="border: 0px; text-align: left; width: 100%">
+                            <tr>
+                                <td style="border: 0px; background: #D0D0D0; text-align: left; width: 3em">{prefix}</td>
+                                <td title={path} style="border: 0px; background: #D0D0D0; text-align: center; max-width: 99%">
+                                    {title}
+                                </td>
+                            </tr>
+                        </table>
+                    </td>
+                </tr>
+                {action_buttons}
+                <tr style="border: 0px; text-align: left; background: transparent">
+                    <td style="border: 0px; text-align: center; width: 100%; padding-right: 0; padding-left: 0">
+                    <div style="position: relative">
+                        <div>
+                            {thumb_content}
+                        </div>
+                    </div>
+                    </td>
+                </tr>
+            </table>
+            </div>
+            """.format(**locals())
+
+    def _render_title_link(self, **kw):
+        """Renders the name of the item and/or link"""
+        return self.title
+
+    def _render_thumb_impl(self, **kw):
+        return self.description
+
+    def _action_buttons_(self, context, **kw):
+        """
+        Returns HTML code associated with available actions for this file. Can be None.
+
+        :param context: a RenderingContext object
+        :return: HTML code for action buttons, or None
+        """
+        return None
+
 
 
 class FileBase(ItemBase):
@@ -248,6 +312,8 @@ class FileBase(ItemBase):
         self.basepath, self.ext = os.path.splitext(self.path)
         self.basename = os.path.basename(self.basepath)
 
+        self._subproduct_cache = {}
+
         # directory key set up for sorting purposes
         # directories sort themselves before files
         isdir = int(os.path.isdir(self.fullpath))
@@ -258,6 +324,7 @@ class FileBase(ItemBase):
         self._loaded_mtime = None
         if load:
             self._load()
+
 
     def _load(self):
         """Helper method, calls _load_impl() if not already done"""
@@ -313,19 +380,20 @@ class FileBase(ItemBase):
         """
         pass
 
-    def _action_buttons_(self, preamble=OrderedDict(), postscript=OrderedDict(), div_id=""):
-        """
-        Returns HTML code associated with available actions for this file. Can be None.
+    def _render_title_link(self, showpath=False, url=None, **kw):
+        """Renders the name of the file, with a download link (if downloading should be supported)"""
+        name = self.path if showpath else self.name
+        url = url or self.downloadable_url
+        if url:
+            url = url or render_url(self.fullpath)
+            return "<a href='{url}' target='_blank'>{name}</a>".format(**locals())
+        else:
+            return "{name}".format(**locals())
 
-        :param preamble: HTML code rendered before e.g. list of files. Insert your own
-                         as appropriate.
-        :param postscript: HTML code rendered after e.g. list of files. Insert your own
-                         as appropriate.
-        :param div_id:   unique ID corresponding to rendered chunk of HTML code
-        :return: HTML code for action buttons, or None
-        """
-        return None
-
+    @property
+    def downloadable_url(self):
+        """Returns downloadable URL for this file, or None if the file should not have a download link"""
+        return render_url(self.fullpath)
 
     @staticmethod
     def sort_list(filelist, opt="dxnt"):
@@ -358,6 +426,45 @@ class FileBase(ItemBase):
 
     _sort_attributes = dict(d="_dirkey", x="ext", n="basepath", s="_byte_size", t="mtime")
 
+    def _get_cache_file(self, cache_subdir, ext="png", keydict={}, **kw):
+        """
+        Helper method. Returns filename, URL and update status of a cache file corresponding to this fileitem, plus
+        optional keys.
+
+        Update status is True if fileitem is newer and/or keys have changed and/or PNG file does not exist.
+        Update status is False if PNG file can be reused.
+
+        """
+        # init paths, if not already done so
+        if cache_subdir not in self._subproduct_cache:
+            self._subproduct_cache[cache_subdir] = path, url = radiopadre.get_cache_dir(self.fullpath, cache_subdir)
+        else:
+            path, url = self._subproduct_cache[cache_subdir]
+
+        # make name from components
+        filename = ".".join([self.basename] + ["{}-{}".format(*item) for item in keydict.items()] + [ext])
+
+        filepath = "{}/{}".format(path, filename)
+        update = not os.path.exists(filepath) or self.mtime > os.path.getmtime(filepath)
+
+        # check hashes
+        if not update:
+            checksum = hashlib.md5()
+            for key, value in kw.items():
+                checksum.update(str(key))
+                checksum.update(str(value))
+            digest = checksum.digest()
+            # check hash file
+            hashfile = filepath + ".md5"
+            if not os.path.exists(hashfile) or open(hashfile).read() != digest:
+                update = True
+                open(hashfile, 'w').write(digest)
+
+        return filepath, "{}/{}".format(url, filename), update
+
+
+
+
 
 def autodetect_file_type(path):
     """
@@ -369,6 +476,8 @@ def autodetect_file_type(path):
     from .datadir import DataDir
     from .casatable import CasaTable
     from .htmlfile import HTMLFile
+    from .pdffile import PDFFile
+    from .notebook import NotebookFile
 
     if not os.path.exists(path):
         return None
@@ -383,10 +492,14 @@ def autodetect_file_type(path):
         return FITSFile
     elif ext in [".html" ]:
         return HTMLFile
+    elif ext in [".pdf"]:
+        return PDFFile
     elif ext in [".png", ".jpg", ".jpeg"]:
         return ImageFile
     elif ext in [".txt", ".log", ".py", ".sh"]:
         return TextFile
+    elif ext in [".ipynb"]:
+        return NotebookFile
     return FileBase
 
 

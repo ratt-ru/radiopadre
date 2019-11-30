@@ -26,11 +26,11 @@ RUN docker-apt-install \
 #    python-notebook jupyter-notebook jupyter-nbextension-jupyter-js-widgets \
 
 RUN pip install astropy==2.0.10  # monkeypatch
-RUN pip install git+https://github.com/ratt-ru/CubiCal
+RUN pip install git+https://github.com/ratt-ru/CubiCal@issue-326
 
 RUN ldconfig
 RUN mkdir /radiopadre
-ADD . /radiopadre
+ADD radiopadre /radiopadre
 #RUN git clone https://github.com/ratt-ru/radiopadre
 RUN rm -fr /radiopadre/.git /radiopadre/js9/.git
 RUN cd /radiopadre && if [ ! -d js9 ]; then git clone https://github.com/ericmandel/js9; fi
