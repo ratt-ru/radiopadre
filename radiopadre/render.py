@@ -350,14 +350,12 @@ class TransientMessage(object):
 
 
 
-def render_refresh_button(full=False):
+def render_refresh_button(full=False, style="position: absolute; right: 0; top: 0;"):
     """Renders a "refresh" button which re-executes the current cell.
     If full is True, a double-click will re-execute the entire notebook, and the button
     will visually indicate that this is necessary
     """
-    txt = """<button %s onclick="IPython.notebook.execute_cell()"
-            style="position: absolute; right: 0; top: 0;
-    """;
+    txt = """<button style="{}" onclick="IPython.notebook.execute_cell()""".format(style)
     if full:
         title = "The underlying directories have changed so you might want to " + \
                 "rerun the whole notebook. Double-click to rerun the notebook up to and including " + \

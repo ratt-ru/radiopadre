@@ -3,6 +3,7 @@ import radiopadre
 import os.path
 from collections import OrderedDict
 from IPython.display import HTML, Markdown, display
+from radiopadre import render
 
 
 _ALL_SECTIONS = OrderedDict()
@@ -49,6 +50,14 @@ def Title(title, sections=[]):
 def Section(name):
     """Renders a section heading, with a bookmarks bar"""
     global _ALL_SECTIONS
+    
+    if name[0] == "*":
+        name = name[1:]
+        refresh = render.render_refresh_button(style="font-size: 1em; padding: 1px; width: 1.5em; height: 1.5em")
+        refresh = """<div style="float: left;"> {refresh} </div>""".format(**locals())
+        title_style = "" 
+    else:
+        refresh = title_style = ""
 
     if name not in _ALL_SECTIONS:
         add_section(name)
@@ -56,7 +65,8 @@ def Section(name):
 
     bookmarks = render_bookmarks_bar(name)
 
-    code = """<div style="float: left; font-size: 1.5em; font-weight: bold; margin-top: 0.4em;">
+    code = """{refresh}
+              <div style="float: left; font-size: 1.5em; font-weight: bold; {title_style}; margin-top: 0.4em;">
                 <A name="{label}" />
                 {name}
               </div>
