@@ -3,11 +3,16 @@ from IPython.display import display, HTML, Javascript
 import os
 import fnmatch
 import subprocess
+import itertools
+import glob
+import traceback
+import inspect
+from collections import OrderedDict
 
 from .file import FileBase, autodetect_file_type
 from .filelist import FileList
 from .textfile import NumberedLineList
-from .render import render_table, render_preamble, render_refresh_button, rich_string, render_url, render_title
+from .render import rich_string, TransientMessage
 
 import radiopadre
 from radiopadre import settings
@@ -21,7 +26,9 @@ def _match_pattern(path, pattern):
     if pattern.startswith("./"):
         pattern = pattern[2:]
     if '/' in pattern:
-        return fnmatch.fnmatch(path, pattern)
+        patt_dir, patt_name = os.path.split(pattern)
+        path_dir, path_name = os.path.split(path)
+        return fnmatch.fnmatch(patt_dir, path_dir) and fnmatch.fnmatch(patt_name, path_name)
     else:
         return fnmatch.fnmatch(os.path.basename(path), pattern)
 
@@ -43,7 +50,7 @@ class DataDir(FileList):
                  include=None, exclude=None,
                  include_dir=None, exclude_dir=None,
                  include_empty=None, show_hidden=None,
-                 recursive=False,
+                 recursive=False, showpath=False,
                  title=None,
                  sort="dxnt"):
         """
@@ -79,7 +86,7 @@ class DataDir(FileList):
             self._exclude.append(".*")
             self._exclude_dir.append(".*")
 
-        FileList.__init__(self, content=None, path=name, sort=sort, title=title, showpath=recursive)
+        FileList.__init__(self, content=None, path=name, sort=sort, title=title, showpath=recursive or showpath)
 
         if include:
             self.title += "/{}".format(','.join(include))
@@ -122,15 +129,20 @@ class DataDir(FileList):
         else:
             incdir, excdir = self._include, self._exclude
 
-        for root, dirs, files in os.walk(self.fullpath):
+        for root, dirs, files in os.walk(self.fullpath, followlinks=True):
             subdirs = []
             # Check for matching files
             for name in files:
                 path = os.path.join(root, name)
-                filetype = autodetect_file_type(path)
-                if filetype is not None and _matches(name if self._browse_mode else path, self._include, self._exclude):
-                    list.append(self, (filetype, path))
-                    self.nfiles += 1
+                # check for symlinks to dirs
+                if os.path.isdir(path):
+                    dirs.append(name)
+                # else handle as file
+                else:
+                    filetype = autodetect_file_type(path)
+                    if filetype is not None and _matches(name if self._browse_mode else path, self._include, self._exclude):
+                        list.append(self, (filetype, path))
+                        self.nfiles += 1
             # Check for matching directories
             for name in dirs:
                 path = os.path.join(root, name)
@@ -140,9 +152,16 @@ class DataDir(FileList):
                                 (not self._browse_mode or self._include_empty or os.listdir(path)):
                         list.append(self, (filetype, path))
                         self.ndirs += 1
-                    # Check for directories to descend into
-                    if self._recursive and filetype is DataDir and _matches(name, self._include_dir, self._exclude_dir):
-                        subdirs.append(name)
+                    # Check for directories to descend into.
+                    # In browse mode (no patterns), only descend into DataDir.
+                    if self._recursive:
+                        if self._browse_mode:
+                            if filetype is DataDir and _matches(name, self._include_dir, self._exclude_dir):
+                                subdirs.append(name)
+                        # Else descend unless directory excluded specifically
+                        elif _matches(name, ["*"], self._exclude_dir):
+                            subdirs.append(name)
+
             # Descend into specified subdirs
             dirs[:] = subdirs
 
@@ -197,5 +216,107 @@ class DataDir(FileList):
 
     def shx(self, command):
         return self.sh(command, exception=True)
+
+
+def _ls_impl(recursive, sort, arguments, kw):
+    """Creates a DataDir or FileList from the given arguments (name and/or patterns)
+
+    - nothing (scan '.' with default patterns)
+    - one directory, no patterns (scan directory with default patterns)
+    - one or more patterns (use glob, make a FileList)
+
+    """
+    content = []
+    messages = []
+    showpath = False
+
+    for arg in arguments:
+        if os.path.isdir(arg):
+            filetype = autodetect_file_type(arg)
+            if arg[-1] == '/' or filetype is DataDir:
+                dd = DataDir(arg, recursive=recursive, title=arg, sort=sort, showpath=True)
+                if len(dd):
+                    content.append(dd)
+                    messages.append("{}: {} files".format(arg, len(dd)))
+            else:
+                content.append(FileList([filetype(arg)], title=arg, sort=None))
+                messages.append("{}: {}".format(arg, filetype.__name__))
+        else:
+            files = []
+            for path in glob.glob(arg):
+                filetype = autodetect_file_type(path)
+                if filetype is not None:
+                    files.append(filetype(path))
+            if files:
+                content.append(FileList(files, sort=sort, title=arg))
+                messages.append("{}: {} matches".format(arg, len(files)))
+            else:
+                messages.append("{}: no matches".format(arg))
+
+    global _transient_message
+    _transient_message = TransientMessage("; ".join(messages), color="blue" if content else "red")
+
+    # display section title
+    if 'section' in kw:
+        from radiopadre.layouts import Section
+        Section(kw['section'])
+
+    if len(content) == 1:
+        return content[0]
+    else:
+        return FileList(itertools.chain(*content), path=".", title=", ".join(arguments), sort=sort)
+
+
+def _ls(recursive, default_sort, unsplit_arguments, kw):
+    # split all arguments on whitespace and form one big list
+    local_vars = inspect.currentframe().f_back.f_back.f_locals
+    
+    arguments = list(itertools.chain(*[arg.format(**local_vars).split() for arg in unsplit_arguments]))
+
+    # check for sort order and recursivity
+    sort = ""
+    if arguments:
+        for arg in arguments:
+            # arguments starting with "-" are sort keys. 'R' forces recursive mode
+            if arg[0] == '-':
+                for char in arg[1:]:
+                    if char == 'R':
+                        recursive = True
+                    else:
+                        sort += char
+    else:
+        arguments = ["."]
+
+    return _ls_impl(sort=sort or default_sort, recursive=recursive, arguments=[arg for arg in arguments if arg[0] != '-'], kw=kw)
+
+
+
+def ls(*args, **kw):
+    """
+    Creates a DataDir from '.' non-recursively, optionally applying a file selection pattern.
+    Sorts in default order (directory, extension, name, mtime)
+    """
+    return _ls(False, '-dxnt', args, kw)
+
+def lst(*args, **kw):
+    """
+    Creates a DataDir from '.' non-recursively, optionally applying a file selection pattern.
+    Sorts in time order (directory, mtime, extension, name)
+    """
+    return _ls(False, '-dtxn', args, kw)
+
+def lsrt(*args, **kw):
+    """
+    Creates a DataDir from '.' non-recursively, optionally applying a file selection pattern.
+    Sorts in reverse time order (directory, -mtime, extension, name)
+    """
+    return _ls(False, '-rtdxn', args, kw)
+
+def lsR(*args, **kw):
+    """
+    Creates a DataDir from '.' recursively, optionally applying a file selection pattern.
+    Sorts in default order (directory, extension, name, mtime)
+    """
+    return _ls(True, '-dxnt', args, kw)
 
 

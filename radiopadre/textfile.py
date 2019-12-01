@@ -1,13 +1,11 @@
-import cgi
 import re
-
-import IPython.display
-from IPython.display import HTML, display
+import io
+import os.path
 
 from radiopadre.file import ItemBase, FileBase
-from radiopadre.render import render_title, render_url, render_preamble, rich_string
+from radiopadre.render import render_title, render_url, render_preamble, rich_string, htmlize
 from radiopadre import settings
-
+from radiopadre import tabulate
 
 class NumberedLineList(ItemBase):
     def __init__ (self, enumerated_lines=[], title=None):
@@ -103,14 +101,14 @@ class NumberedLineList(ItemBase):
         if not head and not tail:
             return txt
         for line_num, line in head:
-            txt += "{}: {}\n".format(line_num+1, line.strip())
+            txt += "{}: {}\n".format(line_num+1, line.encode("utf-8").strip())
         if tail:
             txt += "...\n"
             for line_num, line in tail:
-                txt += "{}: {}\n".format(line_num + 1, line.strip())
+                txt += "{}: {}\n".format(line_num + 1, line.encode("utf-8").strip())
         return txt
 
-    def render_html(self, head=None, tail=None, full=None, grep=None, fs=None, slicer=None, subtitle=None):
+    def render_html(self, head=None, tail=None, full=None, grep=None, fs=None, slicer=None, subtitle=None, **kw):
         self.rescan(load=False)
         txt = render_preamble()
         fs = settings.text.get(fs=fs)
@@ -137,7 +135,6 @@ class NumberedLineList(ItemBase):
             border_bottom = border_style if line_num == firstlast[1] else "none"
             border_rl = border_style if line_num != "..." else "none"
             background = "#f2f2f2" if line_num != "..." else "none"
-            line = unicode(line, "utf-8").encode("ascii", "xmlcharrefreplace")
             return """
                 <DIV style="display: table-row; height=1em">
                     <DIV style="display: table-cell; border-top: {border_top}; border-bottom: {border_bottom};
@@ -149,39 +146,101 @@ class NumberedLineList(ItemBase):
                     </DIV>
                 </DIV>\n""".format(**locals())
 
-        txt += """<DIV style="display: table; width: 100%; font-size: {fs}em; line-height: 1.2em">""".format(**locals())
+        lh = fs*1.5
+        txt += """<DIV style="display: table; width: 100%; font-size: {fs}em; line-height: {lh}em">""".format(**locals())
         firstlast = self._lines[0][0], self._lines[-1][0]
         for line_num, line in head:
-            txt += render_line(line_num, cgi.escape(line), firstlast, fs=fs)
+            txt += render_line(line_num, htmlize(line), firstlast, fs=fs)
         if tail:
-            txt += render_line("...", "", firstlast, fs=fs)
+            txt += render_line("&#8943;", "", firstlast, fs=fs)
             for line_num, line in tail:
-                txt += render_line(line_num, cgi.escape(line), firstlast, fs=fs)
+                txt += render_line(line_num, htmlize(line), firstlast, fs=fs)
         txt += "\n</DIV>\n"
         return txt
 
-    def _render(self, head=0, tail=0, full=None, grep=None, fs=None, slicer=None, title=None):
+    def _render_thumb_impl(self, fs=0.5, head=None, tail=None, **kw):
         self.rescan(load=True)
-        head, tail = self._get_lines(head, tail, full, grep, slicer)
-        return rich_string(self.render_text(head, tail, title=title),
-                           self.render_html(head, tail, fs=fs, title=title))
+        head = settings.text.get(head=head)
+        tail = settings.text.get(tail=tail)
+        head, tail = self._get_lines(head, tail)
+        lh = fs*1.2
+        # html = """<DIV style="display: table; width: 100%; font-size: {fs}em; line-height: {lh}em">""".format(**locals())
+        #
+        # def render_line(line):
+        #     # background = "#f2f2f2" if line_num != "..." else "none"
+        #     line = unicode(line, "utf-8").encode("ascii", "xmlcharrefreplace")
+        #     return """
+        #         <DIV style="display: table-row; height=1em">
+        #             <DIV style="display: table-cell; height=1em; text-align: left"><PRE>{line}</PRE>
+        #             </DIV>
+        #         </DIV>\n""".format(**locals())
+        #
+        # for line_num, line in head:
+        #     html += render_line(cgi.escape(line))
+        # if tail:
+        #     html += render_line("...")
+        #     for line_num, line in tail:
+        #         html += render_line(cgi.escape(line))
+        # html += "\n</DIV>\n"
+        # return html
+
+        text = "".join([h[1] for h in head])
+        if tail:
+            text += "          &#8943;\n"
+            text += "".join([t[1] for t in tail])
+        text = htmlize(text)
+
+        text = """
+                <DIV style="display: table-cell; font-size: {fs}em; text-align: left; 
+                        overflow: auto; text-decoration: none !important">
+                    <PRE style="white-space: pre-wrap; overflow: auto; width=100%">{text}</PRE>
+                </DIV>
+            """.format(**locals())
+        url = render_url(self.fullpath)
+
+        return """<A HREF='{url}' target='_blank' style="text-decoration: none">{text}</A>""".format(**locals())
 
     def grep(self, regex, fs=None):
-        self.show(grep=regex, fs=fs, subtitle=" (grep: {})".format(regex))
+        return self._rendering_proxy('render_html', 'grep', grep=regex, fs=fs, subtitle=" (grep: {})".format(regex))
 
-    def head(self, num=None, fs=None):
-        self.show(head=num, tail=0, fs=fs)
+    @property
+    def head(self):
+        return self._rendering_proxy('render_html', 'head', arg0='head', tail=0)
 
-    def tail(self, num=None, fs=None):
-        self.show(head=0, tail=num, fs=fs)
+    @property
+    def tail(self):
+        return self._rendering_proxy('render_html', 'head', arg0='tail', head=0)
 
-    def full(self, fs=None):
-        self.show(full=True, fs=fs)
+    @property
+    def full(self):
+        return self._rendering_proxy('render_html', 'full', full=True)
+
+    def extract(self, regexp, groups=slice(None)):
+        regexp = re.compile(regexp)
+        if type(groups) is int:
+            groups = slice(groups, groups+1)
+        elif type(groups) not in (list, tuple, slice):
+            raise TypeError("invalid groups argument of type {}".format(type(groups)))
+        rows = []
+        for _, line in self.lines:
+            match = regexp.search(line)
+            if not match:
+                continue
+            grps = match.groups()
+            if type(groups) is slice:
+                rows.append([rich_string(txt) for txt in grps[groups]])
+            else:
+                rows.append([rich_string(grps[i]) for i in groups])
+        self.message("{} lines match".format(len(rows)), timeout=2)
+        return tabulate(rows)
+
 
     def __getitem__(self, item):
         self.rescan(load=True)
         if type(item) is slice:
             return NumberedLineList(self._lines[item])
+        elif type(item) in (tuple, list):
+            return NumberedLineList([self._lines[x] for x in item])
         else:
             return self._lines[int(item)]
 
@@ -196,6 +255,10 @@ class NumberedLineList(ItemBase):
 
 
 class TextFile(FileBase, NumberedLineList):
+
+    # do not attempt to read files above this size
+    MAXSIZE = 1000000
+
     def __init__(self, *args, **kw):
         NumberedLineList.__init__(self, [])
         FileBase.__init__(self, *args, **kw)
@@ -203,6 +266,26 @@ class TextFile(FileBase, NumberedLineList):
         self._scan_impl()
 
     def _load_impl(self):
-        self.lines = enumerate(file(self.fullpath).readlines())
-        self.description = "{} lines, modified {}".format(len(self), self.mtime_str)
+        size = os.path.getsize(self.fullpath)
+        fobj = io.open(self.fullpath, encoding='utf-8')
+        if size <= self.MAXSIZE:
+            self.lines = enumerate(fobj.readlines())
+            self.description = "{} lines, modified {}".format(len(self), self.mtime_str)
+        else:
+            lines0 = enumerate(fobj.readlines(self.MAXSIZE//2))
+            fobj.seek(size - self.MAXSIZE//2)
+            lines1 = fobj.readlines()
+            lines1 = [(num-len(lines1), line) for num, line in enumerate(lines1)]
+            self.lines = list(lines0) + lines1
+            self.description = "large text ({}), modified {}".format(self.size, self.mtime_str)
 
+
+    # def _action_buttons_(self, context, **kw):
+    #     code = """
+    #         <button id="" title="load text file in a new browser tab" style="font-size: 0.9em;"
+    #                 onclick="window.open('{}', '_blank')">&#8663;txt</button>
+    #     """.format(render_url(self.fullpath))
+    #
+    #     return code
+    #
+    #

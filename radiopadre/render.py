@@ -3,22 +3,110 @@ import cgi
 import os.path
 from collections import OrderedDict
 import uuid
+import itertools
 
 from IPython.display import display, HTML, Javascript
 
 import radiopadre
 
-class RichString(object):
+class RenderingContext(object):
+    def __init__(self):
+        self.div_id = uuid.uuid4().hex
+        self.preamble = OrderedDict()
+        self.postscript = OrderedDict()
+
+    def finalize_html(self, html):
+        return "\n".join(itertools.chain(self.preamble.values(), [html], self.postscript.values()))
+
+_default_rendering_context = RenderingContext()
+
+class RenderableElement(object):
+    """
+    Abstract base class for an object that can render itself as text or html
+    """
+    def render_text(self, **kw):
+        """Render text version"""
+        return NotImplementedError
+
+    def render_html(self, context=_default_rendering_context, **kw):
+        """Render full HTML version"""
+        return NotImplementedError
+
+    def __str__(self):
+        return self.render_text()
+
+    def _repr_pretty_(self, p, cycle):
+        """
+        Implementation for the pretty-print method. Default uses render_text().
+        """
+        if not cycle:
+            p.text(self.render_text())
+
+    def _repr_html_(self, context=None, **kw):
+        """
+        Internal method called by Jupyter to get an HTML rendering of an object.
+        """
+        context = context or RenderingContext()
+        return context.finalize_html(self.render_html(context=context, **kw))
+
+    def _rendering_proxy(self, method, name, arg0=None, **kw):
+        return RenderingProxy(self, method, name, arg0=arg0, kwargs=kw.copy())
+
+    def show(self, **kw):
+        display(HTML(self._repr_html_(**kw)))
+
+
+
+class RenderingProxy(RenderableElement):
+    def __init__(self, elem, method, name, arg0=None, kwargs={}):
+        self._elem = elem
+        self._name = name
+        self._method = method
+        self._kw = kwargs
+        self._arg0 = arg0
+
+    def __call__(self, *args, **kwargs):
+        kw = self._kw.copy()
+        kw.update(kwargs)
+
+        # check single argument
+        if self._arg0:
+            if args:
+                if len(args) > 1:
+                    raise TypeError("at most one non-keyword argument expected in call to {}()")
+                kw[self._arg0] = args[0]
+
+        return RenderingProxy(self._elem, self._method, self._name, arg0=self._arg0, kwargs=kw)
+
+    def render_text(self):
+        return self._elem.render_text()
+
+    def render_html(self, **kwargs):
+        kw = self._kw.copy()
+        kw.update(kwargs)
+        html = getattr(self._elem, self._method)(**kw)
+        if isinstance(html, RenderableElement):
+            return html.render_html(**kw)
+        else:
+            return html
+
+
+
+
+class RichString(RenderableElement):
     """
     A rich_string object contains a plain string and an HTML version of itself, and will render itself
     in a notebook front-end appropriately
     """
     def __init__(self, text, html=None, bold=False):
-        self._text = text
+        self._text = text.encode("utf-8") if type(text) is unicode else text
         if html:
             self._html = html
         else:
-            text = cgi.escape(text)
+            if type(text) is unicode:
+                text = text.encode("ascii", "xmlcharrefreplace")
+            else:
+                text = cgi.escape(text)
             self._html = "<B>{}</B>".format(text) if bold else text
 
     def copy(self):
@@ -38,13 +126,13 @@ class RichString(object):
     def __bool__(self):
         return bool(self.text)
 
-    def __str__ (self):
-        return self._text
-
     def __repr__(self):
         return self._text
 
-    def _repr_html_(self):
+    def render_text(self, **kw):
+        return self.text
+
+    def render_html(self, **kw):
         return self._html
 
     def __call__(self):
@@ -76,17 +164,16 @@ class RichString(object):
             self._html = other + self._html
         return self
 
-    def show(self):
-        display(HTML(self.html))
-
 
 def htmlize(text):
     if text is None:
         return ''
     elif type(text) is RichString:
         return text.html
+    elif type(text) is unicode:
+        return text.encode("ascii", "xmlcharrefreplace")
     else:
-        return cgi.escape(str(text))
+        return unicode(str(text), "utf-8").encode("ascii", "xmlcharrefreplace")
 
 def rich_string(text, html=None, bold=False):
     if text is None:
@@ -106,14 +193,15 @@ def render_preamble():
     # return """<script>document.radiopadre.fixup_hrefs()</script>"""
 
 
-def render_url(fullpath): # , prefix="files"):
+def render_url(fullpath, notebook=False): # , prefix="files"):
     """Converts a path relative to the notebook (i.e. kernel) to a URL that
     can be served by the notebook server, by prepending the notebook
     directory"""
     if fullpath.startswith('http://'):
         url = fullpath
     else:
-        url = os.path.normpath(os.path.join(radiopadre.FILE_URL_ROOT, fullpath))
+        url = os.path.normpath(os.path.join(radiopadre.FILE_URL_ROOT if not notebook else radiopadre.NOTEBOOK_URL_ROOT,
+                                            fullpath))
     # print "{} URL is {}".format(fullpath, url)
     return url
 
@@ -140,18 +228,17 @@ def show_table(data, **kw):
 
 def render_table(data, labels=None, html=set(), ncol=1, links=None,
                  header=True, numbering=True,
-                 styles={},
+                 styles={}, tooltips={},
                  actions=None,
-                 preamble=OrderedDict(), postscript=OrderedDict(), div_id=None
+                 context=None
                  ):
     if not data:
         return "no content"
     if labels is None:
         labels = ["col{}".format(i) for i in range(len(data[0]))]
         header = False
-    txt = "<div id='{}'>".format(div_id) if div_id else "<div>"
-    for code in preamble.itervalues():
-        txt += code+"\n"
+    txt = "<div id='{}'>".format(context.div_id) if context else "<div>"
+
     txt += """<table style="border: 1px; text-align: left; {}">""".format(styles.get("TABLE",""))
     if header:
         txt += """<tr style="border: 0px; border-bottom: 1px double; text-align: center">"""
@@ -191,7 +278,10 @@ def render_table(data, labels=None, html=set(), ncol=1, links=None,
                     col = col.html
                 elif not str(col).upper().startswith("<HTML>") and not i in html and not labels[i] in html:
                     col = cgi.escape(str(col))
-                txt += """<td style="border: 0px; text-align: left; """
+                tooltip = tooltips.get((irow, labels[i]),"")
+                if tooltip:
+                    tooltip = """title="{}" """.format(tooltip)
+                txt += """<td {}style="border: 0px; text-align: left; """.format(tooltip)
                 if ncol > 1 and icol < ncol - 1 and i == len(datum) - 1 and not actions:
                     txt += "border-right: 1px double; padding-right: 10px"
                 txt += "{}; {};".format(styles.get(labels[i], ""), styles.get((irow, labels[i]), ""))
@@ -213,10 +303,9 @@ def render_table(data, labels=None, html=set(), ncol=1, links=None,
                     txt += """</td>"""
         txt += """</tr>\n"""
     txt += "</table>"
-    for code in postscript.itervalues():
-        txt += code+"\n"
     txt += "</div>"
-    return txt
+
+    return context.finalize_html(txt) if context else txt
 
 class TransientMessage(object):
     """
@@ -261,14 +350,12 @@ class TransientMessage(object):
 
 
 
-def render_refresh_button(full=False):
+def render_refresh_button(full=False, style="position: absolute; right: 0; top: 0;"):
     """Renders a "refresh" button which re-executes the current cell.
     If full is True, a double-click will re-execute the entire notebook, and the button
     will visually indicate that this is necessary
     """
-    txt = """<button %s onclick="IPython.notebook.execute_cell()"
-            style="position: absolute; right: 0; top: 0;
-    """;
+    txt = """<button style="{}" onclick="IPython.notebook.execute_cell()""".format(style)
     if full:
         title = "The underlying directories have changed so you might want to " + \
                 "rerun the whole notebook. Double-click to rerun the notebook up to and including " + \

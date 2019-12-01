@@ -6,6 +6,7 @@ import os
 import pkg_resources
 import traceback
 import itertools
+from collections import OrderedDict
 
 from IPython.display import display, HTML, Javascript
 
@@ -13,6 +14,7 @@ from radiopadre_utils.notebook_utils import scrub_cell
 
 from radiopadre import settings_manager
 from radiopadre.render import render_error, show_exception, TransientMessage
+from radiopadre.table import tabulate
 
 _startup_warnings = []
 
@@ -34,7 +36,7 @@ except Exception,exc:
 
 
 from .file import autodetect_file_type
-from .datadir import DataDir
+from .datadir import DataDir, ls, lsR, lst, lsrt
 from .filelist import FileList
 from .fitsfile import FITSFile
 from .imagefile import ImageFile
@@ -60,7 +62,7 @@ def _is_subdir(subdir, parent):
 def _make_symlink(source, link_name):
     try:
         if os.path.lexists(link_name):
-            if os.path.samefile(os.path.realpath(link_name), source):
+            if os.path.exists(link_name) and os.path.samefile(link_name, source):
                 return
             else:
                 os.unlink(link_name)
@@ -84,6 +86,7 @@ SHADOW_ROOTDIR = None   # "root" directory in shadow tree, e.g. ~/.radiopadre/ho
 
 SHADOW_URL_PREFIX = None   # URL prefix for HTTP server serving shadow tree (e.g. http://localhost:port/{SESSION_ID})
 FILE_URL_ROOT = None       # root URL for accessing files through Jupyter (e.g. /files/to)
+NOTEBOOK_URL_ROOT = None   # root URL for accessing notebooks through Jupyter (e.g. /notebooks/to)
 CACHE_URL_BASE = None      # base URL for cache, e.g. http://localhost:port/{SESSION_ID}/home/user/path
 CACHE_URL_ROOT = None      # URL for cache of root dir, e.g. http://localhost:port/{SESSION_ID}/home/user/path/to
 
@@ -109,6 +112,7 @@ def init(rootdir=None, verbose=True):
 
     global SHADOW_URL_PREFIX
     global FILE_URL_ROOT
+    global NOTEBOOK_URL_ROOT
     global SESSION_ID
     global CACHE_URL_ROOT
     global CACHE_URL_BASE
@@ -145,6 +149,7 @@ def init(rootdir=None, verbose=True):
         # /home/alien/path/to as /files/to/.content
         subdir = SHADOW_ROOTDIR[len(SERVER_BASEDIR):]   # this becomes "/to" (or "" if paths are the same)
         FILE_URL_ROOT = "/files{}/.radiopadre.content".format(subdir)
+        NOTEBOOK_URL_ROOT = "/notebooks{}/.radiopadre.content".format(subdir)
         # but do make sure that the .content symlink is in place!
         _make_symlink(ABSROOTDIR, SHADOW_ROOTDIR + "/.radiopadre.content")
     # else running in native mode
@@ -156,6 +161,7 @@ def init(rootdir=None, verbose=True):
         # for a server dir of /home/user/path, and an ABSROOTDIR of /home/oms/path/to, get the subdir
         subdir = ABSROOTDIR[len(SERVER_BASEDIR):]   # this becomes "/to" (or "" if paths are the same)
         FILE_URL_ROOT = "/files" + subdir
+        NOTEBOOK_URL_ROOT = "/notebooks" + subdir
         SHADOW_BASEDIR = SHADOW_HOME + SERVER_BASEDIR
 
     os.chdir(ABSROOTDIR)
@@ -282,6 +288,13 @@ def _init_js_side():
             {}
             </script>
          """.format(warns, os.environ['USER'], reset_code)
+
+    styles_file = os.path.join(os.path.dirname(__file__), "../html/radiopadre.css")
+
+    html += """<style>
+        {}
+    </style>""".format(open(styles_file).read())
+
     # <style>
     #     .container {{ width:100% !important; }}
     # </style>
@@ -310,90 +323,6 @@ def unprotect():
     display(HTML(render_status_message("""This notebook is now unprotected.
         All users can treat it as read-write.""")))
 
-def _ls(recursive=False, *args):
-    """Creates a DirList from the given arguments (name and/or patterns)
-
-    Args:
-        pattern: if specified, a wildcard pattern
-    """
-    sort = None
-    patterns = []
-    fixed_names = []
-
-    # split all arguments on whitespace and form one big list
-    arguments = list(itertools.chain(*[arg.split() for arg in args]))
-
-    for arg in arguments:
-        # arguments starting with "-" are sort keys. 'R' forces recursive mode
-        if arg[0] == '-':
-            sort = arg[1:]
-            if 'R' in sort:
-                recursive = True
-        # arguments with *? are include patterns. A slash forces recursive mode
-        elif '*' in arg or '?' in arg:
-            patterns.append(arg)
-            if '/' in arg:
-                recursive = True
-        # arguments without *? are a directory name, or a static pattern
-        else:
-            fixed_names.append(arg)
-
-    single_file = False
-    basedir = '.'
-
-    # single directory specified -- this is what we want to scan
-    if len(fixed_names) == 1:
-        file_type = autodetect_file_type(fixed_names[0])
-        if file_type is DataDir:
-            basedir = fixed_names[0]
-    # else only one filename is specified: return that one file
-        elif not patterns:
-            if file_type is None:
-                return show_exception("{}: no such file or directory".format(fixed_names[0]), IOError)
-            single_file = True
-            patterns = fixed_names
-    # multiple things specified -- add them to patterns
-    else:
-        patterns += fixed_names
-
-    title = rich_string(os.path.abspath(basedir) if basedir == '.' else basedir, bold=True)
-
-    dd = DataDir(basedir or '.', include=patterns or None, recursive=recursive, title=title, sort=sort)
-
-    if single_file:
-        return dd[0]
-    else:
-        dd.message(dd.summary.html)
-        return dd
-
-def ls(*args):
-    """
-    Creates a DataDir from '.' non-recursively, optionally applying a file selection pattern.
-    Sorts in default order (directory, extension, name, mtime)
-    """
-    return _ls(False, '-dxnt', *args)
-
-def lsR(*args):
-    """
-    Creates a DataDir from '.' recursively, optionally applying a file selection pattern.
-    Sorts in default order (directory, extension, name, mtime)
-    """
-    return _ls(True, '-dxnt', *args)
-
-
-def lst(*args):
-    """
-    Creates a DataDir from '.' non-recursively, optionally applying a file selection pattern.
-    Sorts in time order (directory, mtime, extension, name)
-    """
-    return _ls(False, '-dtxn', *args)
-
-def lsrt(*args):
-    """
-    Creates a DataDir from '.' non-recursively, optionally applying a file selection pattern.
-    Sorts in reverse time order (directory, -mtime, extension, name)
-    """
-    return _ls(False, '-rtdxn', *args)
 
 
 def copy_current_notebook(oldpath, newpath, cell=0, copy_dirs='dirs', copy_root='root'):

@@ -169,12 +169,36 @@ class FITSFile(radiopadre.file.FileBase):
         self._setup_summaries()
         return self._short_summary
 
+    # def _setup_summaries(self):
+    #     if self._short_summary is None:
+    #         preamble = OrderedDict()
+    #         postscript = OrderedDict()
+    #         div_id = uuid.uuid4().hex
+    #         actions = [ self._action_buttons_(preamble=preamble, postscript=postscript, div_id=div_id) ]
+    #         self._size = rich_string(self._summary_data[0][1].replace("&times;", "x"), self._summary_data[0][1])
+    #         self._summary_data[0][0] += ":"
+    #         sum = self._summary_data[0]
+    #         self._summary_set = True
+    #         self._summary = rich_string(" ".join(map(str,sum)).replace("&times;", "x"),
+    #                                    render_table(self._summary_data, html=("size", "axes", "res"),
+    #                                         labels=("name", "size", "res", "axes", "modified"),
+    #                                         styles=dict(name="font-weight: bold"),
+    #                                         header=False, numbering=False, actions=actions,
+    #                                         preamble=preamble, postscript=postscript, div_id=div_id))
+    #         ssum = [(sum[0], sum[1])]
+    #         self._short_summary = rich_string(" ".join(map(str, ssum[0])).replace("&times;", "x"),
+    #                                    render_table(ssum, html=("size", "axes", "res"), labels=("name", "size"),
+    #                                         styles=dict(name="font-weight: bold"),
+    #                                         header=False, numbering=False,
+    #                                         div_id=div_id))
+    #         desc = [self._summary_data[0][1:]]
+    #         self._description = rich_string(" ".join(map(str, desc[0])).replace("&times;", "x"),
+    #                                 render_table(desc, html=("size", "axes", "res"), labels=("size", "res", "axes", "modified"),
+    #                                      header=False, numbering=False, actions=actions,
+    #                                      preamble=preamble, postscript=postscript, div_id=div_id))
+
     def _setup_summaries(self):
         if self._short_summary is None:
-            preamble = OrderedDict()
-            postscript = OrderedDict()
-            div_id = uuid.uuid4().hex
-            actions = [ self._action_buttons_(preamble=preamble, postscript=postscript, div_id=div_id) ]
             self._size = rich_string(self._summary_data[0][1].replace("&times;", "x"), self._summary_data[0][1])
             self._summary_data[0][0] += ":"
             sum = self._summary_data[0]
@@ -183,43 +207,37 @@ class FITSFile(radiopadre.file.FileBase):
                                        render_table(self._summary_data, html=("size", "axes", "res"),
                                             labels=("name", "size", "res", "axes", "modified"),
                                             styles=dict(name="font-weight: bold"),
-                                            header=False, numbering=False, actions=actions,
-                                            preamble=preamble, postscript=postscript, div_id=div_id))
+                                            header=False, numbering=False))
             ssum = [(sum[0], sum[1])]
             self._short_summary = rich_string(" ".join(map(str, ssum[0])).replace("&times;", "x"),
                                        render_table(ssum, html=("size", "axes", "res"), labels=("name", "size"),
                                             styles=dict(name="font-weight: bold"),
-                                            header=False, numbering=False,
-                                            div_id=div_id))
+                                            header=False, numbering=False))
             desc = [self._summary_data[0][1:]]
             self._description = rich_string(" ".join(map(str, desc[0])).replace("&times;", "x"),
                                     render_table(desc, html=("size", "axes", "res"), labels=("size", "res", "axes", "modified"),
-                                         header=False, numbering=False, actions=actions,
-                                         preamble=preamble, postscript=postscript, div_id=div_id))
-
+                                         header=False, numbering=False))
 
     @staticmethod
-    def _html_summary(fits_files, title=None, primary_sort="", sort_arrow="", **kw):
+    def _html_summary(fits_files, context=None, title=None, primary_sort="", sort_arrow="", **kw):
         if not fits_files:
             return ""
         html = render_title(title) if title else ""
         data = [ ff._get_summary_items() for ff in fits_files ]
-        preamble = OrderedDict()
-        postscript = OrderedDict()
-        div_id = uuid.uuid4().hex
         html += """<span style="display:inline-block; width: 32px;"></span>""" + \
-                FITSFile._collective_action_buttons_(fits_files, preamble, postscript, div_id=div_id,
+                FITSFile._collective_action_buttons_(fits_files, context=context,
                                                      defaults=FITSFile.make_js9_defaults(**kw))
-        actions = [ df._action_buttons_(preamble=preamble, postscript=postscript, div_id=div_id) for df in fits_files ]
+        actions = [ df._action_buttons_(context) for df in fits_files ]
+        labels = ("{}name".format(sort_arrow if primary_sort == "n" else ""),
+                  "{}size".format(sort_arrow if primary_sort == "s" else ""),
+                  "res",
+                  "axes",
+                  "{}modified".format(sort_arrow if primary_sort == "t" else ""))
+        tooltips = { (irow,labels[0]): df.path for irow, df in enumerate(fits_files) }
         html += render_table(data, html=("size", "axes", "res"),
-                             labels=("{}name".format(sort_arrow if primary_sort == "n" else ""),
-                                     "{}size".format(sort_arrow if primary_sort == "s" else ""),
-                                     "res",
-                                     "axes",
-                                     "{}modified".format(sort_arrow if primary_sort == "t" else "")),
+                             labels=labels, tooltips=tooltips,
                              actions=actions,
-                             preamble=preamble, postscript=postscript, div_id=div_id)
-        #open("tmp-summary.html", "w").write(html)
+                             context=context)
         return html
 
 
@@ -229,107 +247,28 @@ class FITSFile(radiopadre.file.FileBase):
         return NumberedLineList(enumerate(traceback.format_exception(etype, eval, etb)), title=title)
 
 
-    @staticmethod
-    def _show_thumbs(fits_files,
-                     width=None, ncol=None, maxwidth=None, mincol=None, maxcol=None,
-                     max=100,
-                     title='', showpath=False, collective_buttons=True,
-                     **kw):
-        if fits_files:
-            defaults = FITSFile.make_js9_defaults(**kw)
+    def _render_thumb_impl(self, npix=None, width=None, showpath=False, **kw):
+        kw['filename_in_title'] = True
+        plots = self._render_plots(index=[0], showpath=showpath, message=False, **kw)
+        # NumberedLineList returned on error, otherwise the normal triplet
+        if type(plots) is not NumberedLineList:
+            html = ""
+            for name, image, url in plots:
+                html += imagefile.ImageFile._render_thumbnail(image, url=url, npix=npix) + "\n"
+            return html
+        else:
+            return render_error("err")
 
-            fits_files[0].message("Rendering FITS thumbnails, please wait...", timeout=0)
-            fits_files = fits_files[:max]
-            name_image_url = []
-            errors = []
-            action_buttons = {}
+    def render_html(self, **kw):
+        return self.render_thumb(**kw)
 
-            preamble = OrderedDict()
-            postscript = OrderedDict()
-            div_id = uuid.uuid4().hex
-
-            for ff in fits_files:
-                kw['filename_in_title'] = True
-                plots = ff._render_plots(index=[0], showpath=showpath, message=False, **kw)
-                # NumberedLineList returned on error, otherwise the normal triplet
-                if type(plots) is not NumberedLineList:
-                    name_image_url += plots
-                    # add action button code keyed on image path
-                    for pl in plots:
-                        action_buttons[pl[1]] = ff._action_buttons_(preamble=preamble, postscript=postscript,
-                                                                    div_id=div_id, defaults=defaults)
-                else:
-                    errors += errors
-
-
-            #plt.figure(figsize=(width * ncol, width * nrow), dpi=settings.plot.screen_dpi)
-            #for iplot, ff in enumerate(fits_files):
-                # ax = plt.subplot(nrow, ncol, iplot + 1)
-                # ax.tick_params(labelsize=kw.get('fs_axis', fs))
-                # ff._render_plot(index=[0] * 10,
-                #         unroll=None,
-                #         filename_in_title=True,
-                #         make_figure=False,
-                #         fs_title='small', **kw)
-
-            fits_files[0].clear_message()
-
-            html = render_preamble() + render_title(title)
-            if errors:
-                html += "\n".join([err.render_html(full=True) for err in errors])
-            if name_image_url:
-                if collective_buttons:
-                    html += """<span style="display:inline-block; width: 32px;"></span>""" + \
-                            FITSFile._collective_action_buttons_(fits_files, preamble, postscript, div_id=div_id,
-                                                                 defaults=defaults)
-                for code in preamble.values():
-                    html += code + "\n"
-                html += imagefile.render_thumbs(name_image_url,
-                                                width=width, ncol=ncol, maxwidth=maxwidth, mincol=mincol, maxcol=maxcol,
-                                                action_buttons=action_buttons)
-                for code in postscript.values():
-                    html += code + "\n"
-
-            # open("tmp-thumbs.html", "w").write(html)
-            display(HTML(html))
-
-
-    def show(self, **kw):
-        FITSFile._show_thumbs([self], ncol=1, mincol=1, maxcol=1, title=None, collective_buttons=False, **kw)
+    @property
+    def downloadable_url(self):
+        return None
 
 
     def _get_png_file(self, keydict={}, **kw):
-        """
-        Helper method. Returns filename, URL and update status of PNG cache file corresponding to this FITS file, plus
-        optional keys (e.g. for axis unrolling).
-
-        Update status is True if FITS file is newer, or PNG file does not exist
-
-        """
-        # init paths, if not already done so
-        if self._png_dir is None:
-            self._png_dir, self._png_url = radiopadre.get_cache_dir(self.fullpath, "fits-render")
-
-        # make name from components
-        pngname = ".".join([self.basename] + ["{}-{}".format(*item) for item in keydict.items()] + ["png"])
-
-        pngpath = "{}/{}".format(self._png_dir, pngname)
-        update = not os.path.exists(pngpath) or self.mtime > os.path.getmtime(pngpath)
-
-        # check hashes
-        if not update:
-            checksum = hashlib.md5()
-            for key, value in kw.items():
-                checksum.update(str(key))
-                checksum.update(str(value))
-            digest = checksum.digest()
-            # check hash file
-            hashfile = pngpath + ".md5"
-            if not os.path.exists(hashfile) or open(hashfile).read() != digest:
-                update = True
-                open(hashfile, 'w').write(digest)
-
-        return pngpath, "{}/{}".format(self._png_url, pngname), update
+        return self._get_cache_file("fits-render", "png", keydict, **kw)
 
 
     def _render_plots(self,
@@ -354,7 +293,8 @@ class FITSFile(radiopadre.file.FileBase):
              showpath=False,
              refresh=False,             # True to force a re-render
              message=True,              # True to display transient messages
-             filename_in_title=False    # True to include filename in plot titles
+             filename_in_title=False,    # True to include filename in plot titles
+             **kw
             ):
         """Renders one or more plots of the FITS file. Returns a list of (name, image, url) tuples,
         or else a NumberedLineList object (as per _return_exception above) if an error is encountered"""
@@ -473,7 +413,7 @@ class FITSFile(radiopadre.file.FileBase):
 
             if unroll is None:
                 # show single image
-                image, url, update = self._get_png_file(vmin=vmin, vmax=vmax, cmap=cmap, scale=scale)
+                image, url, update = self._get_png_file(vmin=vmin, vmax=vmax, cmap=cmap, scale=scale, zoom=zoom)
                 if update or refresh:
                     fig = plt.figure(figsize=(width, width), dpi=settings.plot.screen_dpi)
                     fig.add_axes([0, 0, 1, 1])
@@ -500,7 +440,7 @@ class FITSFile(radiopadre.file.FileBase):
                 plt.figure(figsize=(width * ncol, width * nrow), dpi=settings.plot.screen_dpi)
                 # plt.suptitle(self.basename)
                 for iplot in range(dims[unroll]):
-                    image, url, update = self._get_png_file(vmin=vmin, vmax=vmax, cmap=cmap, scale=scale,
+                    image, url, update = self._get_png_file(vmin=vmin, vmax=vmax, cmap=cmap, scale=scale, zoom=zoom,
                                                             keydict={axis_type[unroll]: iplot})
                     if update or refresh:
                         fig = plt.figure(figsize=(width, width), dpi=settings.plot.screen_dpi)
@@ -531,8 +471,7 @@ class FITSFile(radiopadre.file.FileBase):
         """Makes a symlink from the cache directory to the FITS file. Needed for JS9 to load it."""
         cachedir, cachedir_url = radiopadre.get_cache_dir(self.fullpath, "js9-launch")
         symlink = "{}/{}".format(cachedir, self.name)
-        if not os.path.exists(symlink):
-            os.symlink(os.path.abspath(self.fullpath), symlink)
+        radiopadre._make_symlink(os.path.abspath(self.fullpath), symlink)
         # Cache dir is in the shadow hierarchy, so symlink will always be something like e.g.
         #    /home/user/.radiopadre/home/user/path/to/.radiopadre/js9-launch/x.fits
         # ...and if padre was started in /home/user/path, then jS9helper runs in its shadow equivalent,
@@ -657,24 +596,24 @@ class FITSFile(radiopadre.file.FileBase):
                 """.format(**subs1)
 
     @staticmethod
-    def _collective_action_buttons_(fits_files, preamble=OrderedDict(), postscript=OrderedDict(), div_id="", defaults=None):
+    def _collective_action_buttons_(fits_files, context, defaults=None):
         """Renders JS9 buttons for a collection of images"""
         subs = globals().copy()
-        subs.update(display_id=div_id, **locals())
+        subs.update(display_id=context.div_id, **locals())
 
-        FITSFile._insert_js9_postscript(postscript, subs, defaults=defaults)
+        FITSFile._insert_js9_postscript(context.postscript, subs, defaults=defaults)
 
         # use empty display ID for JS9 scripts launched in a new tab
         subs1 = subs.copy()
         subs1['init_style'] = ''
         subs1['display_id'] = ''
         subs1['window_title'] = "JS9: {} images".format(len(fits_files))
-        subs['newtab_html'] = FITSFile._make_js9_external_window_script(fits_files, div_id, subs1,
+        subs['newtab_html'] = FITSFile._make_js9_external_window_script(fits_files, context.div_id, subs1,
                                                                         defaults=defaults or FITSFile.make_js9_defaults())
 
-        subs['launch_command'] = "\n".join([f._make_js9_launch_command(div_id) for f in fits_files if len(f.shape) >= 2])
+        subs['launch_command'] = "\n".join([f._make_js9_launch_command(context.div_id) for f in fits_files if len(f.shape) >= 2])
 
-        postscript["JS9_load_all"] = """<script type='text/javascript'>
+        context.postscript["JS9_load_all"] = """<script type='text/javascript'>
             JS9p._pd_{display_id}_load_all = function () {{
                 {launch_command}
             }}
@@ -688,7 +627,7 @@ class FITSFile(radiopadre.file.FileBase):
         """.format(**subs)
         return code
 
-    def _action_buttons_(self, preamble=OrderedDict(), postscript=OrderedDict(), div_id="", defaults=None):
+    def _action_buttons_(self, context, defaults=None, **kw):
         """Renders JS9 buttons for image
         """
         # ignore less than 2D images
@@ -696,9 +635,9 @@ class FITSFile(radiopadre.file.FileBase):
             return None
 
         subs = globals().copy()
-        subs.update(display_id=div_id, **locals())
+        subs.update(display_id=context.div_id, **locals())
 
-        FITSFile._insert_js9_postscript(postscript, subs, defaults=defaults)
+        FITSFile._insert_js9_postscript(context.postscript, subs, defaults=defaults)
 
         # use empty display ID for JS9 scripts launched in a new tab
         subs1 = subs.copy()
@@ -711,10 +650,10 @@ class FITSFile(radiopadre.file.FileBase):
                                                                         single_file=True)
 
         subs['image_id'] = id(self)
-        subs['element_id'] = element_id = "{}_{}".format(div_id, id(self))
-        subs['launch_command'] = self._make_js9_launch_command(div_id)
+        subs['element_id'] = element_id = "{}_{}".format(context.div_id, id(self))
+        subs['launch_command'] = self._make_js9_launch_command(context.div_id)
 
-        postscript[element_id] = """<script type='text/javascript'>
+        context.postscript[element_id] = """<script type='text/javascript'>
             JS9p._pd_{element_id}_load = function () {{
                 {launch_command}
                 document.getElementById("JS9load-{element_id}").innerHTML = "&#x21A1;JS9"
@@ -729,12 +668,10 @@ class FITSFile(radiopadre.file.FileBase):
         """.format(**subs)
 
         if _use_carta:
-            folder = os.path.dirname(self.fullpath)
-            if folder.startswith(radiopadre.ROOTDIR):
-                folder = "/" + folder[len(radiopadre.ROOTDIR):]
+            filepath = os.path.relpath(os.path.abspath(self.fullpath), radiopadre.SERVER_BASEDIR)
 
-            subs['newtab_carta_html'] = "http://localhost:{}/?socketUrl=ws://localhost:{}&folder={}&file={}".format(
-                                            _carta_port, _carta_ws_port, folder, self.name)
+            subs['newtab_carta_html'] = "http://localhost:{}/?socketUrl=ws://localhost:{}&file={}".format(
+                                            _carta_port, _carta_ws_port, filepath)
             code += """
                     <button id="" title="display using CARTA in a new browser tab" style="font-size: 0.9em;"
                             onclick="window.open('{newtab_carta_html}', '_blank')">&#8663;C</button>
