@@ -7,7 +7,6 @@ from contextlib import contextmanager
 
 import radiopadre
 from radiopadre import casacore_tables
-from .file import FileBase
 from .filelist import FileList
 from .render import render_table, rich_string, render_status_message, render_error, TransientMessage
 
@@ -33,10 +32,10 @@ class CasaTable(radiopadre.file.FileBase):
             Helper method to convert a slice element into CASA slicing indices (which uses either
             (start, nrows, step), or (start, end, incr), depending on context)
 
-            :param slc:     slice object or integer index
-            :param rows:    if True, return start, nrows, step. Else return start, end, step
-            :return:        4-tuple of start, {nrows or end}, step, index,
-                            where index is 0 if slc was an integer, or slice(None) if it was a slice
+            :param slc:         slice object or integer index
+            :param row_based:   if True, return start, nrows, step. Else return start, end, step
+            :return:            4-tuple of start, {nrows or end}, step, index,
+                                where index is 0 if slc was an integer, or slice(None) if it was a slice
             """
             if type(slc) is int:
                 if slc < 0:
@@ -296,7 +295,6 @@ class CasaTable(radiopadre.file.FileBase):
                     setattr(self, name, subtab)
             self._subtables_obj = FileList(self._subtables_dict.values(),
                                             path=self.fullpath, extcol=False, showpath=False,
-                                            classobj=CasaTable,
                                             parent=self._parent or self)
         return self._subtables_obj
 
@@ -492,7 +490,7 @@ class CasaTable(radiopadre.file.FileBase):
 
                     if formatter and not error:
                         try:
-                            colvalues[icol] = map(formatter, colvalues[icol])
+                            colvalues[icol] = list(map(formatter, colvalues[icol]))
                         except Exception as exc:
                             error = exc
 
@@ -506,7 +504,7 @@ class CasaTable(radiopadre.file.FileBase):
                     if style:
                         styles[labels[icol+1]] = style
 
-                data = [[self.rownumbers[firstrow+i]] + [colvalues[icol][i] for icol,col in enumerate(column_selection)] for i in xrange(nrows)]
+                data = [[self.rownumbers[firstrow+i]] + [colvalues[icol][i] for icol,col in enumerate(column_selection)] for i in range(nrows)]
 
                 html += render_table(data, labels, styles=styles, numbering=False)
                 return html
@@ -519,10 +517,11 @@ class CasaTable(radiopadre.file.FileBase):
                 tab = tab.select(columns)
             return CasaTable(self.fullpath, title="{} [{}]".format(self.title, desc), table=tab)
 
-
     def __getitem__(self, item):
         if self._error:
             return self._error
+        if type(item) is slice:
+            item = (item, )
         if type(item) is str:
             if item not in self.columns:
                 raise ValueError("no such column {}".format(item))
@@ -540,21 +539,23 @@ class CasaTable(radiopadre.file.FileBase):
                     rows.add(x)
                     descs.append(str(x))
                 elif type(x) is slice:
-                    rows.update(xrange(*x.indices(self.nrows)))
+                    rows.update(range(*x.indices(self.nrows)))
                     desc = "{}:{}".format("" if x.start is None else x.start,
                                           "" if (x.stop is None or x.stop > self.nrows) else x.stop)
                     if x.step is not None:
                         desc += ":{}".format(x.step)
                     descs.append(desc)
                 else:
-                    raise TypeError("invalid index element {}".format(x))
+                    raise TypeError("invalid index element {} of type {}".format(x, type(x)))
             columns = ",".join(columns)
             if columns:
                 descs.append(columns)
             return self._select_rows_columns(sorted(rows) if rows else None, columns, ",".join(descs))
+        else:
+            raise TypeError("invalid __getitem__ argument {} of type {}".format(item, type(item)))
 
-    def __getslice__(self, *slicer):
-        return self[(slice(*slicer),)]
+    # def __getslice__(self, *slicer):
+    #     return self[(slice(*slicer),)]
 
     def query(self, taql, sortlist='', columns='', limit=0, offset=0):
         if self._error:

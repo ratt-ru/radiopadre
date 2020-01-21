@@ -99,7 +99,6 @@ class ItemBase(RenderableElement):
     def render(self):
         return self._rendering_proxy('render_html', 'render')
 
-
     def __str__(self):
         """str() returns the plain-text version of the file content. Calls self.render_text()."""
         self.rescan()
@@ -112,7 +111,7 @@ class ItemBase(RenderableElement):
         if not cycle:
             p.text(self.render_text())
 
-    def _repr_html_(self, **kw):
+    def _repr_html_(self, *args, **kw):
         """
         Internal method called by Jupyter to get an HTML rendering of an object.
         Our version makes use of subclass methods, which are meant to implement this behaviour:
@@ -120,7 +119,7 @@ class ItemBase(RenderableElement):
         """
         self.rescan()
         self.clear_message()
-        return RenderableElement._repr_html_(self, **kw)
+        return RenderableElement._repr_html_(self, *args, **kw)
 
     def watch(self, *args, **kw):
         """
@@ -131,14 +130,14 @@ class ItemBase(RenderableElement):
 
     # These methods are meant to be reimplemented by subclasses
 
-    def render_text(self, **kw):
+    def render_text(self, *args, **kw):
         """
         Method to be implemented by subclasses. Default version falls back to summary().
         :return: plain-text rendering of file content
         """
         return rich_string(self.summary).text
 
-    def render_html(self, **kw):
+    def render_html(self, *args, **kw):
         """
         Method to be implemented by subclasses. Default version falls back to summary().
         :return: HTML rendering of file content
@@ -256,13 +255,11 @@ class FileBase(ItemBase):
         basepath:       path+filename sans extension, e.g. dir1/file1
         mtime:          modification time
         mtime_str:      string version of mtime
-        size:           human-readable size string
         description:    short human-readable description (e.g. size, content, etc.)
 
-        _title:         displayed title (usually same as path, but ./ will be stripped off)
     """
 
-    _unit_list = zip(['', 'k', 'M', 'G', 'T', 'P'], [0, 0, 1, 2, 2, 2])
+    _unit_list = list(zip(['', 'k', 'M', 'G', 'T', 'P'], [0, 0, 1, 2, 2, 2]))
 
     @staticmethod
     def get_display_path(path):
@@ -409,20 +406,18 @@ class FileBase(ItemBase):
             else:
                 if key.upper() == key:
                     key = key.lower()
-                    reverse = -1
+                    rev = -1
+                else:
+                    rev = reverse
                 attr = FileBase._sort_attributes.get(key)
                 if attr:
-                    comparisons.append(lambda a,b,rev=reverse,x=attr: rev*cmp(getattr(a, x), getattr(b, x)))
+                    comparisons.append((attr, rev))
                 reverse = 1
 
-        def compare(a, b):
-            for comp in comparisons:
-                result = comp(a, b)
-                if result:
-                    return result
-            return 0
+        def compare_key(a):
+            return tuple([getattr(a, attr)*rev for attr, rev in comparisons])
 
-        return sorted(filelist, cmp=compare)
+        return sorted(filelist, key=compare_key)
 
     _sort_attributes = dict(d="_dirkey", x="ext", n="basepath", s="_byte_size", t="mtime")
 
@@ -451,14 +446,15 @@ class FileBase(ItemBase):
         if not update:
             checksum = hashlib.md5()
             for key, value in kw.items():
-                checksum.update(str(key))
-                checksum.update(str(value))
+                checksum.update(str(key).encode('ascii'))
+                checksum.update(str(value).encode('ascii'))
             digest = checksum.digest()
             # check hash file
             hashfile = filepath + ".md5"
-            if not os.path.exists(hashfile) or open(hashfile).read() != digest:
+            # print(hashfile, digest)
+            if not os.path.exists(hashfile) or open(hashfile, 'rb').read() != digest:
                 update = True
-                open(hashfile, 'w').write(digest)
+                open(hashfile, 'wb').write(digest)
 
         return filepath, "{}/{}".format(url, filename), update
 

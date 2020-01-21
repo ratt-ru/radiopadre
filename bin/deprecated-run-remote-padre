@@ -13,11 +13,11 @@ import fnmatch
 REPO = "git@github.com:ratt-ru/radiopadre.git"
 BRANCH = "master"
 
-LAUNCH = "run-radiopadre"
+LAUNCH = "run-radiopadre-server"
 
 DEFAULT_NOTEBOOK_TARGET = "radiopadre-default.ipynb"
 
-# get our radiopadre install directory. __file__ is RADIOPADRE/bin/run-radiopadre, so take the dirname twice
+# get our radiopadre install directory. __file__ is RADIOPADRE/bin/run-radiopadre-server, so take the dirname twice
 PADRE_PATH = os.path.abspath(os.path.dirname(os.path.dirname(__file__)))
 
 def find_unused_port (base,maxtries=1000):
@@ -93,7 +93,7 @@ else:
 print "radiopadre: Welcome!"
 print "radiopadre: Will start remote radiopadre on {}:{}".format(host, notebook_path)
 
-# Find remote run-radiopadre.sh script
+# Find remote run-radiopadre-server.sh script
 
 if options.remote_path:
     padre_execs = [ os.path.join(options.remote_path,"bin",LAUNCH) ]
@@ -264,9 +264,9 @@ if options.docker:
 
     print "radiopadre: copying run script and default notebook to {}:.radiopadre/tmp".format(host)
     ssh_remote("mkdir -p ~/.radiopadre/tmp/bin ~/.radiopadre/tmp/notebooks")
-    scp_to_remote(PADRE_PATH + "/bin/run-radiopadre", ".radiopadre/tmp/bin")
+    scp_to_remote(PADRE_PATH + "/bin/run-radiopadre-server", ".radiopadre/tmp/bin")
     scp_to_remote(PADRE_PATH + "/notebooks/radiopadre-default.ipynb", ".radiopadre/tmp/notebooks")
-    padre_exec = "~/.radiopadre/tmp/bin/run-radiopadre -d --docker-image " + options.docker_image
+    padre_exec = "~/.radiopadre/tmp/bin/run-radiopadre-server -d --docker-image " + options.docker_image
     if options.update:
         padre_exec += " --docker-pull"
 

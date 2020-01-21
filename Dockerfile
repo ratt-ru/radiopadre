@@ -7,6 +7,7 @@ RUN echo "deb-src http://ppa.launchpad.net/kernsuite/kern-5/ubuntu bionic main" 
 RUN apt-get update
 RUN apt-get update
 RUN docker-apt-install \
+    python3 \
     python-pip \
     virtualenv \
     python-numpy \
@@ -36,6 +37,11 @@ RUN rm -fr /radiopadre/.git /radiopadre/js9/.git
 RUN cd /radiopadre && if [ ! -d js9 ]; then git clone https://github.com/ericmandel/js9; fi
 RUN cd /radiopadre/js9 && make clean
 RUN radiopadre/bin/install-radiopadre --inside-container
+
+#RUN git clone https://github.com/ratt-ru/radiopadre-client
+RUN mkdir /radiopadre-client
+ADD radiopadre-client/ /radiopadre-client
+RUN pip install -e radiopadre-client
 
 RUN if [ ! -f radiopadre/CARTA-v1.1-remote.tar.gz ]; then cd radiopadre; wget https://github.com/CARTAvis/carta-releases/releases/download/v1.1/CARTA-v1.1-remote.tar.gz; fi
 RUN tar zxvf radiopadre/CARTA-v1.1-remote.tar.gz

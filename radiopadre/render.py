@@ -1,5 +1,5 @@
 import math
-import cgi
+import html as html_module
 import os.path
 from collections import OrderedDict
 import uuid
@@ -28,7 +28,7 @@ class RenderableElement(object):
         """Render text version"""
         return NotImplementedError
 
-    def render_html(self, context=_default_rendering_context, **kw):
+    def render_html(self, **kw):
         """Render full HTML version"""
         return NotImplementedError
 
@@ -42,18 +42,18 @@ class RenderableElement(object):
         if not cycle:
             p.text(self.render_text())
 
-    def _repr_html_(self, context=None, **kw):
+    def _repr_html_(self, *args, **kw):
         """
         Internal method called by Jupyter to get an HTML rendering of an object.
         """
-        context = context or RenderingContext()
+        context = kw.get('context') or RenderingContext()
         return context.finalize_html(self.render_html(context=context, **kw))
 
     def _rendering_proxy(self, method, name, arg0=None, **kw):
         return RenderingProxy(self, method, name, arg0=arg0, kwargs=kw.copy())
 
-    def show(self, **kw):
-        display(HTML(self._repr_html_(**kw)))
+    def show(self, *args, **kw):
+        display(HTML(self._repr_html_(*args, **kw)))
 
 
 
@@ -99,14 +99,14 @@ class RichString(RenderableElement):
     in a notebook front-end appropriately
     """
     def __init__(self, text, html=None, bold=False):
-        self._text = text.encode("utf-8") if type(text) is unicode else text
+        self._text = text ## python2: text.encode("utf-8"), in 3 it's already unicode
         if html:
             self._html = html
         else:
-            if type(text) is unicode:
-                text = text.encode("ascii", "xmlcharrefreplace")
-            else:
-                text = cgi.escape(text)
+#            if type(text) is unicode:
+            text = text.encode("ascii", "xmlcharrefreplace").decode()  # python3 adds decode
+ #           else:
+#              text = cgi.escape(text)
             self._html = "<B>{}</B>".format(text) if bold else text
 
     def copy(self):
@@ -143,7 +143,7 @@ class RichString(RenderableElement):
         if type(other) is RichString:
             return RichString(self.text + other.text, self.html + other.html)
         else:
-            return RichString(self.text + str(other), self.html + cgi.escape(str(other)))
+            return RichString(self.text + str(other), self.html + html_module.escape(str(other)))
 
     def __iadd__ (self, other):
         if type(other) is RichString:
@@ -170,10 +170,14 @@ def htmlize(text):
         return ''
     elif type(text) is RichString:
         return text.html
-    elif type(text) is unicode:
-        return text.encode("ascii", "xmlcharrefreplace")
     else:
-        return unicode(str(text), "utf-8").encode("ascii", "xmlcharrefreplace")
+        return text.encode("ascii", "xmlcharrefreplace").decode()
+#    else:
+#        return unicode(str(text), "utf-8").encode("ascii", "xmlcharrefreplace")
+    # elif type(text) is unicode:
+    #     return text.encode("ascii", "xmlcharrefreplace")
+    # else:
+    #     return unicode(str(text), "utf-8").encode("ascii", "xmlcharrefreplace")
 
 def rich_string(text, html=None, bold=False):
     if text is None:
@@ -216,15 +220,19 @@ def render_title(title):
 def render_error(message):
     return "<SPAN style='color: red'><P>{}</P></SPAN>".format(htmlize(message))
 
+
 def show_exception(message, exc_class=RuntimeError):
     display(HTML(render_error(message)))
     return exc_class(message)
 
+
 def render_status_message(msg, bgcolor='lightblue'):
     return "<SPAN style='background: {};'><B>{}</B></SPAN>".format(bgcolor, htmlize(msg))
 
+
 def show_table(data, **kw):
     display(HTML(render_table(data, **kw)))
+
 
 def render_table(data, labels=None, html=set(), ncol=1, links=None,
                  header=True, numbering=True,
@@ -277,7 +285,7 @@ def render_table(data, labels=None, html=set(), ncol=1, links=None,
                 if type(col) is RichString:
                     col = col.html
                 elif not str(col).upper().startswith("<HTML>") and not i in html and not labels[i] in html:
-                    col = cgi.escape(str(col))
+                    col = html_module.escape(str(col))
                 tooltip = tooltips.get((irow, labels[i]),"")
                 if tooltip:
                     tooltip = """title="{}" """.format(tooltip)
@@ -318,7 +326,7 @@ class TransientMessage(object):
     default_backgrounds = dict(blue='rgba(255,255,240,0.8)', red='rgba(255,255,240,0.8)')
 
     def __init__(self, message, timeout=2, color='blue', background=None):
-        self.id = id = "message-{}".format(uuid.uuid4().get_hex())
+        self.id = id = "message-{}".format(uuid.uuid4().hex)
         if background is None:
             background = TransientMessage.default_backgrounds.get(color, 'transparent')
         html = """

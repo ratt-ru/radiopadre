@@ -47,7 +47,7 @@ def init_js9():
                 source = inp.read()
             JS9_INIT_HTML_HTTP = source.format(**globals())
 
-        except Exception, exc:
+        except Exception as exc:
             traceback.print_exc()
             JS9_ERROR = "Error reading init templates: {}".format(str(exc))
 

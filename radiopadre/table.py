@@ -6,6 +6,7 @@ import itertools
 
 _NULL_CELL = rich_string("")
 
+
 class Table(RenderableElement):
     def __init__ (self, items, zebra=True, align="left", cw="auto", tw="auto", fs=None, lh=1.5, styles={}):
         self._data = {}

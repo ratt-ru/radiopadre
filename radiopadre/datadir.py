@@ -19,6 +19,7 @@ from radiopadre import settings
 
 # Need a flag raised in show() and other methods which prevents _load_impl() from being invoked.
 
+
 def _match_pattern(path, pattern):
     """Matches path to pattern. If pattern contains a directory, matches full path, else only the basename"""
     if path.startswith("./"):
@@ -204,7 +205,7 @@ class DataDir(FileList):
         try:
             output = subprocess.check_output(cmd, shell=True, stderr=subprocess.STDOUT)
             retcode = 0
-        except subprocess.CalledProcessError,exc:
+        except subprocess.CalledProcessError as exc:
             if exception:
                 raise
             retcode = exc.returncode

@@ -40,7 +40,7 @@ def dict_to_js(dd):
         elif type(value) is str:
             value = "'{}'".format(value)
         else:
-            raise TypeError,"can't convert value of type {} to Javascript".format(type(value))
+            raise TypeError("can't convert value of type {} to Javascript".format(type(value)))
         js += "{}: {},".format(name, value)
     js += "}"
     return js
@@ -58,7 +58,7 @@ def dict_to_query(dd):
         elif type(value) is str:
             value = "{}".format(value)
         else:
-            raise TypeError,"can't convert value of type {} to Javascript".format(type(value))
+            raise TypeError("can't convert value of type {} to Javascript".format(type(value)))
         qs.append("{}={}".format(name, value))
     return "&".join(qs)
 

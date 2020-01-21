@@ -19,13 +19,19 @@ class NumberedLineList(ItemBase):
 
     @lines.setter
     def lines(self, value):
+        if type(value) is enumerate:
+            value = list(value)
         if not value:
             self._lines = []
         elif type(value) is str:
             self._lines = list(enumerate(value.split("\n")))
+        elif type(value) is bytes:
+            self._lines = list(enumerate(value.decode().split("\n")))
         elif type(value) is list:
             if type(value[0]) is str:
                 self._lines = list(enumerate(value))
+            elif type(value[0]) is bytes:
+                self._lines = [(i, line.decode()) for i, line in enumerate(value)]
             elif type(value[0]) not in (list, tuple):
                 raise TypeError("invalid lines setting")
             self._lines = value
@@ -65,7 +71,7 @@ class NumberedLineList(ItemBase):
             # apply slice
             if slicer:
                 if type(slicer) is tuple:
-                    lines = lines.__getslice__(*slicer)
+                    lines = lines[slice(*slicer)]
                 elif type(slicer) is int:
                     lines = lines[slicer:slicer+1]
                 elif type(slicer) is slice:
@@ -101,11 +107,13 @@ class NumberedLineList(ItemBase):
         if not head and not tail:
             return txt
         for line_num, line in head:
-            txt += "{}: {}\n".format(line_num+1, line.encode("utf-8").strip())
+            txt += "{}: {}\n".format(line_num+1, line.strip())
+            # txt += "{}: {}\n".format(line_num + 1, line.encode("utf-8").strip())
         if tail:
             txt += "...\n"
             for line_num, line in tail:
-                txt += "{}: {}\n".format(line_num + 1, line.encode("utf-8").strip())
+                txt += "{}: {}\n".format(line_num + 1, line.strip())
+                # txt += "{}: {}\n".format(line_num + 1, line.encode("utf-8").strip())
         return txt
 
     def render_html(self, head=None, tail=None, full=None, grep=None, fs=None, slicer=None, subtitle=None, **kw):
@@ -196,7 +204,7 @@ class NumberedLineList(ItemBase):
                     <PRE style="white-space: pre-wrap; overflow: auto; width=100%">{text}</PRE>
                 </DIV>
             """.format(**locals())
-        url = render_url(self.fullpath)
+        url = render_url(getattr(self, 'fullpath', self.path))
 
         return """<A HREF='{url}' target='_blank' style="text-decoration: none">{text}</A>""".format(**locals())
 
@@ -267,16 +275,15 @@ class TextFile(FileBase, NumberedLineList):
 
     def _load_impl(self):
         size = os.path.getsize(self.fullpath)
-        fobj = io.open(self.fullpath, encoding='utf-8')
+        fobj = io.open(self.fullpath, "r", encoding='utf-8')
         if size <= self.MAXSIZE:
-            self.lines = enumerate(fobj.readlines())
+            self.lines = list(enumerate(fobj.readlines()))
             self.description = "{} lines, modified {}".format(len(self), self.mtime_str)
         else:
-            lines0 = enumerate(fobj.readlines(self.MAXSIZE//2))
+            self.lines = list(enumerate(fobj.readlines(self.MAXSIZE//2)))
             fobj.seek(size - self.MAXSIZE//2)
             lines1 = fobj.readlines()
-            lines1 = [(num-len(lines1), line) for num, line in enumerate(lines1)]
-            self.lines = list(lines0) + lines1
+            self.lines += [(num-len(lines1), line) for num, line in enumerate(lines1)]
             self.description = "large text ({}), modified {}".format(self.size, self.mtime_str)
 
 

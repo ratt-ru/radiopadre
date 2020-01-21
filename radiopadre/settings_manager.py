@@ -43,8 +43,8 @@ class Section(_BASE):
 
     @contextmanager
     def __call__(self, **kw):
-        prev_values = { key:self[key] for key in kw.iterkeys() if key in self }
-        new_values = set(kw.iterkeys()) - set(self.iterkeys())
+        prev_values = { key:self[key] for key in kw.keys() if key in self }
+        new_values = set(kw.keys()) - set(self.keys())
         self.update(**kw)
         yield
         self.update(**prev_values)
@@ -62,7 +62,7 @@ class Section(_BASE):
         styles[len(data)] = "border: 0px; border-bottom: 1px double; border-top: 1px double; background-color: #f2f2f2"
         styles[len(data), "name"] = styles[len(data), "description"] = "text-align: center"
         data.append(("<B>{}{}</B>".format(prefix, self._name), '', "{}".format(self._docstring)))
-        for key, value in self.iteritems():
+        for key, value in self.items():
             styles[len(data)] = "background-color: white"
             data.append(("{}{}.{}".format(prefix, self._name, key), repr(value), self._docs.get(key, '')))
 
@@ -72,7 +72,7 @@ class Section(_BASE):
         styles = {}
         self._repr_table(data, styles)
         styles["TABLE"] = "width: 100%"
-        return render.render_table(data, ("name", "value", "description"), html=set(["name","description"]),
+        return render.render_table(data, ("name", "value", "description"), html={"name","description"},
                                    styles=styles, header=False, numbering=False)
 
     def show(self):
@@ -93,9 +93,9 @@ class SettingsManager(object):
 
     def __repr__(self):
         txt = ""
-        for sec_name, section in self._sections.iteritems():
+        for sec_name, section in self._sections.items():
             if isinstance(section, Section):
-                for key, value in section.iteritems():
+                for key, value in section.items():
                     txt += "{}.{}.{} = {}\n".format(self._name, sec_name, key, repr(value))
         return txt
 
@@ -103,7 +103,7 @@ class SettingsManager(object):
         from radiopadre import render
         data = []
         styles = {}
-        for sec_name, section in self._sections.iteritems():
+        for sec_name, section in self._sections.items():
             if isinstance(section, Section):
                 section._repr_table(data, styles, self._name+".")
         return render.render_table(data, ("name", "value", "description"), html=set(["name","description"]),

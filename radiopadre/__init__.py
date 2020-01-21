@@ -27,7 +27,7 @@ settings = settings_manager.RadiopadreSettingsManager()
 
 try:
     import casacore.tables as casacore_tables
-except Exception,exc:
+except Exception as exc:
     casacore_tables = None
     add_startup_warning("""Warning: casacore.tables failed to import ({}). Table browsing functionality will 
         not be available in this notebook. You probably want to install casacore-dev and python-casacore on this 
@@ -175,7 +175,7 @@ def init(rootdir=None, verbose=True):
                 The notebook is in a non-writeable directory {ABSROOTDIR}. Radiopadre needs a shadow HTTP
                 server to deal with this situation, but this doesn't appear to have been set up.
                 This is probably because you've attempted to load a radiopadre notebook from a 
-                vanilla Jupyter session. Please use the run-radiopadre script to start Jupyter instead 
+                vanilla Jupyter session. Please use the run-radiopadre-server script to start Jupyter instead 
                 (or report a bug if that's what you're already doing!)""".format(**globals()))
         else:
             display(HTML(render_error("""Warning: the radiopadre shadow HTTP server does not appear to be set up properly.

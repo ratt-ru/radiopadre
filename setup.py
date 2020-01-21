@@ -1,7 +1,7 @@
 from setuptools import setup
 import os
 
-__version__ = "0.9.4"
+__version__ = "0.9.5"
 
 with open("requirements.txt") as stdr:
     install_requires = stdr.readlines()
@@ -13,13 +13,14 @@ setup(
     version=__version__,
     install_requires=install_requires,
     extras_require={"casacore" : ["python-casacore"] },
-    author="Gijs Molenaar",
-    author_email="gijs@pythonic.nl",
-    description=("Helpers for visualizing resultsets in ipython notebook"),
+    python_requires='>=3.6',
+    author="Oleg Smirnov",
+    author_email="osmirnov@gmail.com",
+    description=("A data visualization framework for jupyter notebooks"),
     license="MIT",
-    keywords="ipython notebook fits dataset resultset visualisation",
-    url="http://github.com/radio-astro/radiopadre",
-    packages=['radiopadre'],
+    keywords="ipython notebook jupyter fits dataset resultset visualisation",
+    url="http://github.com/ratt-ru/radiopadre",
+    packages=['radiopadre', 'radiopadre_utils'],
     scripts=scripts,
     classifiers=[
         "Development Status :: 3 - Alpha",

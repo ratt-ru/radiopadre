@@ -8,7 +8,7 @@ from radiopadre import render
 
 _ALL_SECTIONS = OrderedDict()
 
-"Logs", "Reports", "Plots", "Obsinfo", "Images", "Caltables"
+# "Logs", "Reports", "Plots", "Obsinfo", "Images", "Caltables"
 
 
 def add_section(name):

@@ -3,12 +3,7 @@ from __future__ import print_function
 import sys
 import os
 
-try:
-    # Python 3
-    from http.server import HTTPServer, SimpleHTTPRequestHandler
-except ImportError: # Python 2
-    from BaseHTTPServer import HTTPServer
-    from SimpleHTTPServer import SimpleHTTPRequestHandler
+from http.server import HTTPServer, SimpleHTTPRequestHandler
 
 path_id = "{}/{}".format(os.getcwd(), os.environ['RADIOPADRE_SESSION_ID'])
 # path_rewrites = []
