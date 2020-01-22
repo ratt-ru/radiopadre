@@ -29,7 +29,12 @@ def _make_thumbnail(image, width):
         if not os.access(thumbdir, os.W_OK) or os.path.exists(thumb) and not os.access(thumb, os.W_OK):
             return None, None
         img = PIL.Image.open(image)
-        img.thumbnail((width,int(round(width*(img.height/float(img.width))))), PIL.Image.ANTIALIAS)
+        try:
+            img.thumbnail((width,int(round(width*(img.height/float(img.width))))), PIL.Image.ANTIALIAS)
+        except Exception as exc:
+            print(f"Error generating thumbnail for {image}: {exc}")
+            return None, None
+        
         img.save(thumb)
 #        print "rendered thumb", thumb
 
