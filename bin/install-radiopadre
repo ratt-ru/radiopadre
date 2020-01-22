@@ -1,4 +1,9 @@
 #!/usr/bin/python3
+
+# TODO: link CARTA in remote
+# TODO: finalize mode of installation into an existing venv
+#
+
 import os
 import subprocess
 import sys
@@ -9,6 +14,8 @@ PADRE_PATH = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 JS9_REPO = "https://github.com/ericmandel/js9.git"
 JS9_DIR = PADRE_PATH + "/js9"
+
+CARTA_LINK = "https://github.com/CARTAvis/carta-releases/releases/download/v1.2.1/CARTA-v1.2.1-remote.tgz"
 
 import argparse
 parser = argparse.ArgumentParser(description="Initializes radiopadre virtual environment and installs components")
@@ -81,8 +88,8 @@ if options.command in ["install", "reinstall", "js9"] and not options.no_js9:
 
 if options.command == "reinstall":
     message("reinstall: burning it all down and starting over")
-    if os.path.exists(PADRE_WORKDIR):
-        shutil.rmtree(PADRE_WORKDIR)
+    if os.path.exists(PADRE_VENV):
+        shutil.rmtree(PADRE_VENV)
 
 # Look for virtualenv. Burn it down if it needs a refresh.
 
@@ -180,6 +187,35 @@ if options.command in ["install", "reinstall", "reqs"]:
     message("creating colormap definitions in {colormap_js}")
     shell("{PADRE_VENV}/bin/python {PADRE_PATH}/bin/install-js9-colormaps {colormap_js}")
     shutil.copy(colormap_js, PADRE_WORKDIR)
+
+# add link to CARTA
+if options.command in ["install", "reinstall", "reqs"]:
+    carta = PADRE_PATH + "/carta"
+    if not os.path.exists(carta):
+        carta_tarball = os.path.basename(CARTA_LINK)
+        carta_dir = os.path.splitext(carta_tarball)[0]
+        carta_tarball_path = os.path.join(PADRE_PATH, carta_tarball)
+        if os.path.exists(carta_tarball_path):
+            message(f"CARTA tarball {carta_tarball_path} is already here")
+        else:
+            message(f"Trying to download CARTA via {CARTA_LINK}")
+            subprocess.check_call(f"cd {PADRE_PATH}; wget {CARTA_LINK}", shell=True)
+            if not os.path.exists(carta_tarball):
+                bye(f"{carta_tarball} failed to download")
+        message(f"Unpacking CARTA tarball")
+        subprocess.check_call(f"cd {PADRE_PATH}; tar zxvf {carta_tarball}", shell=True)
+        message(f"Linking {carta} to {carta_dir}")
+        os.symlink(carta_dir, carta)
+
+    if os.path.exists(carta):
+        carta_link = PADRE_VENV + "/carta"
+        message(f"Linking {carta_link} to {carta}")
+        if os.path.exists(carta_link):
+            os.unlink(carta_link)
+        os.symlink(carta, carta_link)
+    else:
+        message("No CARTA installation found")
+
 
 if options.command in ["install", "reinstall", "js9"] and not options.no_js9:
     js9status = open(PADRE_VENV + "/js9status", "w")

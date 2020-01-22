@@ -26,12 +26,21 @@ RUN docker-apt-install \
 
 #    python-notebook jupyter-notebook jupyter-nbextension-jupyter-js-widgets \
 
-RUN pip install astropy==2.0.10  # monkeypatch
+#RUN pip install astropy==2.0.10  # monkeypatch
 RUN pip install git+https://github.com/ratt-ru/CubiCal
 
 RUN ldconfig
 RUN mkdir /radiopadre
 ADD . /radiopadre
+
+# download CARTA
+RUN if [ ! -f radiopadre/CARTA-v1.2.1-remote.tgz ]; then cd radiopadre; wget https://github.com/CARTAvis/carta-releases/releases/download/v1.2.1/CARTA-v1.2.1-remote.tgz; fi
+RUN tar zxvf radiopadre/CARTA-v1.2.1-remote.tgz
+RUN chmod -R a+rX CARTA-v1.2.1-remote
+RUN ln -s CARTA-v1.2.1-remote carta
+RUN rm radiopadre/CARTA-v1.2.1-remote.tgz
+
+
 #RUN git clone https://github.com/ratt-ru/radiopadre
 RUN rm -fr /radiopadre/.git /radiopadre/js9/.git
 RUN cd /radiopadre && if [ ! -d js9 ]; then git clone https://github.com/ericmandel/js9; fi
@@ -42,12 +51,6 @@ RUN radiopadre/bin/install-radiopadre --inside-container
 RUN mkdir /radiopadre-client
 ADD radiopadre-client/ /radiopadre-client
 RUN pip install -e radiopadre-client
-
-RUN if [ ! -f radiopadre/CARTA-v1.1-remote.tar.gz ]; then cd radiopadre; wget https://github.com/CARTAvis/carta-releases/releases/download/v1.1/CARTA-v1.1-remote.tar.gz; fi
-RUN tar zxvf radiopadre/CARTA-v1.1-remote.tar.gz
-RUN chmod -R a+rX CARTA-v1.1-remote
-RUN ln -s CARTA-v1.1-remote carta
-RUN rm radiopadre/CARTA-v1.1-remote.tar.gz
 
 #RUN if [ ! -f radiopadre/CARTA-v1.1-ubuntu.AppImage ]; then cd radiopadre; wget https://github.com/CARTAvis/carta-releases/releases/download/v1.1/CARTA-v1.1-ubuntu.AppImage; fi
 #RUN radiopadre/CARTA-v1.1-ubuntu.AppImage --appimage-extract
