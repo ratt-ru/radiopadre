@@ -195,7 +195,7 @@ if options.command in ["install", "reinstall", "reqs"]:
         else:
             message(f"Trying to download CARTA via {CARTA_LINK}")
             subprocess.check_call(f"cd {PADRE_PATH}; wget {CARTA_LINK}", shell=True)
-            if not os.path.exists(carta_tarball):
+            if not os.path.exists(carta_tarball_path):
                 bye(f"{carta_tarball} failed to download")
         message(f"Unpacking CARTA tarball")
         subprocess.check_call(f"cd {PADRE_PATH}; tar zxvf {carta_tarball}", shell=True)
