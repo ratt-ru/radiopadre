@@ -8,18 +8,18 @@ RUN apt-get update
 RUN apt-get update
 RUN docker-apt-install \
     python3 \
-    python-pip \
+    python-pip python3-pip \
     virtualenv \
-    python-numpy \
-    python-scipy \
+    python3-numpy \
+    python3-scipy \
     libcfitsio-dev \
     wcslib-dev \
     git \
     nodejs \
     phantomjs \
     ghostscript \
-    ipython python-aplpy python-astropy \
-    python-matplotlib python-pil python-casacore \
+    ipython python3-aplpy python3-astropy \
+    python3-matplotlib python3-pil python3-casacore \
     wget lsof iproute2
 ##    libfuse2 libnss3 libgtk-3-0 libx11-xcb1 libasound2 xvfb
 ## last one was for carta desktop version
@@ -27,7 +27,7 @@ RUN docker-apt-install \
 #    python-notebook jupyter-notebook jupyter-nbextension-jupyter-js-widgets \
 
 #RUN pip install astropy==2.0.10  # monkeypatch
-RUN pip install git+https://github.com/ratt-ru/CubiCal
+RUN pip3 install git+https://github.com/ratt-ru/CubiCal
 
 RUN ldconfig
 RUN mkdir /radiopadre
@@ -48,9 +48,8 @@ RUN cd /radiopadre/js9 && make clean
 RUN radiopadre/bin/install-radiopadre --inside-container
 
 #RUN git clone https://github.com/ratt-ru/radiopadre-client
-RUN mkdir /radiopadre-client
-ADD radiopadre-client/ /radiopadre-client
-RUN pip install -e radiopadre-client
+RUN git clone -b py3 https://github.com/ratt-ru/radiopadre-client.git
+RUN pip3 install -e radiopadre-client
 
 #RUN if [ ! -f radiopadre/CARTA-v1.1-ubuntu.AppImage ]; then cd radiopadre; wget https://github.com/CARTAvis/carta-releases/releases/download/v1.1/CARTA-v1.1-ubuntu.AppImage; fi
 #RUN radiopadre/CARTA-v1.1-ubuntu.AppImage --appimage-extract

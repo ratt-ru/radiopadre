@@ -1,9 +1,4 @@
 #!/usr/bin/python3
-
-# TODO: link CARTA in remote
-# TODO: finalize mode of installation into an existing venv
-#
-
 import os
 import subprocess
 import sys
@@ -23,11 +18,11 @@ parser = argparse.ArgumentParser(description="Initializes radiopadre virtual env
 parser.add_argument("command",choices=["install", "reinstall", "reqs", "js9" ], default="install", nargs="?",
                   help="what to do. 'install' (default) to check and install as needed, 'reinstall' to reinstall everything "
                        "from scratch, 'reqs' or 'js9' to try installing just a single component.")
-parser.add_argument("--refresh", action="store_true",
-                  help="remove and reinstall the radiopadre virtual environment from scratch.")
 parser.add_argument("--js9", metavar="DIR", type=str,
                   help="JS9 source directory or repository URL. Default is to try {JS9_DIR}, then {JS9_REPO}. "
                        "Set to 'git' to force use of {JS9_REPO}.".format(**globals()))
+parser.add_argument("--venv", type=str,
+                  help="Install into non-default virtualenv.")
 parser.add_argument("--no-casacore", action="store_true",
                   help="ignores missing python-casacore. Table functionality will be reduced.")
 parser.add_argument("--no-js9", action="store_true",
@@ -47,10 +42,10 @@ options = parser.parse_args()
 
 if not options.inside_container:
     PADRE_WORKDIR = os.path.expanduser("~/.radiopadre")
-    PADRE_VENV = PADRE_WORKDIR + "/venv"
+    PADRE_VENV = options.venv or PADRE_WORKDIR + "/venv"
 else:
     PADRE_WORKDIR = "/.radiopadre"
-    PADRE_VENV = "/.radiopadre/venv"
+    PADRE_VENV = options.venv or "/.radiopadre/venv"
 
 def message(x, prefix='install-radiopadre: '):
     print(prefix + x.format(**globals()))
@@ -94,7 +89,7 @@ if options.command == "reinstall":
 # Look for virtualenv. Burn it down if it needs a refresh.
 
 activation_script = os.path.join(PADRE_VENV, "bin/activate_this.py")
-complete_cookie = os.path.join(PADRE_VENV, ".complete")
+complete_cookie = os.path.join(PADRE_VENV, ".radiopadre.install.complete")
 
 if os.path.exists(activation_script):
     message("Found existing radiopadre virtualenv in {PADRE_VENV}")
