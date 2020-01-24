@@ -1,7 +1,7 @@
 from setuptools import setup
 import os
 
-__version__ = "0.9.5"
+__version__ = "1.0~pre1"
 
 with open("requirements.txt") as stdr:
     install_requires = stdr.readlines()
@@ -23,7 +23,7 @@ setup(
     packages=['radiopadre', 'radiopadre_utils'],
     scripts=scripts,
     classifiers=[
-        "Development Status :: 3 - Alpha",
+        "Development Status :: 4 - Beta",
         "Topic :: Utilities",
         "License :: OSI Approved :: MIT License",
     ],
