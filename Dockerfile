@@ -48,7 +48,7 @@ RUN cd /radiopadre/js9 && make clean
 RUN radiopadre/bin/install-radiopadre --inside-container
 
 #RUN git clone https://github.com/ratt-ru/radiopadre-client
-RUN git clone -b py3 https://github.com/ratt-ru/radiopadre-client.git
+RUN git clone -b 1.0-pre1 https://github.com/ratt-ru/radiopadre-client.git
 RUN pip3 install -e radiopadre-client
 
 #RUN if [ ! -f radiopadre/CARTA-v1.1-ubuntu.AppImage ]; then cd radiopadre; wget https://github.com/CARTAvis/carta-releases/releases/download/v1.1/CARTA-v1.1-ubuntu.AppImage; fi
