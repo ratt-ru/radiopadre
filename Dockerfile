@@ -1,5 +1,11 @@
 FROM kernsuite/base:5
 
+ARG CLIENT_BRANCH=1.0-pre1
+ARG CARTA_VERSION=v1.2.1
+ARG CARTA_BASE=CARTA-$CARTA_VERSION-remote
+ARG CARTA_TGZ=$CARTA_BASE.tgz
+ARG CARTA_URL=https://github.com/CARTAvis/carta-releases/releases/download/$CARTA_VERSION/$CARTA_TGZ
+
 ################################
 # install latest masters
 ################################
@@ -21,12 +27,12 @@ RUN docker-apt-install \
     ipython python3-aplpy python3-astropy \
     python3-matplotlib python3-pil python3-casacore \
     wget lsof iproute2
+
 ##    libfuse2 libnss3 libgtk-3-0 libx11-xcb1 libasound2 xvfb
 ## last one was for carta desktop version
 
 #    python-notebook jupyter-notebook jupyter-nbextension-jupyter-js-widgets \
 
-#RUN pip install astropy==2.0.10  # monkeypatch
 RUN pip3 install git+https://github.com/ratt-ru/CubiCal
 
 RUN ldconfig
@@ -34,26 +40,19 @@ RUN mkdir /radiopadre
 ADD . /radiopadre
 
 # download CARTA
-RUN if [ ! -f radiopadre/CARTA-v1.2.1-remote.tgz ]; then cd radiopadre; wget https://github.com/CARTAvis/carta-releases/releases/download/v1.2.1/CARTA-v1.2.1-remote.tgz; fi
-RUN tar zxvf radiopadre/CARTA-v1.2.1-remote.tgz
-RUN chmod -R a+rX CARTA-v1.2.1-remote
-RUN ln -s CARTA-v1.2.1-remote carta
-RUN rm radiopadre/CARTA-v1.2.1-remote.tgz
+RUN if [ ! -f radiopadre/$CARTA_TGZ ]; then cd radiopadre; wget $CARTA_URL; fi
+RUN tar zxvf radiopadre/$CARTA_TGZ
+RUN chmod -R a+rX $CARTA_BASE
+RUN ln -s $CARTA_BASE carta
+RUN rm radiopadre/$CARTA_TGZ
 
-
-#RUN git clone https://github.com/ratt-ru/radiopadre
 RUN rm -fr /radiopadre/.git /radiopadre/js9/.git
 RUN cd /radiopadre && if [ ! -d js9 ]; then git clone https://github.com/ericmandel/js9; fi
 RUN cd /radiopadre/js9 && make clean
 RUN radiopadre/bin/install-radiopadre --inside-container
 
 #RUN git clone https://github.com/ratt-ru/radiopadre-client
-RUN git clone -b 1.0-pre1 https://github.com/ratt-ru/radiopadre-client.git
+RUN git clone -b $CLIENT_BRANCH https://github.com/ratt-ru/radiopadre-client.git
 RUN pip3 install -e radiopadre-client
-
-#RUN if [ ! -f radiopadre/CARTA-v1.1-ubuntu.AppImage ]; then cd radiopadre; wget https://github.com/CARTAvis/carta-releases/releases/download/v1.1/CARTA-v1.1-ubuntu.AppImage; fi
-#RUN radiopadre/CARTA-v1.1-ubuntu.AppImage --appimage-extract
-#RUN chmod -R a+rX squashfs-root
-#RUN rm radiopadre/CARTA-v1.1-ubuntu.AppImage
 
 CMD sleep infinity
