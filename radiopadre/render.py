@@ -1,3 +1,4 @@
+import sys
 import math
 import html as html_module
 import os.path
@@ -353,8 +354,10 @@ class TransientMessage(object):
         #     TransientMessage.last_message_id = None
 
     def __del__(self):
-        display(Javascript("$('#{}').fadeOut('slow')".format(self.id)))
-        self.hide()
+        # when None, we're shutting down, so no more HTML
+        if getattr(sys, 'meta_path', None) is not None:
+            display(Javascript("$('#{}').fadeOut('slow')".format(self.id)))
+            self.hide()
 
 
 

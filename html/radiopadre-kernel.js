@@ -1,3 +1,11 @@
+//
+// socket.io needs to be invoked here like this -- not that I understand the full syntax.
+// Calling it from a cell's output causes Jupyter to do something fatal to the socket connection. Probably
+// for security reasons, same motivation why a cell's output can't invoke Javascript from other sites.
+// So, we instantiate it here.
+//
+
+
 define(['base/js/namespace', 'base/js/promises', 'socket.io' ], function(Jupyter, promises, io1) {
 
 promises.app_initialized.then(function(appname) {
@@ -96,36 +104,36 @@ if (appname === 'NotebookApp')
         scrub.disabled = false;
         var save = IPython.menubar.element.find("#save_checkpoint");
         save.enable = true;
-        if( Jupyter.notebook.metadata.radiopadre_notebook_protect ) {
-            Jupyter.notebook.set_autosave_interval(0);
-            prot.visibility = 'visible'
-            var author = Jupyter.notebook.metadata.radiopadre_notebook_author;
-            if( author == document.radiopadre.user ) {
-                prot.innerHTML = 'author';
-                prot.title  = 'This is a protected radiopadre notebook, but you are the author. ';
-                prot.title += 'You may modify and save the notebook, but auto-save is disabled. ';
-                prot.title += 'Use radiopadre.unprotect() to unprotect this notebook.';
-            } else {
-                prot.innerHTML = 'protected';
-                prot.title = 'This radiopadre notebook is protected by author "' + author + '".';
-                prot.title += 'You may modify, but you cannot save the notebook. ';
-                prot.title += 'Use radiopadre.unprotect() to unprotect this notebook.';
-                scrub.disabled = true;
-                Jupyter.notebook.metadata.radiopadre_notebook_scrub = true;
-                save.enable = false;
-            }
-        } else {
-            prot.innerHTML = 'unprotected';
-            prot.visibility = 'hidden';
-            prot.title = 'This is an unprotected radiopadre notebook, it may be modified and saved at will. ';
-            prot.title += 'Use radiopadre.protect([author]) to protect this notebook.';
-        }
+//        if( Jupyter.notebook.metadata.radiopadre_notebook_protect ) {
+//            Jupyter.notebook.set_autosave_interval(0);
+//            prot.visibility = 'visible'
+//            var author = Jupyter.notebook.metadata.radiopadre_notebook_author;
+//            if( author == document.radiopadre.user ) {
+//                prot.innerHTML = 'author';
+//                prot.title  = 'This is a protected radiopadre notebook, but you are the author. ';
+//                prot.title += 'You may modify and save the notebook, but auto-save is disabled. ';
+//                prot.title += 'Use radiopadre.unprotect() to unprotect this notebook.';
+//            } else {
+//                prot.innerHTML = 'protected';
+//                prot.title = 'This radiopadre notebook is protected by author "' + author + '".';
+//                prot.title += 'You may modify, but you cannot save the notebook. ';
+//                prot.title += 'Use radiopadre.unprotect() to unprotect this notebook.';
+//                scrub.disabled = true;
+//                Jupyter.notebook.metadata.radiopadre_notebook_scrub = true;
+//                save.enable = false;
+//            }
+//        } else {
+//            prot.innerHTML = 'unprotected';
+//            prot.visibility = 'hidden';
+//            prot.title = 'This is an unprotected radiopadre notebook, it may be modified and saved at will. ';
+//            prot.title += 'Use radiopadre.protect([author]) to protect this notebook.';
+//        }
         if( Jupyter.notebook.metadata.radiopadre_notebook_scrub ) {
             scrub.innerHTML = 'scrub: on';
-            scrub.title = 'Will scrub all cell output when saving this notebook. Click to toggle.';
+            scrub.title = 'Scrubbing is on: will scrub all cell output when saving this notebook. Click to toggle.';
         } else {
             scrub.innerHTML = 'scrub: off';
-            scrub.title = 'Will retain cell output when saving this notebook. Click to toggle.';
+            scrub.title = 'Scrubbing off: will retain cell output when saving this notebook. Click to toggle.';
         }
         var width_btn = document.radiopadre.controls.button_width;
         if( document.radiopadre._full_width ) {
@@ -195,11 +203,11 @@ if (appname === 'NotebookApp')
                     'icon'    : 'icon-stop',
                     'callback': function () { document.radiopadre.toggle_scrubbing() }
                 },
-                {   'id'      : 'radiopadre_btn_protected',
-                    'label'   : 'This notebook is protected',
-                    'icon'    : 'icon-play-circle',
-                    'callback':  function () { Jupyter.notebook.execute_cell() }
-                },
+//                {   'id'      : 'radiopadre_btn_protected',
+//                    'label'   : 'This notebook is protected',
+//                    'icon'    : 'icon-play-circle',
+//                    'callback':  function () { Jupyter.notebook.execute_cell() }
+//                },
                 {   'id'      : 'radiopadre_btn_width',
                     'label'   : 'width',
                     'icon'    : 'icon-play-circle',
@@ -240,26 +248,77 @@ if (appname === 'NotebookApp')
     document.radiopadre.init_controls('')
 
 
-    // load JS9 components
-    var wrapper = document.createElement("div");
-    wrapper.innerHTML = "\
+// At this point we don't know the helper port so we can't load JS9 fully.
+// So rather load the prefs, and make an event listener that will wait for the port to be initialized
+
+    // global: we call it from the notebook cell code
+    js9init_element = document.createElement("div");
+
+    js9init_event = new Event("js9init");
+
+    // sequence of scripts need to be loaded for JS9
+    // this is a global variable -- it can be appended to in the cell-side JS9 init code
+    // (with e.g. a custom js9partners.js script, since at this point we don't have its location)
+    js9_script_sequence = [
+                           '/static/js9-www/js9support.min.js',
+                           '/static/js9-www/js9.min.js',
+                           '/static/js9-www/js9plugins.js',
+                           '/static/js9colormaps.js'
+                          ]
+
+    function js9init_script_sequencer() {
+        if( js9_script_sequence.length ) {
+            script = js9_script_sequence.shift()
+            console.log('loading', script)
+            s = document.createElement("script");
+            s.src = script;
+            s.onload = js9init_script_sequencer;
+            document.head.appendChild(s);
+        } else {
+          console.log('all JS9 components loaded')
+        }
+    }
+
+    // when this event is dispatched, JS9 initialization proceeds
+    js9init_element.addEventListener("js9init",
+        function (e) {
+            console.log('JS9 init event triggered');
+            js9init_script_sequencer();
+        }
+    )
+    console.log('added JS9 event listener')
+
+    // load basic stuff -- the last script initialized the JS9Prefs dict
+    js9init_element.innerHTML = "\
       <link type='image/x-icon' rel='shortcut icon' href='/static/js9-www/favicon.ico'>\
       <link type='text/css' rel='stylesheet' href='/static/js9-www/js9support.css'>\
       <link type='text/css' rel='stylesheet' href='/static/js9-www/js9.css'>\
       <link rel='apple-touch-icon' href='/static/js9-www/images/js9-apple-touch-icon.png'>\
       <script type='text/javascript' src='/static/js9-www/js9prefs.js'></script>\
-      <script type='text/javascript'> console.log('loaded JS9 prefs 1') </script>\
-      <script type='text/javascript' src='/files/.radiopadre-session/js9prefs.js'></script>\
-      <script type='text/javascript'> console.log('loaded JS9 prefs 2')</script>\
-      <script type='text/javascript' src='/static/js9-www/js9support.min.js'></script>\
-      <script type='text/javascript' src='/static/js9-www/js9.min.js'></script>\
-      <script type='text/javascript' src='/static/js9-www/js9plugins.js'></script>\
-      <script type='text/javascript'> console.log('loaded JS9 components') </script>\
-      <script type='text/javascript' src='/static/radiopadre-www/js9partners.js'></script>\
-      <script type='text/javascript'> console.log('loaded JS9 partner plugin') </script>\
-      <script type='text/javascript' src='/static/js9colormaps.js'></script>\
     "
-    Jupyter.toolbar.element.append(wrapper);
+    Jupyter.toolbar.element.append(js9init_element);
+
+
+//    // load JS9 components
+//    var wrapper = document.createElement("div");
+//    wrapper.innerHTML = "\
+//      <link type='image/x-icon' rel='shortcut icon' href='/static/js9-www/favicon.ico'>\
+//      <link type='text/css' rel='stylesheet' href='/static/js9-www/js9support.css'>\
+//      <link type='text/css' rel='stylesheet' href='/static/js9-www/js9.css'>\
+//      <link rel='apple-touch-icon' href='/static/js9-www/images/js9-apple-touch-icon.png'>\
+//      <script type='text/javascript' src='/static/js9-www/js9prefs.js'></script>\
+//      <script type='text/javascript'> console.log('loaded JS9 prefs 1') </script>\
+//      <script type='text/javascript' src='/files/.radiopadre-session/js9prefs.js'></script>\
+//      <script type='text/javascript'> console.log('loaded JS9 prefs 2')</script>\
+//      <script type='text/javascript' src='/static/js9-www/js9support.min.js'></script>\
+//      <script type='text/javascript' src='/static/js9-www/js9.min.js'></script>\
+//      <script type='text/javascript' src='/static/js9-www/js9plugins.js'></script>\
+//      <script type='text/javascript'> console.log('loaded JS9 components') </script>\
+//      <script type='text/javascript' src='/static/radiopadre-www/js9partners.js'></script>\
+//      <script type='text/javascript'> console.log('loaded JS9 partner plugin') </script>\
+//      <script type='text/javascript' src='/static/js9colormaps.js'></script>\
+//    "
+//    Jupyter.toolbar.element.append(wrapper);
 
 
 

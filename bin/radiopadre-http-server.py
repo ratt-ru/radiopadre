@@ -1,5 +1,4 @@
-#!/usr/bin/env python
-from __future__ import print_function
+#!/usr/bin/env python3
 import sys
 import os
 
@@ -18,12 +17,12 @@ class CORSRequestHandler (SimpleHTTPRequestHandler):
         path = SimpleHTTPRequestHandler.translate_path(self, path)
         print("HTTPServer: requested {}".format(path))
         if not path.startswith(path_id):
-            print("HTTPServer: ignoring request for {}".format(path), file=sys.stderr)
+            print("HTTPServer: ignoring request for {}".format(path))
             return "/dev/null"
         for src, dest in path_rewrites:
             if path.startswith(src):
                 newpath = dest + path[len(src):]
-                print("HTTPServer: rewriting {}->{}".format(path, newpath), file=sys.stderr)
+                print("HTTPServer: rewriting {}->{}".format(path, newpath))
                 return newpath
         return path
 

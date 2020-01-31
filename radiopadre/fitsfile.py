@@ -5,21 +5,17 @@ from IPython.display import HTML, display, Javascript
 import matplotlib.pyplot as plt
 import matplotlib.colors
 import uuid
-import hashlib
 import math
-from collections import OrderedDict
+
+from radiopadre import CARTA_PORT, CARTA_WS_PORT
 
 import radiopadre
 import radiopadre.file
-from radiopadre.render import rich_string, render_preamble, render_title, render_table, TransientMessage, render_error
+from radiopadre.render import rich_string, render_title, render_table, render_error
 
-from radiopadre import js9, settings, imagefile
+from radiopadre import settings, imagefile
+from radiopadre_kernel import js9
 from .textfile import NumberedLineList
-
-_carta_port = os.environ.get("RADIOPADRE_CARTA_PORT")
-_carta_ws_port = os.environ.get("RADIOPADRE_CARTA_WS_PORT")
-_use_carta = _carta_port and _carta_ws_port
-
 
 def read_html_template(filename, subs):
     js9_source = os.path.join(js9.DIRNAME, filename)
@@ -667,11 +663,12 @@ class FITSFile(radiopadre.file.FileBase):
                     onclick="window.open('{newtab_html}', '_blank')">&#8663;JS9</button>
         """.format(**subs)
 
-        if _use_carta:
+        if CARTA_PORT and CARTA_WS_PORT:
             filepath = os.path.relpath(os.path.abspath(self.fullpath), radiopadre.SERVER_BASEDIR)
 
-            subs['newtab_carta_html'] = "http://localhost:{}/?socketUrl=ws://localhost:{}&file={}".format(
-                                            _carta_port, _carta_ws_port, filepath)
+            subs['newtab_carta_html'] =\
+                f"http://localhost:{CARTA_PORT}/?socketUrl=ws://localhost:{CARTA_WS_PORT}&file={filepath}"
+
             code += """
                     <button id="" title="display using CARTA in a new browser tab" style="font-size: 0.9em;"
                             onclick="window.open('{newtab_carta_html}', '_blank')">&#8663;C</button>

@@ -5,7 +5,7 @@ import os.path
 from radiopadre.file import ItemBase, FileBase
 from radiopadre.render import render_title, render_url, render_preamble, rich_string, htmlize
 from radiopadre import settings
-from radiopadre import tabulate
+from radiopadre.table import tabulate
 
 class NumberedLineList(ItemBase):
     def __init__ (self, enumerated_lines=[], title=None):

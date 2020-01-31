@@ -1,7 +1,7 @@
 from setuptools import setup
 import os
 
-__version__ = "1.0~pre1"
+__version__ = "1.0~pre2"
 
 with open("requirements.txt") as stdr:
     install_requires = stdr.readlines()
@@ -20,7 +20,7 @@ setup(
     license="MIT",
     keywords="ipython notebook jupyter fits dataset resultset visualisation",
     url="http://github.com/ratt-ru/radiopadre",
-    packages=['radiopadre', 'radiopadre_utils'],
+    packages=['radiopadre', 'radiopadre_kernel', 'radiopadre_utils'],
     scripts=scripts,
     classifiers=[
         "Development Status :: 4 - Beta",

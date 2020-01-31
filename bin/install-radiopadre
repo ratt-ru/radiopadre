@@ -1,4 +1,4 @@
-#!/usr/bin/python3
+#!/usr/bin/env python3
 import os
 import subprocess
 import sys
@@ -16,27 +16,29 @@ import argparse
 parser = argparse.ArgumentParser(description="Initializes radiopadre virtual environment and installs components")
 
 parser.add_argument("command",choices=["install", "reinstall", "reqs", "js9" ], default="install", nargs="?",
-                  help="what to do. 'install' (default) to check and install as needed, 'reinstall' to reinstall everything "
+                    help="what to do. 'install' (default) to check and install as needed, 'reinstall' to reinstall everything "
                        "from scratch, 'reqs' or 'js9' to try installing just a single component.")
 parser.add_argument("--js9", metavar="DIR", type=str,
-                  help="JS9 source directory or repository URL. Default is to try {JS9_DIR}, then {JS9_REPO}. "
+                    help="JS9 source directory or repository URL. Default is to try {JS9_DIR}, then {JS9_REPO}. "
                        "Set to 'git' to force use of {JS9_REPO}.".format(**globals()))
 parser.add_argument("--venv", type=str,
-                  help="Install into non-default virtualenv.")
+                    help="Install into non-default virtualenv.")
+parser.add_argument("--client-path", type=str, default="~/radiopadre-client",
+                    help="Path to radiopadre-client, for pip install -e. Specify 'None' to install from PyPI.")
 parser.add_argument("--no-casacore", action="store_true",
-                  help="ignores missing python-casacore. Table functionality will be reduced.")
+                    help="ignores missing python-casacore. Table functionality will be reduced.")
 parser.add_argument("--no-js9", action="store_true",
-                  help="skips the JS9 installation. FITS functionality will be reduced.")
+                    help="skips the JS9 installation. FITS functionality will be reduced.")
 parser.add_argument("--cfitsio-path", metavar="DIR", type=str, default="/usr",
-                  help="path to cfitsio installation. Default is %(default)s")
+                    help="path to cfitsio installation. Default is %(default)s")
 parser.add_argument("--inside-container", action="store_true",
-                  help=argparse.SUPPRESS)
+                    help=argparse.SUPPRESS)
 parser.add_argument("--skip-reqs", action="store_true",  # ninja debug option
-                  help=argparse.SUPPRESS)
+                    help=argparse.SUPPRESS)
 parser.add_argument("--skip-burn", action="store_true", # ninja debug option
-                  help=argparse.SUPPRESS)
+                    help=argparse.SUPPRESS)
 parser.add_argument("--skip-git-pull", action="store_true", # ninja debug option
-                  help=argparse.SUPPRESS)
+                    help=argparse.SUPPRESS)
 
 options = parser.parse_args()
 
@@ -60,10 +62,20 @@ def shell(cmd):
 def which(cmd):
     return subprocess.check_output("which {}".format(cmd), shell=True).strip()
 
-
+into_existing_venv = False
 # See https://stackoverflow.com/questions/1871549/determine-if-python-is-running-inside-virtualenv
 if hasattr(sys, 'real_prefix') or (hasattr(sys, 'base_prefix') and sys.base_prefix != sys.prefix):
-    bye("Can't run this script inside a virtualenv. Please deactivate.")
+    into_existing_venv = True
+    message("Running inside virtualenv {sys.prefix}")
+    if options.command == "reinstall":
+        bye("Can't run reinstall inside a virtualenv. Please deactivate.")
+    if options.venv and not os.path.samefile(sys.prefix, options.venv):
+        bye("Specified --venv does not match the virtualenv we're running in.")
+    if PADRE_VENV != sys.prefix:
+        message("Assuming this is the virtualenv you want radiopadre installed in")
+    PADRE_VENV = sys.prefix
+else:
+    message("Not running in a virtualenv")
 
 # check for casacore
 if not options.no_casacore:
@@ -131,6 +143,10 @@ if options.command in ["install", "reinstall", "reqs"] and not options.skip_reqs
     ## For now, always install jupyter and notebook in the venv (whether in a container or not).
     ## I couldn't figure out how to bolt on kernel.js and JS9 on a systemwide install properly,
     ## so sticking with the virtualenv approach for now...
+
+    if options.client_path and options.client_path != "None":
+        if shell("{PADRE_VENV}/bin/pip3 install -e {options.client_path}"):
+            bye("Client package ({options.client_path}) failed to pip install -e, see log above")
 
     if shell("{PADRE_VENV}/bin/pip install -e {PADRE_PATH}"):
         bye("radiopadre package failed to pip install, see log above")
