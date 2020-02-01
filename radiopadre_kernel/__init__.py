@@ -251,7 +251,11 @@ def init(rootdir=None, verbose=True):
 
     ## start CARTA backend
 
-    carta_exec = os.environ.get('RADIOPADRE_CARTA_EXEC') or find_which('carta') or f"{radiopadre_base}/carta/carta"
+    for carta_exec in os.environ.get('RADIOPADRE_CARTA_EXEC'), f"{radiopadre_base}/carta/carta", find_which('carta'):
+        if carta_exec and os.access(carta_exec, os.X_OK):
+            break
+    else:
+        carta_exec = None
 
     if not carta_exec or not os.path.exists(carta_exec):
         add_startup_warning("CARTA backend not found, omitting")

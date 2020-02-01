@@ -177,10 +177,10 @@ def _init_js_side():
     from radiopadre_kernel import js9
     if js9.JS9_ERROR:
         html += js9.JS9_ERROR
-        print("radiopadre: added HTML error code")
+        # print("radiopadre: added HTML error code")
     else:
         html += js9.JS9_INIT_HTML_DYNAMIC
-        print("radiopadre: added HTML init code")
+        # print("radiopadre: added HTML init code")
 
     display(HTML(html))
 
@@ -255,11 +255,11 @@ def copy_current_notebook(oldpath, newpath, cell=0, copy_dirs='dirs', copy_root=
 
 
 __init = False
-print("importing radiopadre")
+# print("importing radiopadre")
 
 if not __init:
     radiopadre_kernel.add_startup_status("initializing radiopadre JS side")
-    print("initializing radiopadre")
+    # print("initializing radiopadre")
     _init_js_side()
     __init = True
 
