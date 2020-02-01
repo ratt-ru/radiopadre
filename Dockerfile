@@ -1,6 +1,6 @@
 FROM kernsuite/base:5
 
-ARG CLIENT_BRANCH=1.0-pre1
+ARG CLIENT_BRANCH=b1.0-pre2
 ARG CARTA_VERSION=v1.2.1
 ARG CARTA_BASE=CARTA-$CARTA_VERSION-remote
 ARG CARTA_TGZ=$CARTA_BASE.tgz
@@ -49,10 +49,8 @@ RUN rm radiopadre/$CARTA_TGZ
 RUN rm -fr /radiopadre/.git /radiopadre/js9/.git
 RUN cd /radiopadre && if [ ! -d js9 ]; then git clone https://github.com/ericmandel/js9; fi
 RUN cd /radiopadre/js9 && make clean
-RUN radiopadre/bin/install-radiopadre --inside-container
-
-#RUN git clone https://github.com/ratt-ru/radiopadre-client
 RUN git clone -b $CLIENT_BRANCH https://github.com/ratt-ru/radiopadre-client.git
-RUN pip3 install -e radiopadre-client
+RUN pip3 install -e /radiopadre-client
+RUN /radiopadre/bin/install-radiopadre --inside-container --client-path /radiopadre-client
 
 CMD sleep infinity

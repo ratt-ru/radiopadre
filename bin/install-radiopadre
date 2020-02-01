@@ -130,7 +130,6 @@ if not os.path.exists(activation_script):
     site_packages = "--system-site-packages" if options.inside_container else ""
     if shell("virtualenv -p python3 {PADRE_VENV} {site_packages}"):
         bye("Failed to create virtualenv")
-
 message("Activating virtualenv")
 with open(activation_script) as f:
     code = compile(f.read(), activation_script, 'exec')
@@ -145,10 +144,10 @@ if options.command in ["install", "reinstall", "reqs"] and not options.skip_reqs
     ## so sticking with the virtualenv approach for now...
 
     if options.client_path and options.client_path != "None":
-        if shell("{PADRE_VENV}/bin/pip3 install -e {options.client_path}"):
+        if shell("{PADRE_VENV}/bin/pip3 install -U -e {options.client_path}"):
             bye("Client package ({options.client_path}) failed to pip install -e, see log above")
 
-    if shell("{PADRE_VENV}/bin/pip install -e {PADRE_PATH}"):
+    if shell("{PADRE_VENV}/bin/pip3 install -U -e {PADRE_PATH}"):
         bye("radiopadre package failed to pip install, see log above")
 
 # get jupyter base path
