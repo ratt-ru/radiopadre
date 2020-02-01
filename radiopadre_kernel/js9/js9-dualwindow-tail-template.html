@@ -1,0 +1,48 @@
+<script type="text/javascript">
+    $(document).ready(function()
+    {{
+        $('#{display_id}-top').draggable({{
+        handle: "#rebin-{display_id}-JS9_Menubar",
+        opacity: 0.35
+        }});
+        JS9p.imageUrlPrefixNative = '{radiopadre.CACHE_URL_BASE}/'
+        console.log("display ,size is", window.innerWidth, window.innerHeight);
+
+        var defaults = {init_defaults}
+
+        // now parse the query string and augment defaults with it
+
+        var arrs = document.location.href.split('?');
+        if( arrs.length > 1 ) {{
+            defs = arrs.pop().split('&')
+            for( i=0; i<defs.length; i++ ) {{
+                console.log(defs[i]);
+                namevalue = defs[i].split("=")
+                if( namevalue.length == 2 ) {{
+                     console.log(namevalue);
+                     name = namevalue[0];
+                     value = namevalue[1];
+                     if( value == 'null' ) {{
+                        value = null
+                     }}
+                     else if( name == 'vmin' || name == 'vmax' || name == 'yzoom') {{
+                          value = parseFloat(value);
+                     }}
+                     defaults[name] = value;
+                }}
+            }}
+        }}
+
+        console.log("defaults are", defaults);
+
+        var yzoom = defaults.max_js9_slice
+
+        JS9p._pd_{display_id} = new JS9pPartneredDisplays('{display_id}', window.innerWidth*yzoom/window.innerHeight, yzoom)
+
+        JS9p._pd_{display_id}.defaults = defaults
+
+        {launch_command}
+    }});
+</script>
+</body>
+</html>
