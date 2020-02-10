@@ -248,56 +248,52 @@ if (appname === 'NotebookApp')
     document.radiopadre.init_controls('')
 
 
-// At this point we don't know the helper port so we can't load JS9 fully.
-// So rather load the prefs, and make an event listener that will wait for the port to be initialized
-
-    // global: we call it from the notebook cell code
-    js9init_element = document.createElement("div");
-
-    js9init_event = new Event("js9init");
-
     // sequence of scripts need to be loaded for JS9
     // this is a global variable -- it can be appended to in the cell-side JS9 init code
     // (with e.g. a custom js9partners.js script, since at this point we don't have its location)
     js9_script_sequence = [
+                           '/static/js9-www/js9prefs.js',
+                           '/files/.radiopadre-session/js9prefs.js',
                            '/static/js9-www/js9support.min.js',
                            '/static/js9-www/js9.min.js',
                            '/static/js9-www/js9plugins.js',
-                           '/static/js9colormaps.js'
+                           '/static/js9colormaps.js',
+                           '/static/radiopadre-www/js9partners.js'
                           ]
 
-    function js9init_script_sequencer() {
+    js9init_script_sequencer = function () {
         if( js9_script_sequence.length ) {
             script = js9_script_sequence.shift()
             console.log('loading', script)
             s = document.createElement("script");
             s.src = script;
             s.onload = js9init_script_sequencer;
-            document.head.appendChild(s);
+            js9init_element.appendChild(s);
         } else {
-          console.log('all JS9 components loaded')
+          console.log('all JS9 components loaded');
         }
     }
 
-    // when this event is dispatched, JS9 initialization proceeds
-    js9init_element.addEventListener("js9init",
-        function (e) {
-            console.log('JS9 init event triggered');
-            js9init_script_sequencer();
-        }
-    )
-    console.log('added JS9 event listener')
-
-    // load basic stuff -- the last script initialized the JS9Prefs dict
+    var js9init_element = document.createElement("div");
     js9init_element.innerHTML = "\
       <link type='image/x-icon' rel='shortcut icon' href='/static/js9-www/favicon.ico'>\
       <link type='text/css' rel='stylesheet' href='/static/js9-www/js9support.css'>\
       <link type='text/css' rel='stylesheet' href='/static/js9-www/js9.css'>\
       <link rel='apple-touch-icon' href='/static/js9-www/images/js9-apple-touch-icon.png'>\
-      <script type='text/javascript' src='/static/js9-www/js9prefs.js'></script>\
+      <script type='text/javascript'> js9init_script_sequencer(); </script>\
     "
     Jupyter.toolbar.element.append(js9init_element);
 
+//    var js9init_element = document.createElement("div");
+//
+//    js9init_element.innerHTML = "\
+//      <link type='image/x-icon' rel='shortcut icon' href='/static/js9-www/favicon.ico'>
+//      <link type='text/css' rel='stylesheet' href='/static/js9-www/js9support.css'>\
+//      <link type='text/css' rel='stylesheet' href='/static/js9-www/js9.css'>\
+//      <link rel='apple-touch-icon' href='/static/js9-www/images/js9-apple-touch-icon.png'>\
+//      <script type='text/javascript'> js9init_script_sequencer(); </script>\
+//    ";
+//    Jupyter.toolbar.element.append(js9init_element);
 
 //    // load JS9 components
 //    var wrapper = document.createElement("div");
