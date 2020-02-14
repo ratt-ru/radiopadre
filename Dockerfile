@@ -40,17 +40,17 @@ RUN mkdir /radiopadre
 ADD . /radiopadre
 
 # download CARTA
-RUN if [ ! -f radiopadre/$CARTA_TGZ ]; then cd radiopadre; wget $CARTA_URL; fi
-RUN tar zxvf radiopadre/$CARTA_TGZ
-RUN chmod -R a+rX $CARTA_BASE
-RUN ln -s $CARTA_BASE carta
-RUN rm radiopadre/$CARTA_TGZ
+#RUN if [ ! -f radiopadre/$CARTA_TGZ ]; then cd radiopadre; wget $CARTA_URL; fi
+#RUN tar zxvf radiopadre/$CARTA_TGZ
+#RUN chmod -R a+rX $CARTA_BASE
+#RUN ln -s $CARTA_BASE carta
+#RUN rm radiopadre/$CARTA_TGZ
 
 RUN rm -fr /radiopadre/.git /radiopadre/js9/.git
 RUN cd /radiopadre && if [ ! -d js9 ]; then git clone https://github.com/ericmandel/js9; fi
 RUN cd /radiopadre/js9 && make clean
 RUN git clone -b $CLIENT_BRANCH https://github.com/ratt-ru/radiopadre-client.git
 RUN pip3 install -e /radiopadre-client
-RUN /radiopadre/bin/install-radiopadre --inside-container --client-path /radiopadre-client
+RUN /radiopadre/bin/bootstrap-radiopadre-install --inside-container --client-path /radiopadre-client
 
 CMD sleep infinity
