@@ -1,6 +1,4 @@
-import os, subprocess, traceback
-import atexit
-import uuid
+import os, subprocess, traceback, atexit, uuid, logging
 
 from radiopadre_client.utils import message, DEVNULL, DEVZERO
 
@@ -24,6 +22,10 @@ SHADOW_HOME = None      # base dir for the shadow directory tree
 SERVER_BASEDIR = None   # dir where the Jupyter server is running, e.g. /home/user/path (or ~/.radiopadre/home/user/path)
 SHADOW_BASEDIR = None   # shadow equivalent of above, i.e. ~/.radiopadre/home/user/path in both cases
 SHADOW_ROOTDIR = None   # "root" directory in shadow tree, e.g. ~/.radiopadre/home/user/path/to
+# The distinction above is important. The Jupyter session can be started in some *base* directory, while
+# notebooks may be launched in a subdirectory of the latter. We need to know about this, because the
+# subdirectory needs to be included in URLs given to Jupyter/JS9 helper/etc. to access the files within
+# the subdirectory correctly.
 
 SHADOW_URL_PREFIX = None   # URL prefix for HTTP server serving shadow tree (e.g. http://localhost:port/{SESSION_ID})
 FILE_URL_ROOT = None       # root URL for accessing files through Jupyter (e.g. /files/to)
@@ -34,18 +36,23 @@ CACHE_URL_ROOT = None      # URL for cache of root dir, e.g. http://localhost:po
 LOCAL_SESSION_DIR = None   # session dir -- usually {SHADOW_ROOTDIR}/.radiopadre-session
 LOCAL_SESSION_URL = None   # usually {SHADOW_URL_PREFIX}/{ABSROOTDIR}/.radiopadre-session
 
-_startup_status = []
-_startup_warnings = []
+_messages = []
 
-def add_startup_status(message):
-    global _startup_status
-    # print(message, file=sys.stderr)
-    _startup_status.append(("INFO", message))
+class PadreLogHandler(logging.Handler):
+    def __init__(self):
+        super(PadreLogHandler, self).__init__()
+        self.records = []
 
-def add_startup_warning(message):
-    global _startup_warnings
-    _startup_warnings.append(message)
-    _startup_status.append(("WARNING", message))
+    def emit(self, record):
+        self.records.append(record)
+
+    def get_records(self, min_level=logging.INFO):
+        """Returns accumulated records from the specified level (or higher)"""
+        if type(min_level) is str:
+            min_level = getattr(logging, min_level)
+        return [(logging.getLevelName(rec.levelno), rec.msg) for rec in self.records if rec.levelno >= min_level]
+
+log_handler = PadreLogHandler()
 
 _child_processes = []
 
@@ -172,7 +179,7 @@ def init(rootdir=None, verbose=True):
         SHADOW_BASEDIR = SERVER_BASEDIR
         # Otherwise it'd better have been /home/alien/path/to to begin with!
         if not _is_subdir(ABSROOTDIR, unshadowed_server_base):
-            add_startup_warning(f"""The requested directory {ABSROOTDIR} is not under {unshadowed_server_base}.
+            log.error(f"""The requested directory {ABSROOTDIR} is not under {unshadowed_server_base}.
                 This is probably a bug! """)
         # Since Jupyter is running under ~/.radiopadre/home/alien/path, we can serve alien's files from
         # /home/alien/path/to as /files/to/.content
@@ -184,7 +191,7 @@ def init(rootdir=None, verbose=True):
     # else running in native mode
     else:
         if not _is_subdir(ABSROOTDIR, SERVER_BASEDIR):
-            add_startup_warning(f"""The requested directory {ABSROOTDIR} is not under {SERVER_BASEDIR}.
+            log.warning(f"""The requested directory {ABSROOTDIR} is not under {SERVER_BASEDIR}.
                 This is probably a bug! """)
         # for a server dir of /home/user/path, and an ABSROOTDIR of /home/oms/path/to, get the subdir
         subdir = ABSROOTDIR[len(SERVER_BASEDIR):]   # this becomes "/to" (or "" if paths are the same)
@@ -199,13 +206,13 @@ def init(rootdir=None, verbose=True):
     # (i.e. the Jupyter server itself to access cache), but some things won't work
     if SHADOW_URL_PREFIX is None:
         if not os.access(ABSROOTDIR, os.W_OK):
-            add_startup_warning(f"""The notebook is in a non-writeable directory {ABSROOTDIR}. Radiopadre needs a shadow HTTP
+            log.warning(f"""The notebook is in a non-writeable directory {ABSROOTDIR}. Radiopadre needs a shadow HTTP
                 server to deal with this situation, but this doesn't appear to have been set up.
                 This is probably because you've attempted to load a radiopadre notebook from a 
                 vanilla Jupyter session. Please use the run-radiopadre-server script to start Jupyter instead 
                 (or report a bug if that's what you're already doing!)""")
         else:
-            add_startup_warning(f"""The radiopadre shadow HTTP server does not appear to be set up properly.
+            log.warning(f"""The radiopadre shadow HTTP server does not appear to be set up properly.
                                   Running with restricted functionality (e.g. JS9 will not work).""")
         CACHE_URL_BASE = "/files"
         CACHE_URL_ROOT = "/files" + subdir
@@ -219,7 +226,7 @@ def init(rootdir=None, verbose=True):
         import casacore.tables as casacore_tables
     except Exception as exc:
         casacore_tables = None
-        add_startup_warning("""Warning: casacore.tables failed to import ({}). Table browsing functionality will 
+        log.warning("""Warning: casacore.tables failed to import ({}). Table browsing functionality will 
             not be available in this notebook. You probably want to install casacore-dev and python-casacore on this 
             system ({}), then reinstall the radiopadre environment.
             """.format(exc, HOSTNAME))
@@ -240,14 +247,14 @@ def init(rootdir=None, verbose=True):
 
     # run http server
     workdir = os.environ.get('RADIOPADRE_WORKDIR') or os.path.expanduser("~/.radiopadre")
-    add_startup_status(f"Starting HTTP server process in {workdir} on port {http_port}")
+    log.info(f"Starting HTTP server process in {workdir} on port {http_port}")
     server = find_which("radiopadre-http-server.py")
 
     if server:
         with chdir(workdir):
             start_child_process(server, str(http_port), *http_rewrites, log=False)
     else:
-        add_startup_warning("HTTP server script radiopadre-http-server.py not found, functionality will be restricted")
+        log.warning("HTTP server script radiopadre-http-server.py not found, functionality will be restricted")
 
     ## start CARTA backend
 
@@ -258,10 +265,10 @@ def init(rootdir=None, verbose=True):
         carta_exec = None
 
     if not carta_exec or not os.path.exists(carta_exec):
-        add_startup_warning("CARTA backend not found, omitting")
+        log.warning("CARTA backend not found, omitting")
     else:
         carta_dir = os.environ.get('RADIOPADRE_CARTA_DIR') or os.path.dirname(os.path.dirname(carta_exec))
-        add_startup_status(f"Running CARTA via {carta_exec} (in dir {carta_dir})")
+        log.info(f"Running CARTA via {carta_exec} (in dir {carta_dir})")
         with chdir(carta_dir):
             start_child_process(carta_exec, "--remote",
                                 f"--root={ABSROOTDIR}", f"--folder={ABSROOTDIR}",
@@ -270,10 +277,11 @@ def init(rootdir=None, verbose=True):
 
 
 if ROOTDIR is None:
-    import radiopadre_client.utils
+    import radiopadre_client.utils, radiopadre_client.logger
     # enable logging
-    LOGFILE = radiopadre_client.utils.enable_logging("kernel")
-    radiopadre_client.utils.enable_printing(False)
-    radiopadre_client.utils.prefix = 'radiopadre-kernel: '
-    add_startup_status("initializing radiopadre_kernel")
+    log = radiopadre_client.logger.init("radiopadre.kernel", use_formatter=False)
+    log.addHandler(log_handler)
+    LOGFILE = radiopadre_client.logger.enable_logfile("kernel")
+    radiopadre_client.logger.disable_printing()
+    log.info("initializing radiopadre_kernel")
     init(os.getcwd(), False)

@@ -33,7 +33,7 @@ try:
     import astropy
     astropy.log.setLevel('ERROR')
 except ImportError:
-    radiopadre_kernel.add_startup_warning("Failed to import astropy")
+    radiopadre_kernel.log.warning("Failed to import astropy")
 
 # NONE OF THE DIR NAMES ABOVE SHALL HAVE A TRALING SLASH!!!
 
@@ -49,11 +49,10 @@ try:
     import casacore.tables as casacore_tables
 except Exception as exc:
     casacore_tables = None
-    radiopadre_kernel.add_startup_warning(f"""Warning: casacore.tables failed to import ({exc}). Table browsing functionality will 
+    radiopadre_kernel.log.warning(f"""Warning: casacore.tables failed to import ({exc}). Table browsing functionality will 
         not be available in this notebook. You probably want to install casacore-dev and python-casacore on this 
         system ({HOSTNAME}), then reinstall the radiopadre environment.
         """)
-
 
 def display_status():
     # setup status
@@ -64,11 +63,21 @@ def display_status():
                       LOCAL_SESSION_DIR LOCAL_SESSION_URL""".split():
         data.append((varname, globals()[varname]))
 
-    for msg in radiopadre_kernel._startup_status:
-        data.append(("", msg))
+    data += [("", "startup log follows:")]
+    data += radiopadre_kernel.log_handler.get_records()
 
     from IPython.display import HTML
     display(HTML(render_table(data, ["", ""], numbering=False)))
+
+def display_log():
+    from IPython.display import HTML
+    data = radiopadre_kernel.log_handler.get_records()
+    display(HTML(render_table(data, ["", ""], numbering=False)))
+
+show_status = display_status
+show_log = display_log
+
+
 
 def get_cache_dir(path, subdir=None):
     """
@@ -159,14 +168,13 @@ def _init_js_side():
 
     settings.display.reset = reset, settings_manager.DocString("call this to reset sizes after e.g. a browser resize")
 
-    warns = "\n".join([render_status_message(msg, bgcolor='yellow') for msg in radiopadre_kernel._startup_warnings])
+    #warns = "\n".join([render_status_message(msg, bgcolor='yellow') for msg in radiopadre_kernel._startup_warnings])
 
-    html = """{}
-            <script type='text/javascript'>
+    html = """<script type='text/javascript'>
             document.radiopadre.register_user('{}');
             {}
             </script>
-         """.format(warns, os.environ['USER'], reset_code)
+         """.format(os.environ['USER'], reset_code)
 
     styles_file = os.path.join(os.path.dirname(__file__), "../html/radiopadre.css")
 
@@ -175,12 +183,13 @@ def _init_js_side():
     </style>""".format(open(styles_file).read())
 
     from radiopadre_kernel import js9
-    if js9.JS9_ERROR:
-        html += js9.JS9_ERROR
-        # print("radiopadre: added HTML error code")
-    else:
+    if not js9.JS9_ERROR:
         html += js9.JS9_INIT_HTML_DYNAMIC
-        # print("radiopadre: added HTML init code")
+
+    # get list of warnings and errors from init
+    errors = radiopadre_kernel.log_handler.get_records('WARNING')
+    if errors:
+        html += render_table(errors, ["", ""], numbering=False)
 
     display(HTML(html))
 
@@ -258,7 +267,7 @@ __init = False
 # print("importing radiopadre")
 
 if not __init:
-    radiopadre_kernel.add_startup_status("initializing radiopadre JS side")
+    radiopadre_kernel.log.info("initializing radiopadre JS side")
     # print("initializing radiopadre")
     _init_js_side()
     __init = True

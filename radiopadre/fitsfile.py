@@ -7,8 +7,6 @@ import matplotlib.colors
 import uuid
 import math
 
-from radiopadre import CARTA_PORT, CARTA_WS_PORT
-
 import radiopadre
 import radiopadre.file
 from radiopadre.render import rich_string, render_title, render_table, render_error
@@ -626,6 +624,8 @@ class FITSFile(radiopadre.file.FileBase):
     def _action_buttons_(self, context, defaults=None, **kw):
         """Renders JS9 buttons for image
         """
+        from radiopadre_kernel import CARTA_PORT, CARTA_WS_PORT
+
         # ignore less than 2D images
         if len(self.shape) < 2:
             return None

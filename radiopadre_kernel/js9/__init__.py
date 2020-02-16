@@ -1,5 +1,6 @@
 import os, os.path, sys, traceback
 
+
 # init JS9 configuration
 
 # js9 source directory
@@ -16,7 +17,7 @@ class JS9Error(Exception):
     def __init__(self, message=None):
         self.message = message
 
-def preinit_js9(in_container, helper_port, userside_helper_port, http_rewrites=[]):
+def preinit_js9(in_container, helper_port, userside_helper_port, http_rewrites=[], start_helper=True):
     """Pre-initialization, when Javascript is not available yet. Determines paths and starts helper processs"""
     global radiopadre_kernel
     import radiopadre_kernel
@@ -38,7 +39,7 @@ def preinit_js9(in_container, helper_port, userside_helper_port, http_rewrites=[
         if not os.path.exists(js9helper):
             raise JS9Error(f"{js9helper} does not exist")
 
-        radiopadre_kernel.add_startup_status(f"Using JS9 install in {JS9_DIR}")
+        radiopadre_kernel.log.info(f"Using JS9 install in {JS9_DIR}")
 
         js9prefs = f"{radiopadre_kernel.LOCAL_SESSION_DIR}/js9prefs.js"
         if not in_container:
@@ -50,7 +51,7 @@ def preinit_js9(in_container, helper_port, userside_helper_port, http_rewrites=[
         http_rewrites.append(
             "/js9colormaps.js={}/static/js9colormaps.js".format(os.path.dirname(notebook.__file__)))
 
-        radiopadre_kernel.add_startup_status(f"Starting {js9helper} on port {helper_port} in {radiopadre_kernel.SHADOW_ROOTDIR}")
+        radiopadre_kernel.log.info(f"Starting {js9helper} on port {helper_port} in {radiopadre_kernel.SHADOW_ROOTDIR}")
         nodejs = find_which("nodejs") or find_which("node")
         if not nodejs:
             raise JS9Error("Unable to find nodejs or node -- can't run js9helper.")
@@ -98,7 +99,7 @@ def preinit_js9(in_container, helper_port, userside_helper_port, http_rewrites=[
     if JS9_ERROR:
         # JS9_INIT_HTML_HTTP = render_status_message("Error initializing JS9: {}".format(JS9_ERROR), bgcolor='yellow')
         JS9_INIT_HTML = f"Error initializing JS9: {JS9_ERROR}"
-        radiopadre_kernel.add_startup_warning(f"""Warning: the JS9 FITS viewer is not functional ({JS9_ERROR}). Live FITS file viewing
+        radiopadre_kernel.log.warning(f"""The JS9 FITS viewer is not functional ({JS9_ERROR}). Live FITS file viewing
             will not be available in this notebook. You probably want to fix this problem (missing libcfitsio-dev and/or nodejs
             packages, typically), then reinstall the radiopadre environment on this system ({radiopadre_kernel.HOSTNAME}).""")
 
