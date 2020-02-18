@@ -1,7 +1,7 @@
 import os, traceback, atexit, logging
 
-from radiopadre_client.utils import message, warning, error, debug, DEVNULL, DEVZERO
-from radiopadre_client import iglesia
+import iglesia
+from iglesia.utils import message, warning, error
 
 # these are set up in init
 ROOTDIR = None
@@ -67,17 +67,17 @@ def init():
     """Initializes radiopadre kernel"""
     iglesia.init()
 
-    global FILE_URL_ROOT, NOTEBOOK_URL_ROOT, CACHE_URL_BASE, CACHE_URL_ROOT, SHADOW_URL_PREFIX
+    global FILE_URL_ROOT, NOTEBOOK_URL_ROOT, CACHE_URL_BASE, CACHE_URL_ROOT, \
+        SHADOW_URL_PREFIX, SHADOW_BASEDIR
     global \
         ABSROOTDIR, ROOTDIR, DISPLAY_ROOTDIR, SHADOW_HOME, SERVER_BASEDIR, \
-        SHADOW_BASEDIR, SHADOW_ROOTDIR, SESSION_DIR, SESSION_URL, SESSION_ID, \
-        VERBOSE, HOSTNAME, CARTA_PORT, CARTA_WS_PORT, ALIEN_MODE
+        SHADOW_ROOTDIR, SESSION_DIR, SESSION_URL, SESSION_ID, \
+        VERBOSE, HOSTNAME, JS9HELPER_PORT, HTTPSERVER_PORT, CARTA_PORT, CARTA_WS_PORT, ALIEN_MODE
 
-    from radiopadre_client.iglesia import \
+    from iglesia import \
         ABSROOTDIR, ROOTDIR, DISPLAY_ROOTDIR, SHADOW_HOME, SERVER_BASEDIR, \
         SHADOW_ROOTDIR, SESSION_DIR, SESSION_URL, SESSION_ID, \
-        VERBOSE, HOSTNAME, CARTA_PORT, CARTA_WS_PORT, \
-        HTTPSERVER_PORT, ALIEN_MODE
+        VERBOSE, HOSTNAME, JS9HELPER_PORT, HTTPSERVER_PORT, CARTA_PORT, CARTA_WS_PORT, ALIEN_MODE
 
     # setup for alien mode. Browsing /home/alien/path/to, where "alien" is a different user
     if ALIEN_MODE:
@@ -145,14 +145,17 @@ def init():
     global _child_processes
     _child_processes += iglesia.init_helpers(radiopadre_base)
 
+    from . import js9
+    js9.preinit_js9()
+
 
 if ROOTDIR is None:
-    import radiopadre_client.utils, radiopadre_client.logger
+    from iglesia import logger
     # enable logging
-    log = radiopadre_client.logger.init("radiopadre.kernel") #, use_formatter=False)
+    log = logger.init("radiopadre.kernel") #, use_formatter=False)
     log.setLevel(logging.DEBUG)
     log.addHandler(log_handler)
-    LOGFILE = radiopadre_client.logger.enable_logfile("kernel")
-    radiopadre_client.logger.disable_printing()
+    LOGFILE = logger.enable_logfile("kernel")
+    logger.disable_printing()
     message("initializing radiopadre_kernel")
     init()

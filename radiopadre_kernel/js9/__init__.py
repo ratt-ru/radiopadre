@@ -1,6 +1,6 @@
-import os, os.path, sys, traceback
+import os, os.path, traceback
 
-
+from iglesia.utils import message, error
 # init JS9 configuration
 
 # js9 source directory
@@ -17,53 +17,23 @@ class JS9Error(Exception):
     def __init__(self, message=None):
         self.message = message
 
-def preinit_js9(in_container, helper_port, userside_helper_port, http_rewrites=[], start_helper=True):
+def preinit_js9():
     """Pre-initialization, when Javascript is not available yet. Determines paths and starts helper processs"""
     global radiopadre_kernel
     import radiopadre_kernel
-    from radiopadre_client.utils import find_which, chdir
+    import iglesia
 
-    global JS9_HELPER_PORT
-    JS9_HELPER_PORT = userside_helper_port
+    global JS9_HELPER_PORT, JS9_DIR
+    JS9_DIR = iglesia.JS9_DIR
+    JS9_HELPER_PORT = iglesia.JS9HELPER_PORT
 
     try:
-        global JS9_ERROR, JS9_DIR
-        if JS9_ERROR:
-            raise JS9Error()
-
-        JS9_DIR = os.environ.get('RADIOPADRE_JS9_DIR') or f"{sys.prefix}/js9-www"
-
+        global JS9_ERROR
         if not os.path.exists(JS9_DIR):
             raise JS9Error(f"{JS9_DIR} does not exist")
-        js9helper = f"{JS9_DIR}/js9Helper.js"
-        if not os.path.exists(js9helper):
-            raise JS9Error(f"{js9helper} does not exist")
 
-        radiopadre_kernel.log.info(f"Using JS9 install in {JS9_DIR}")
+        message(f"Using JS9 install in {JS9_DIR}")
 
-        js9prefs = f"{radiopadre_kernel.SESSION_DIR}/js9prefs.js"
-        if not in_container:
-            # create JS9 settings file (in container mode, this is created and mounted inside container already)
-            open(js9prefs, "w").write(f"JS9Prefs.globalOpts.helperPort = {userside_helper_port};\n")
-
-        import notebook
-        http_rewrites.append("/js9-www/={}/".format(JS9_DIR))
-        http_rewrites.append(
-            "/js9colormaps.js={}/static/js9colormaps.js".format(os.path.dirname(notebook.__file__)))
-
-        radiopadre_kernel.log.info(f"Starting {js9helper} on port {helper_port} in {radiopadre_kernel.SHADOW_ROOTDIR}")
-        nodejs = find_which("nodejs") or find_which("node")
-        if not nodejs:
-            raise JS9Error("Unable to find nodejs or node -- can't run js9helper.")
-        try:
-            with chdir(radiopadre_kernel.SHADOW_ROOTDIR):
-                radiopadre_kernel.start_child_process(nodejs.strip(), js9helper,
-                     f'{{"helperPort": {helper_port}, "debug": {radiopadre_kernel.VERBOSE}, ' +
-                     f'"fileTranslate": ["^(http://localhost:[0-9]+/[0-9a-f]+{radiopadre_kernel.ABSROOTDIR}|/static/)", ""] }}')
-        except Exception as exc:
-            raise JS9Error(f"error running {nodejs} {js9helper}: {exc}")
-
-        global _prefix
         global RADIOPADRE_INSTALL_PREFIX
         global RADIOPADRE_LOCAL_PREFIX
         global JS9_INSTALL_PREFIX
@@ -97,11 +67,7 @@ def preinit_js9(in_container, helper_port, userside_helper_port, http_rewrites=[
     # on error, init code replaced by error message
 
     if JS9_ERROR:
-        # JS9_INIT_HTML_HTTP = render_status_message("Error initializing JS9: {}".format(JS9_ERROR), bgcolor='yellow')
-        JS9_INIT_HTML = f"Error initializing JS9: {JS9_ERROR}"
-        radiopadre_kernel.log.warning(f"""The JS9 FITS viewer is not functional ({JS9_ERROR}). Live FITS file viewing
-            will not be available in this notebook. You probably want to fix this problem (missing libcfitsio-dev and/or nodejs
-            packages, typically), then reinstall the radiopadre environment on this system ({radiopadre_kernel.HOSTNAME}).""")
+        error(f"JS9 init error: {JS9_ERROR}")
 
 # def init_js9():
 #     """Final initialization, when Javascript can be injected"""
