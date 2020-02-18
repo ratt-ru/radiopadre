@@ -624,7 +624,7 @@ class FITSFile(radiopadre.file.FileBase):
     def _action_buttons_(self, context, defaults=None, **kw):
         """Renders JS9 buttons for image
         """
-        from radiopadre_kernel import CARTA_PORT, CARTA_WS_PORT
+        from iglesia import CARTA_PORT, CARTA_WS_PORT
 
         # ignore less than 2D images
         if len(self.shape) < 2:

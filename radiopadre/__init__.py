@@ -14,7 +14,7 @@ from radiopadre.render import render_error, show_exception, TransientMessage, re
 
 # this stuff is setup by the kernel, pull from it
 
-from radiopadre_kernel import SESSION_ID, VERBOSE, CARTA_PORT, CARTA_WS_PORT, HOSTNAME, \
+from radiopadre_kernel import SESSION_ID, VERBOSE, HOSTNAME, \
     LOGFILE, ABSROOTDIR, ROOTDIR, DISPLAY_ROOTDIR, SHADOW_HOME, SERVER_BASEDIR, \
     SHADOW_BASEDIR, SHADOW_ROOTDIR, SHADOW_URL_PREFIX, \
     FILE_URL_ROOT, NOTEBOOK_URL_ROOT, CACHE_URL_BASE, CACHE_URL_ROOT, \
