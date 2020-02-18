@@ -51,7 +51,7 @@ def display_status():
     for varname in """SESSION_ID ROOTDIR ABSROOTDIR DISPLAY_ROOTDIR SHADOW_HOME 
                       SERVER_BASEDIR SHADOW_BASEDIR SHADOW_ROOTDIR 
                       SHADOW_URL_PREFIX FILE_URL_ROOT CACHE_URL_BASE CACHE_URL_ROOT 
-                      LOCAL_SESSION_DIR LOCAL_SESSION_URL""".split():
+                      SESSION_DIR SESSION_URL""".split():
         data.append((varname, globals()[varname]))
 
     data += [("", "startup log follows:")]

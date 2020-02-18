@@ -149,7 +149,7 @@ def init():
 if ROOTDIR is None:
     import radiopadre_client.utils, radiopadre_client.logger
     # enable logging
-    log = radiopadre_client.logger.init("radiopadre.kernel", use_formatter=False)
+    log = radiopadre_client.logger.init("radiopadre.kernel") #, use_formatter=False)
     log.setLevel(logging.DEBUG)
     log.addHandler(log_handler)
     LOGFILE = radiopadre_client.logger.enable_logfile("kernel")
