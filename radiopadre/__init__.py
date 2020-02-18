@@ -18,7 +18,7 @@ from radiopadre_kernel import SESSION_ID, VERBOSE, CARTA_PORT, CARTA_WS_PORT, HO
     LOGFILE, ABSROOTDIR, ROOTDIR, DISPLAY_ROOTDIR, SHADOW_HOME, SERVER_BASEDIR, \
     SHADOW_BASEDIR, SHADOW_ROOTDIR, SHADOW_URL_PREFIX, \
     FILE_URL_ROOT, NOTEBOOK_URL_ROOT, CACHE_URL_BASE, CACHE_URL_ROOT, \
-    LOCAL_SESSION_DIR, LOCAL_SESSION_URL
+    SESSION_DIR, SESSION_URL
 
 # init settings
 settings = settings_manager.RadiopadreSettingsManager()
@@ -45,15 +45,6 @@ def _is_subdir(subdir, parent):
 
 from radiopadre_kernel import _make_symlink
 
-try:
-    import casacore.tables as casacore_tables
-except Exception as exc:
-    casacore_tables = None
-    radiopadre_kernel.log.warning(f"""Warning: casacore.tables failed to import ({exc}). Table browsing functionality will 
-        not be available in this notebook. You probably want to install casacore-dev and python-casacore on this 
-        system ({HOSTNAME}), then reinstall the radiopadre environment.
-        """)
-
 def display_status():
     # setup status
     data = [ ("cwd", os.getcwd()) ]
@@ -69,15 +60,13 @@ def display_status():
     from IPython.display import HTML
     display(HTML(render_table(data, ["", ""], numbering=False)))
 
-def display_log():
+def display_log(debug=False):
     from IPython.display import HTML
-    data = radiopadre_kernel.log_handler.get_records()
+    data = radiopadre_kernel.log_handler.get_records("DEBUG" if debug else "INFO")
     display(HTML(render_table(data, ["", ""], numbering=False)))
 
 show_status = display_status
 show_log = display_log
-
-
 
 def get_cache_dir(path, subdir=None):
     """
@@ -267,6 +256,7 @@ __init = False
 # print("importing radiopadre")
 
 if not __init:
+    from radiopadre_kernel import casacore_tables
     radiopadre_kernel.log.info("initializing radiopadre JS side")
     # print("initializing radiopadre")
     _init_js_side()

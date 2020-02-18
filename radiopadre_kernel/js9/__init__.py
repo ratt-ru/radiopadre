@@ -41,7 +41,7 @@ def preinit_js9(in_container, helper_port, userside_helper_port, http_rewrites=[
 
         radiopadre_kernel.log.info(f"Using JS9 install in {JS9_DIR}")
 
-        js9prefs = f"{radiopadre_kernel.LOCAL_SESSION_DIR}/js9prefs.js"
+        js9prefs = f"{radiopadre_kernel.SESSION_DIR}/js9prefs.js"
         if not in_container:
             # create JS9 settings file (in container mode, this is created and mounted inside container already)
             open(js9prefs, "w").write(f"JS9Prefs.globalOpts.helperPort = {userside_helper_port};\n")
@@ -77,7 +77,7 @@ def preinit_js9(in_container, helper_port, userside_helper_port, http_rewrites=[
         JS9_INSTALL_PREFIX = f"{radiopadre_kernel.SHADOW_URL_PREFIX}/js9-www"  # URL used to access JS9 code
         JS9_SCRIPT_PREFIX = radiopadre_kernel.SHADOW_URL_PREFIX
 
-        JS9_LOCAL_SETTINGS = f"{radiopadre_kernel.LOCAL_SESSION_URL}/js9prefs.js"
+        JS9_LOCAL_SETTINGS = f"{radiopadre_kernel.SESSION_URL}/js9prefs.js"
 
         # load templated init HTML
         try:

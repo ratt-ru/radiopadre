@@ -995,7 +995,7 @@ if not os.path.exists(SHADOWDIR):
     os.system("mkdir -p {}".format(SHADOWDIR))
 # This is where the per-session js9prefs.js goes. In virtualenv mode, this is just a directory
 # In docker mode, we mount session_info_dir on this
-LOCAL_SESSION_DIR = ABSROOTDIR + "/.radiopadre-session"
+SESSION_DIR = ABSROOTDIR + "/.radiopadre-session"
 SHADOW_SESSION_DIR = SHADOWDIR + "/.radiopadre-session"
 
 # make .radiopadre and .radiopadre-session in target dir, or in shadow dir
@@ -1004,8 +1004,8 @@ cachelink = SHADOWDIR + "/.radiopadre"
 if os.access(ABSROOTDIR, os.W_OK):
     make_dir(cachedir)
     make_link(cachedir, cachelink, rm_fr=True)
-    make_dir(LOCAL_SESSION_DIR)
-    make_link(LOCAL_SESSION_DIR, SHADOW_SESSION_DIR, rm_fr=True)
+    make_dir(SESSION_DIR)
+    make_link(SESSION_DIR, SHADOW_SESSION_DIR, rm_fr=True)
 else:
     if os.path.islink(cachelink):
         os.unlink(cachelink)
@@ -1168,7 +1168,7 @@ if not attaching_to_ports and not options.virtual_env:
             # hides /home/user/.local, which if exposed, can confuse jupyter and ipython
             "-B", "{}:{}/.local".format(docker_local, homedir),
             # mount session info directory (needed to serve e.g. js9prefs.js)
-            "-B", "{}:{}".format(session_info_dir, LOCAL_SESSION_DIR),
+            "-B", "{}:{}".format(session_info_dir, SESSION_DIR),
             "-B", "{}:{}".format(session_info_dir, SHADOW_SESSION_DIR),
             # mount a writeable tmp dir for the js9 install -- needed by js9helper
             "-B", "{}:/.radiopadre/venv/js9-www/tmp".format(js9_tmp),
@@ -1205,7 +1205,7 @@ if not attaching_to_ports and not options.virtual_env:
                          # hides /home/user/.local, which if exposed, can confuse jupyter and ipython
                          "-v", "{}:{}/.local".format(docker_local, homedir),
                          # mount session info directory (needed to serve e.g. js9prefs.js)
-                         "-v", "{}:{}".format(session_info_dir, LOCAL_SESSION_DIR),
+                         "-v", "{}:{}".format(session_info_dir, SESSION_DIR),
                          "-v", "{}:{}".format(session_info_dir, SHADOW_SESSION_DIR),
                          # mount a writeable tmp dir for the js9 install -- needed by js9helper
                          "-v", "{}:/.radiopadre/venv/js9-www/tmp".format(js9_tmp),
@@ -1362,7 +1362,7 @@ http_rewrites = [ "/radiopadre-www/={}/".format(PADRE_PATH + "/html") ]
 
 if js9dir:
     os.environ['RADIOPADRE_JS9_HELPER_PORT'] = str(userside_helper_port)
-    js9prefs = LOCAL_SESSION_DIR + "/js9prefs.js"
+    js9prefs = SESSION_DIR + "/js9prefs.js"
     if not options.inside_container:
         # create JS9 settings file (in container mode, this is created above, and mounted inside container already)
         open(js9prefs, "w").write("JS9Prefs.globalOpts.helperPort = {};\n".format(userside_helper_port))
