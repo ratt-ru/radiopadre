@@ -72,12 +72,12 @@ def init():
     global \
         ABSROOTDIR, ROOTDIR, DISPLAY_ROOTDIR, SHADOW_HOME, SERVER_BASEDIR, \
         SHADOW_ROOTDIR, SESSION_DIR, SESSION_URL, SESSION_ID, \
-        VERBOSE, HOSTNAME, HTTPSERVER_PORT, ALIEN_MODE
+        VERBOSE, HOSTNAME, ALIEN_MODE
 
     from iglesia import \
         ABSROOTDIR, ROOTDIR, DISPLAY_ROOTDIR, SHADOW_HOME, SERVER_BASEDIR, \
         SHADOW_ROOTDIR, SESSION_DIR, SESSION_URL, SESSION_ID, \
-        VERBOSE, HOSTNAME, HTTPSERVER_PORT, ALIEN_MODE
+        VERBOSE, HOSTNAME, ALIEN_MODE
 
     # setup for alien mode. Browsing /home/alien/path/to, where "alien" is a different user
     if ALIEN_MODE:
@@ -109,26 +109,6 @@ def init():
     os.chdir(ABSROOTDIR)
     ROOTDIR = '.'
 
-    SHADOW_URL_PREFIX = f"http://localhost:{HTTPSERVER_PORT}/{SESSION_ID}"
-
-    # check if we have a URL to access the shadow tree directly. If not, we can use "limp-home" mode
-    # (i.e. the Jupyter server itself to access cache), but some things won't work
-    if SHADOW_URL_PREFIX is None:
-        if not os.access(ABSROOTDIR, os.W_OK):
-            warning(f"""The notebook is in a non-writeable directory {ABSROOTDIR}. Radiopadre needs a shadow HTTP
-                server to deal with this situation, but this doesn't appear to have been set up.
-                This is probably because you've attempted to load a radiopadre notebook from a 
-                vanilla Jupyter session. Please use the run-radiopadre-server script to start Jupyter instead 
-                (or report a bug if that's what you're already doing!)""")
-        else:
-            warning(f"""The radiopadre shadow HTTP server does not appear to be set up properly.
-                                  Running with restricted functionality (e.g. JS9 will not work).""")
-        CACHE_URL_BASE = "/files"
-        CACHE_URL_ROOT = "/files" + subdir
-    else:
-        CACHE_URL_ROOT = SHADOW_URL_PREFIX + ABSROOTDIR
-        CACHE_URL_BASE = CACHE_URL_ROOT[:-len(subdir)] if subdir else CACHE_URL_ROOT
-
     ## check casacore availability
     global casacore_tables
     try:
@@ -145,6 +125,13 @@ def init():
     global _child_processes
     _child_processes += iglesia.init_helpers(radiopadre_base)
 
+    # now a port is available (set up in init_helpers()), form up URLs
+
+    SHADOW_URL_PREFIX = f"http://localhost:{iglesia.HTTPSERVER_PORT}/{SESSION_ID}"
+    CACHE_URL_ROOT = SHADOW_URL_PREFIX + ABSROOTDIR
+    CACHE_URL_BASE = CACHE_URL_ROOT[:-len(subdir)] if subdir else CACHE_URL_ROOT
+
+    # init JS9 sources
     from . import js9
     js9.preinit_js9()
 
