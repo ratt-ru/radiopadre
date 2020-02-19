@@ -1,7 +1,7 @@
 from setuptools import setup
 import os
 
-__version__ = "1.0~pre2"
+__version__ = "1.0-pre3"
 
 with open("requirements.txt") as stdr:
     install_requires = stdr.readlines()
