@@ -34,17 +34,6 @@ class PadreLogHandler(logging.Handler):
 
 log_handler = PadreLogHandler()
 
-_child_processes = []
-
-def terminate_child_processes():
-    message("terminating {} child processes".format(len(_child_processes)))
-    for proc in _child_processes:
-        proc.terminate()
-    for proc in _child_processes:
-        proc.wait()
-
-atexit.register(terminate_child_processes)
-
 def _strip_slash(path):
     return path if path == "/" or path is None else path.rstrip("/")
 
@@ -122,8 +111,7 @@ def init():
     # # pre-init JS9 stuff and run JS9 helper
     # js9.preinit_js9(in_container, helper_port, userside_helper_port, http_rewrites)
 
-    global _child_processes
-    _child_processes += iglesia.init_helpers(radiopadre_base)
+    iglesia.init_helpers(radiopadre_base)
 
     # now a port is available (set up in init_helpers()), form up URLs
 
