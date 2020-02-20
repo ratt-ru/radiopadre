@@ -1,13 +1,26 @@
 language: python
-python:
-- '2.7'
+matrix:
+  include:
+  - env: TARGET=py2
+  - env: TARGET=py3
+  - env: TARGET=pep8
+  - env: TARGET=mypy
+  allow_failures:
+  - env: TARGET=mypy
+  - env: TARGET=pep8
+sudo: required
+services:
+ - docker
 install:
-- pip install .
-script: nosetests
+  - true
+script:
+  - docker build . -f .travis/${TARGET}.docker
 deploy:
   provider: pypi
-  user: gijzelaerr
+  user: athanaseus
   password:
-      secure: "mdz+1zQS49vZk4Shu35Ss72sDdbvg2imT6gDkBqtMHwRgjrOqIFjx1IItQNlAzhaVn+ytko9v4biTpqmlBUIlqP1dscMzimp9brJtXX9zvjThEkzongFlEy2wyuu8DEtwyMYlzDxOSwox27ncXIIILMyPBeH4cvzWYszcNHNv/DUvPQu33v0K3DDL/TuCggR3hPZtrdmc/+AX3nqeqvaPf8bivUD1u4TQLiqyzqlTWnTYoYiknz7Rno0MqshJZoH7cMq8cDC0RiJFuNHlDWq5UCdfEOpKwhatkhRIEJtU98criW3TYvShzjTVobjhGpQ8IDWteAXwM8kUHpqX43OSCim2QduWgL5x1St38nOGN+jQ73woZ6EC9CwdMLuHMLhxqHfaJrYevMc5/yEwHqvBe9olzfhQ+LQsUYgZHMrk4bwXL4ALkTJMCF4K85D/CXSS4tY6KPXBc2Ogro5AQdn5Isf0CisLhEu8dgtyTUqj9vaTzKQmhPs0qFR24L8z9vSPC77qL7yfxw3uF5mmvB3T3VLv5vcV7D7zpo4cbyzzEuBCTmuEYovvQ2qW0tJJWe1vLXbFFd2rnlqee7sIXxUR71YAoDfBNNEJXrggGPuMXaV/vdZrXt/k5jmJAeEUCZL+jlbaidboZsFY0c7u07oYaFJk7sySzowx4PlvU1qPlI="
+    secure: NfSxCXOU9WywE0S2Pdhlpu+BLmeUA5XVL3O6jFouLOFQOznZ53YTiqesYCkvoYm2a3bIMPLpKRFnSvKZ9gmLW3lwRkfBaF7c8RwWSYRaw9YfZ5S/gQUhPiPc7sQcIQz/umpdNLKgz35KEBx2BS3d2Kpapbf/ysziyYBbyf3zWBIig/sdNS/ogt3uG6yAuBDn3lie7m6P/fu/l99UCyZrl5eScoU+5fn6MYlSLfgtOIkzC8lQ1FcNuRXDHgwlfJjMshAEbIiVDBwVWhCVs71/N6ed8qbfhPbGA3Qg+Bur4xiQEyRCg24hx1BZ6ombFE068nOXHLMe357qDGwybFpcNsslkI737SLOZnXdIbhQ1IWk0z99CALHym0f8oJ426FPK0C4n9+uwotDzrr5o2eQsKnQq1cLuVrBBfUSxcCDkKk55VG820qY9NklNgmyhZIGm+Ijs+xN+QKwqMhVMfMy8tIpJgYYwIdY7w2mFUhp7Q64XdxDyC/QTVo+zT/0Z0TlFHnH36ibsriRrITf61zmIYzP8U1ShsNFKTEbIu5W4z+labixI8DUutnWsuo+MXtflrPLxzCCL/01W9NHvOG1+3vre27qwgo1T1H7E9jQObYF7eGvr2QQXQs98fOesMjsUxUC2y30YKRqf3JAwsfuDRH77pxylMr8tGghuBjuuuE=
   on:
     tags: true
+    distributions: sdist bdist_wheel
+repo: ratt-ru/radiopadre
