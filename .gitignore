@@ -106,3 +106,8 @@ data/thumbnails/
 data/radiopadre-thumbnails/
 radiopadre.egg-info/
 .idea
+
+# carta and js9 builds
+CARTA*
+carta*
+js9*
