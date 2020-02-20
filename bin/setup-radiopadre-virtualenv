@@ -109,12 +109,10 @@ message("Linking kernel.js to {kerneldir}")
 os.symlink(PADRE_PATH + "/html/radiopadre-kernel.js", kerneldir + "/kernel.js")
 
 # add link to radiopadre web components in notebook static dir
-notebook_padre = notebook_dir + "/notebook/static"
-notebook_padre_www = notebook_padre + "/radiopadre-www"
+notebook_padre_www = notebook_dir + "/notebook/static/radiopadre-www"
 padre_www = PADRE_PATH + "/html"
 message("making link from {notebook_padre_www} to {padre_www}")
 if not os.path.exists(notebook_padre_www):
-    os.makedirs(notebook_padre)
     os.symlink(padre_www, notebook_padre_www)
 colormap_js = notebook_dir + "/notebook/static/js9colormaps.js"
 message("creating colormap definitions in {colormap_js}")
