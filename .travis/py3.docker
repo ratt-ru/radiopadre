@@ -6,5 +6,3 @@ RUN pip3 install /code
 RUN setup_radiopadre_virtualenv 
 WORKDIR /code
 ENV USER=root
-
-RUN run-remote-padre --help
