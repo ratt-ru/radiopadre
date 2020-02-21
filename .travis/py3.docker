@@ -1,6 +1,6 @@
 FROM kernsuite/base:5
-RUN docker-apt-install python3-pip
-RUN docker-apt-install casacore
+RUN docker-apt-install libboost-python-dev python3-pip
+RUN docker-apt-install casacore-dev
 
 ADD . /code
 RUN pip3 install /code
