@@ -1,0 +1,4 @@
+include LICENSE
+include Dockerfile
+include requirements.txt
+include notebooks/*
