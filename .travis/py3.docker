@@ -10,6 +10,7 @@ RUN python3 -m virtualenv --python=/usr/bin/python3 $VIRTUAL_ENV
 ENV PATH="$VIRTUAL_ENV/bin:$PATH"
 
 ADD . /code
+RUN pip install --upgrade pip setuptool
 RUN pip3 install /code
 WORKDIR /code
 ENV USER=root
