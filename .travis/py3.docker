@@ -1,9 +1,8 @@
 FROM kernsuite/base:5
 RUN docker-apt-install python3-pip
-RUN docker-apt-isntall casacore
+RUN docker-apt-install casacore
 
 ADD . /code
 RUN pip3 install /code
-RUN setup_radiopadre_virtualenv 
 WORKDIR /code
 ENV USER=root
