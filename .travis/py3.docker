@@ -1,6 +1,6 @@
 FROM kernsuite/base:5
 RUN docker-apt-install libboost-python-dev python3-pip
-RUN docker-apt-install libcfitsio3-dev wcslib-dev
+RUN docker-apt-install libcfitsio-dev wcslib-dev
 RUN docker-apt-install casacore-dev
 
 ADD . /code
