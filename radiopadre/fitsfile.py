@@ -7,6 +7,7 @@ import matplotlib.colors
 import uuid
 import math
 
+import iglesia
 import radiopadre
 import radiopadre.file
 from radiopadre.render import rich_string, render_title, render_table, render_error
@@ -470,8 +471,8 @@ class FITSFile(radiopadre.file.FileBase):
         #    /home/user/.radiopadre/home/user/path/to/.radiopadre/js9-launch/x.fits
         # ...and if padre was started in /home/user/path, then jS9helper runs in its shadow equivalent,
         # so what we really want to return is the relative path "to/.radiopadre/js9-launch/x.fits"
-        assert symlink.startswith(radiopadre.SHADOW_BASEDIR)
-        return symlink[len(radiopadre.SHADOW_BASEDIR)+1:]
+        assert symlink.startswith(iglesia.SHADOW_BASEDIR)
+        return symlink[len(iglesia.SHADOW_BASEDIR)+1:]
 
     def _make_js9_launch_command(self, display_id):
         """Internal method: formats up Javascript statement to load the image into a JS9pPartneredDisplay"""
@@ -664,7 +665,7 @@ class FITSFile(radiopadre.file.FileBase):
         """.format(**subs)
 
         if CARTA_PORT and CARTA_WS_PORT:
-            filepath = os.path.relpath(os.path.abspath(self.fullpath), radiopadre.SERVER_BASEDIR)
+            filepath = os.path.relpath(os.path.abspath(self.fullpath), iglesia.ABSROOTDIR)
 
             subs['newtab_carta_html'] =\
                 f"http://localhost:{CARTA_PORT}/?socketUrl=ws://localhost:{CARTA_WS_PORT}&file={filepath}"

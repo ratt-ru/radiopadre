@@ -8,8 +8,6 @@ ROOTDIR = None
 
 # SERVER_BASEDIR is set up in iglesia (as e.g. /home/user/path)
 
-SHADOW_BASEDIR = None   # shadow equivalent of SERVER_BASEDIR, i.e. ~/.radiopadre/home/user/path
-
 SHADOW_URL_PREFIX = None    # URL prefix for HTTP server serving shadow tree (e.g. http://localhost:port/{SESSION_ID})
 FILE_URL_ROOT = None        # root URL for accessing files through Jupyter (e.g. /files/to)
 NOTEBOOK_URL_ROOT = None    # root URL for accessing notebooks through Jupyter (e.g. /notebooks/to)
@@ -57,28 +55,27 @@ def init():
     iglesia.init()
 
     global FILE_URL_ROOT, NOTEBOOK_URL_ROOT, CACHE_URL_BASE, CACHE_URL_ROOT, \
-        SHADOW_URL_PREFIX, SHADOW_BASEDIR
+        SHADOW_URL_PREFIX
     global \
-        ABSROOTDIR, ROOTDIR, DISPLAY_ROOTDIR, SHADOW_HOME, SERVER_BASEDIR, \
+        ABSROOTDIR, ROOTDIR, DISPLAY_ROOTDIR, SHADOW_HOME, SERVER_BASEDIR, SHADOW_BASEDIR, \
         SHADOW_ROOTDIR, SESSION_DIR, SESSION_URL, SESSION_ID, \
-        VERBOSE, HOSTNAME, ALIEN_MODE
+        VERBOSE, HOSTNAME, SNOOP_MODE
 
     from iglesia import \
-        ABSROOTDIR, ROOTDIR, DISPLAY_ROOTDIR, SHADOW_HOME, SERVER_BASEDIR, \
+        ABSROOTDIR, ROOTDIR, DISPLAY_ROOTDIR, SHADOW_HOME, SERVER_BASEDIR, SHADOW_BASEDIR, \
         SHADOW_ROOTDIR, SESSION_DIR, SESSION_URL, SESSION_ID, \
-        VERBOSE, HOSTNAME, ALIEN_MODE
+        VERBOSE, HOSTNAME, SNOOP_MODE
 
-    # setup for alien mode. Browsing /home/alien/path/to, where "alien" is a different user
-    if ALIEN_MODE:
-        # for a Jupyter basedir of ~/.radiopadre/home/alien/path, this becomes /home/alien/path
+    # setup for snoop mode. Browsing /home/other/path/to,
+    if SNOOP_MODE:
+        # for a Jupyter basedir of ~/.radiopadre/home/other/path, this becomes /home/other/path
         unshadowed_server_base = SERVER_BASEDIR[len(SHADOW_HOME):]
-        SHADOW_BASEDIR = SERVER_BASEDIR
-        # Otherwise it'd better have been /home/alien/path/to to begin with!
+        # Otherwise it'd better have been /home/other/path/to to begin with!
         if not _is_subdir(ABSROOTDIR, unshadowed_server_base):
             error(f"""The requested directory {ABSROOTDIR} is not under {unshadowed_server_base}.
                 This is probably a bug! """)
-        # Since Jupyter is running under ~/.radiopadre/home/alien/path, we can serve alien's files from
-        # /home/alien/path/to as /files/to/.content
+        # Since Jupyter is running under ~/.radiopadre/home/other/path, we can serve other's files from
+        # /home/other/path/to as /files/to/.content
         subdir = SHADOW_ROOTDIR[len(SERVER_BASEDIR):]   # this becomes "/to" (or "" if paths are the same)
         FILE_URL_ROOT = "/files{}/.radiopadre.content".format(subdir)
         NOTEBOOK_URL_ROOT = "/notebooks{}/.radiopadre.content".format(subdir)
@@ -93,7 +90,6 @@ def init():
         subdir = ABSROOTDIR[len(SERVER_BASEDIR):]   # this becomes "/to" (or "" if paths are the same)
         FILE_URL_ROOT = "/files" + subdir
         NOTEBOOK_URL_ROOT = "/notebooks" + subdir
-        SHADOW_BASEDIR = SHADOW_HOME + SERVER_BASEDIR
 
     os.chdir(ABSROOTDIR)
     ROOTDIR = '.'
