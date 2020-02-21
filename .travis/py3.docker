@@ -1,6 +1,7 @@
 FROM kernsuite/base:5
 RUN docker-apt-install libboost-python-dev python3-pip
 RUN docker-apt-install libcfitsio-dev wcslib-dev
+RUN docker-apt-install nodejs wget git
 RUN docker-apt-install casacore-dev
 
 # Setup a vritual env
@@ -10,7 +11,7 @@ RUN python3 -m virtualenv --python=/usr/bin/python3 $VIRTUAL_ENV
 ENV PATH="$VIRTUAL_ENV/bin:$PATH"
 
 ADD . /code
-RUN pip install --upgrade pip setuptool
+RUN pip install --upgrade pip
 RUN pip3 install /code
 WORKDIR /code
 ENV USER=root
