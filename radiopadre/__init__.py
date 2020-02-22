@@ -175,6 +175,10 @@ def _init_js_side():
     if not js9.JS9_ERROR:
         html += js9.JS9_INIT_HTML_DYNAMIC
 
+    # get buttons from various modules
+    from . import fitsfile
+    html += fitsfile.add_general_buttons()
+
     # get list of warnings and errors from init
     errors = radiopadre_kernel.log_handler.get_records('WARNING')
     if errors:

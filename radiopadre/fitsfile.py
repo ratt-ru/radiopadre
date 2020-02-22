@@ -675,3 +675,18 @@ class FITSFile(radiopadre.file.FileBase):
                             onclick="window.open('{newtab_carta_html}', '_blank')">&#8663;C</button>
                     """.format(**subs)
         return code
+
+def add_general_buttons():
+    """Called to add a CARTA button to the output of the first cell"""
+    from iglesia import CARTA_PORT, CARTA_WS_PORT
+
+    if CARTA_PORT and CARTA_WS_PORT:
+        newtab_carta_html = f"http://localhost:{CARTA_PORT}/?socketUrl=ws://localhost:{CARTA_WS_PORT}"
+        return """
+                <button title="open CARTA in a new browser tab" 
+                    style="font-size: 0.9em; position: absolute; right: 0; top: 0;"
+                    onclick="window.open('{}', '_blank')">&#8663;C</button>
+               """.format(newtab_carta_html)
+    else:
+        return ""
+
