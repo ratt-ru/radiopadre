@@ -1,6 +1,4 @@
-#!/usr/bin/python
-
-import os.path
+#!/usr/bin/env python3
 import os
 import subprocess
 import sys
@@ -12,34 +10,44 @@ PADRE_PATH = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 JS9_REPO = "https://github.com/ericmandel/js9.git"
 JS9_DIR = PADRE_PATH + "/js9"
 
+CARTA_LINK = "https://github.com/CARTAvis/carta-releases/releases/download/v1.2.1/CARTA-v1.2.1-remote.tgz"
+
 import argparse
 parser = argparse.ArgumentParser(description="Initializes radiopadre virtual environment and installs components")
 
 parser.add_argument("command",choices=["install", "reinstall", "reqs", "js9" ], default="install", nargs="?",
-                  help="what to do. 'install' (default) to check and install as needed, 'reinstall' to reinstall everything "
+                    help="what to do. 'install' (default) to check and install as needed, 'reinstall' to reinstall everything "
                        "from scratch, 'reqs' or 'js9' to try installing just a single component.")
-parser.add_argument("--refresh", action="store_true",
-                  help="remove and reinstall the radiopadre virtual environment from scratch.")
 parser.add_argument("--js9", metavar="DIR", type=str,
-                  help="JS9 source directory or repository URL. Default is to try {JS9_DIR}, then {JS9_REPO}. "
+                    help="JS9 source directory or repository URL. Default is to try {JS9_DIR}, then {JS9_REPO}. "
                        "Set to 'git' to force use of {JS9_REPO}.".format(**globals()))
+parser.add_argument("--venv", type=str,
+                    help="Install into non-default virtualenv.")
+parser.add_argument("--client-path", type=str, default="~/radiopadre-client",
+                    help="Path to radiopadre-client, for pip install -e. Specify 'None' to install from PyPI.")
 parser.add_argument("--no-casacore", action="store_true",
-                  help="ignores missing python-casacore. Table functionality will be reduced.")
+                    help="ignores missing python-casacore. Table functionality will be reduced.")
 parser.add_argument("--no-js9", action="store_true",
-                  help="skips the JS9 installation. FITS functionality will be reduced.")
+                    help="skips the JS9 installation. FITS functionality will be reduced.")
 parser.add_argument("--cfitsio-path", metavar="DIR", type=str, default="/usr",
-                  help="path to cfitsio installation. Default is %(default)s")
+                    help="path to cfitsio installation. Default is %(default)s")
 parser.add_argument("--inside-container", action="store_true",
-                  help=argparse.SUPPRESS)
+                    help=argparse.SUPPRESS)
+parser.add_argument("--skip-reqs", action="store_true",  # ninja debug option
+                    help=argparse.SUPPRESS)
+parser.add_argument("--skip-burn", action="store_true", # ninja debug option
+                    help=argparse.SUPPRESS)
+parser.add_argument("--skip-git-pull", action="store_true", # ninja debug option
+                    help=argparse.SUPPRESS)
 
 options = parser.parse_args()
 
 if not options.inside_container:
     PADRE_WORKDIR = os.path.expanduser("~/.radiopadre")
-    PADRE_VENV = PADRE_WORKDIR + "/venv"
+    PADRE_VENV = options.venv or PADRE_WORKDIR + "/venv"
 else:
     PADRE_WORKDIR = "/.radiopadre"
-    PADRE_VENV = "/.radiopadre/venv"
+    PADRE_VENV = options.venv or "/.radiopadre/venv"
 
 def message(x, prefix='install-radiopadre: '):
     print(prefix + x.format(**globals()))
@@ -54,16 +62,27 @@ def shell(cmd):
 def which(cmd):
     return subprocess.check_output("which {}".format(cmd), shell=True).strip()
 
+into_existing_venv = False
 # See https://stackoverflow.com/questions/1871549/determine-if-python-is-running-inside-virtualenv
 if hasattr(sys, 'real_prefix') or (hasattr(sys, 'base_prefix') and sys.base_prefix != sys.prefix):
-    bye("Can't run this script inside a virtualenv. Please deactivate.")
+    into_existing_venv = True
+    message("Running inside virtualenv {sys.prefix}")
+    if options.command == "reinstall":
+        bye("Can't run reinstall inside a virtualenv. Please deactivate.")
+    if options.venv and not os.path.samefile(sys.prefix, options.venv):
+        bye("Specified --venv does not match the virtualenv we're running in.")
+    if PADRE_VENV != sys.prefix:
+        message("Assuming this is the virtualenv you want radiopadre installed in")
+    PADRE_VENV = sys.prefix
+else:
+    message("Not running in a virtualenv")
 
 # check for casacore
 if not options.no_casacore:
     try:
         import casacore.tables
-    except Exception,exc:
-        bye("Can't find casacore.tables ({exc}). Try apt install python-casacore perhaps, or run with --no-casacore.")
+    except Exception as exc:
+        bye("Can't find casacore.tables ({exc}). Try apt install python3-casacore perhaps, or run with --no-casacore.")
 
 # check for JS9 requirements
 if options.command in ["install", "reinstall", "js9"] and not options.no_js9:
@@ -76,13 +95,13 @@ if options.command in ["install", "reinstall", "js9"] and not options.no_js9:
 
 if options.command == "reinstall":
     message("reinstall: burning it all down and starting over")
-    if os.path.exists(PADRE_WORKDIR):
-        shutil.rmtree(PADRE_WORKDIR)
+    if os.path.exists(PADRE_VENV):
+        shutil.rmtree(PADRE_VENV)
 
 # Look for virtualenv. Burn it down if it needs a refresh.
 
 activation_script = os.path.join(PADRE_VENV, "bin/activate_this.py")
-complete_cookie = os.path.join(PADRE_VENV, ".complete")
+complete_cookie = os.path.join(PADRE_VENV, ".radiopadre.install.complete")
 
 if os.path.exists(activation_script):
     message("Found existing radiopadre virtualenv in {PADRE_VENV}")
@@ -90,13 +109,13 @@ if os.path.exists(activation_script):
         if os.path.exists(complete_cookie):
             bye("Nothing to be installed. Re-run with 'reinstall' to reinstall everything from scratch instead.", 0)
         message("The installation appears to be incomplete. Burning it down and starting over.")
-        shutil.rmtree(PADRE_WORKDIR)
+        if not options.skip_burn:
+            shutil.rmtree(PADRE_WORKDIR)
 
 # Create workdir if needed
 if not os.path.exists(PADRE_WORKDIR):
     message("Creating {PADRE_WORKDIR}")
     os.mkdir(PADRE_WORKDIR)
-
 
 # check again, maybe we burned it down
 if not os.path.exists(activation_script):
@@ -109,57 +128,60 @@ if not os.path.exists(activation_script):
 
     message("Creating radiopadre virtualenv in {PADRE_VENV}")
     site_packages = "--system-site-packages" if options.inside_container else ""
-    if shell("virtualenv {PADRE_VENV} {site_packages}"):
+    if shell("virtualenv -p python3 {PADRE_VENV} {site_packages}"):
         bye("Failed to create virtualenv")
-
 message("Activating virtualenv")
-execfile(activation_script, dict(__file__=activation_script))
+with open(activation_script) as f:
+    code = compile(f.read(), activation_script, 'exec')
+    exec(code, dict(__file__=activation_script), {})
 
 # install requirements
-if options.command in ["install", "reinstall", "reqs"]:
+if options.command in ["install", "reinstall", "reqs"] and not options.skip_reqs:
     message("Installing dependencies. This may take a few minutes")
 
     ## For now, always install jupyter and notebook in the venv (whether in a container or not).
     ## I couldn't figure out how to bolt on kernel.js and JS9 on a systemwide install properly,
     ## so sticking with the virtualenv approach for now...
 
-    if options.inside_container:
-        if shell("{PADRE_VENV}/bin/pip install -r {PADRE_PATH}/requirements-docker.txt"):
-            bye("Dependencies failed to install, see log above")
-    else:
-        if shell("{PADRE_VENV}/bin/pip install -r {PADRE_PATH}/requirements.txt"):
-            bye("Dependencies failed to install, see log above")
+    if options.client_path and options.client_path != "None":
+        if shell("{PADRE_VENV}/bin/pip3 install -U -e {options.client_path}"):
+            bye("Client package ({options.client_path}) failed to pip install -e, see log above")
+
+    if shell("{PADRE_VENV}/bin/pip3 install -U -e {PADRE_PATH}"):
+        bye("radiopadre package failed to pip install, see log above")
 
 # get jupyter base path
-notebook_dir = subprocess.check_output("{PADRE_VENV}/bin/pip show jupyter| "
-                                       "grep Location:|cut -d ':' -f 2".format(**globals()), shell=True).strip()
+notebook_dir = subprocess.check_output(f"{PADRE_VENV}/bin/pip show jupyter| "
+                                       "grep Location:|cut -d ':' -f 2", shell=True).decode().strip()
 if not notebook_dir:
-    raise subprocess.CalledProcessError("jupyter", -1, "no jupyter found")
+    raise subprocess.CalledProcessError(-1, "jupyter", "no jupyter found")
 
 # init radiopadre kernel etc.
 if options.command in ["install", "reinstall", "reqs"]:
-    message("Creating radiopadre ipython kernel")
+    message("Creating radiopadre jupyter kernel")
     if options.inside_container:
-        ipython = "ipython"
-        if shell(ipython + " kernel install --name=radiopadre"):
-            bye("ipython kernel failed to install, see log above")
+        python, jupyter, user = "python", "jupyter", ""
     else:
-        ipython = PADRE_VENV + "/bin/ipython"
-        if shell(ipython + " kernel install --user --name=radiopadre"):
-            bye("ipython kernel failed to install, see log above")
+        python, jupyter, user = f"{PADRE_VENV}/bin/python", f"{PADRE_VENV}/bin/jupyter", "--user"
+    cmd = f"{python} -m ipykernel install {user} --name radiopadre"
+    message(f"  {cmd}")
+    if shell(cmd):
+        bye("jupyter kernel failed to install, see log above")
 
     # get path to it because we want to install our own kernel.js
+    out = kerneldir = ''
     try:
-        out = subprocess.check_output(ipython + " kernelspec list", shell=True)
+        out = subprocess.check_output(f"{jupyter} kernelspec list", shell=True)
     except subprocess.CalledProcessError:
-        bye("ipython kernelspec list failed, see log above")
-    for line in out.split("\n"):
+        bye("jupyter kernelspec list failed, see log above")
+
+    for line in out.decode().split("\n"):
         columns = line.strip().split()
         if columns[0] == "radiopadre":
             kerneldir = columns[1]
             break
     else:
-        bye("ipython kernelspec list did not return the radiopadre kernel. This is a bug?")
+        bye("jupyter kernelspec list did not return the radiopadre kernel. This is a bug?")
     message("Linking kernel.js to {kerneldir}")
     os.symlink(PADRE_PATH + "/html/radiopadre-kernel.js", kerneldir + "/kernel.js")
 
@@ -173,8 +195,37 @@ if options.command in ["install", "reinstall", "reqs"]:
         os.symlink(padre_www, notebook_padre_www)
     colormap_js = notebook_dir + "/notebook/static/js9colormaps.js"
     message("creating colormap definitions in {colormap_js}")
-    shell("{PADRE_PATH}/bin/install-js9-colormaps {colormap_js}")
+    shell("{PADRE_VENV}/bin/python {PADRE_PATH}/bin/install-js9-colormaps {colormap_js}")
     shutil.copy(colormap_js, PADRE_WORKDIR)
+
+# add link to CARTA
+if options.command in ["install", "reinstall", "reqs"]:
+    carta = PADRE_PATH + "/carta"
+    if not os.path.exists(carta):
+        carta_tarball = os.path.basename(CARTA_LINK)
+        carta_dir = os.path.splitext(carta_tarball)[0]
+        carta_tarball_path = os.path.join(PADRE_PATH, carta_tarball)
+        if os.path.exists(carta_tarball_path):
+            message(f"CARTA tarball {carta_tarball_path} is already here")
+        else:
+            message(f"Trying to download CARTA via {CARTA_LINK}")
+            subprocess.check_call(f"cd {PADRE_PATH}; wget {CARTA_LINK}", shell=True)
+            if not os.path.exists(carta_tarball_path):
+                bye(f"{carta_tarball} failed to download")
+        message(f"Unpacking CARTA tarball")
+        subprocess.check_call(f"cd {PADRE_PATH}; tar zxvf {carta_tarball}", shell=True)
+        message(f"Linking {carta} to {carta_dir}")
+        os.symlink(carta_dir, carta)
+
+    if os.path.exists(carta):
+        carta_link = PADRE_VENV + "/carta"
+        message(f"Linking {carta_link} to {carta}")
+        if os.path.exists(carta_link):
+            os.unlink(carta_link)
+        os.symlink(carta, carta_link)
+    else:
+        message("No CARTA installation found")
+
 
 if options.command in ["install", "reinstall", "js9"] and not options.no_js9:
     js9status = open(PADRE_VENV + "/js9status", "w")
@@ -215,10 +266,11 @@ if options.command in ["install", "reinstall", "js9"] and not options.no_js9:
             bye("Failed to clone JS9 repo, see log above")
     else:
         if js9_dir == JS9_DIR and os.access(JS9_DIR, os.W_OK) and os.path.exists(JS9_DIR + "/.git"):
-            message("Will do a git pull in {js9_dir}")
-            if shell("git -C {js9_dir} pull") != 0:
-                js9status.write("git pull failed")
-                bye("Failed to git pull in JS9 directory, see log above")
+            if not options.skip_git_pull:
+                message("Will do a git pull in {js9_dir}")
+                if shell("git -C {js9_dir} pull") != 0:
+                    js9status.write("git pull failed")
+                    bye("Failed to git pull in JS9 directory, see log above")
 
     # Configure and install
     js9_www = PADRE_VENV + "/js9-www"
@@ -231,7 +283,7 @@ if options.command in ["install", "reinstall", "js9"] and not options.no_js9:
     # check for cfitsio
     try:
         output = subprocess.check_output("grep FITSLIB {js9_dir}/config.log".format(**globals()), shell=True)
-        if output.strip() != "FITSLIB='cfitsio'":
+        if output.strip() != b"FITSLIB='cfitsio'":
             raise subprocess.CalledProcessError("cfitsio",-1,"no cfitsio")
     except subprocess.CalledProcessError:
         js9status.write("cfitsio missing")

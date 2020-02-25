@@ -14,7 +14,7 @@ BRANCH = "issue-39-40"
 CONTAINER_PORTS = 11001, 11002, 11003, 11004, 11005
 
 # docker image to use
-DEFAULT_DOCKER_IMAGE = "osmirnov/radiopadre:latest"
+DEFAULT_DOCKER_IMAGE = "osmirnov/radiopadre:release"
 
 # system uname
 UNAME = subprocess.check_output("uname").strip()
@@ -31,7 +31,7 @@ DEVNULL = open("/dev/null", "w")
 
 # ### some helper functions
 
-def message(x, prefix='run-radiopadre: ', file=None, raw=False):
+def message(x, prefix='run-radiopadre-server: ', file=None, raw=False):
     """Prints message, interpolating globals with .format()"""
     if not raw:
         x = x.format(**globals())
@@ -325,12 +325,12 @@ if remote_host:
     #     if options.init_remote:
     #         parser.error("Can't combine -d/--docker and --init-remote modes")
 
-    # Find remote run-radiopadre script
+    # Find remote run-radiopadre-server script
 
     if options.remote_path:
-        padre_execs = [ os.path.join(options.remote_path, "bin/run-radiopadre") ]
+        padre_execs = [ os.path.join(options.remote_path, "bin/run-radiopadre-server") ]
     else:
-        padre_execs = [ os.path.join("~/radiopadre/bin/run-radiopadre"), "run-radiopadre" ]
+        padre_execs = [ os.path.join("~/radiopadre/bin/run-radiopadre-server"), "run-radiopadre-server" ]
 
     DEVZERO = open("/dev/zero")
     DEVNULL = open("/dev/null", "w")
@@ -412,7 +412,7 @@ if remote_host:
         sys.exit(1)
 
     bootstrap = False
-    padre_exec = "run-radiopadre"   # path to remote padre executable
+    padre_exec = "run-radiopadre-server"   # path to remote padre executable
 
     # look for remote installation, unless we're explicitly set to docker mode
 
@@ -432,7 +432,7 @@ if remote_host:
                     padre_exec += " --virtual-env"
                 break
         else:
-            message("No run-radiopadre script found on {}".format(remote_host))
+            message("No run-radiopadre-server script found on {}".format(remote_host))
             if options.auto_init:
                 install_path = options.remote_path or "~/radiopadre"
                 message("I could try to bootstrap a radiopadre installation into {}:{}".format(remote_host, install_path))
@@ -451,7 +451,7 @@ if remote_host:
                 # try the bootstrap
                 message("Cloning {}, branch {} into {}:~/radiopadre".format(REPO, BRANCH, remote_host))
                 ssh_remote_interactive("git clone -b {} {} radiopadre".format(BRANCH, REPO))
-                padre_exec = os.path.join(install_path, "bin/run-radiopadre")
+                padre_exec = os.path.join(install_path, "bin/run-radiopadre-server")
                 if not check_remote_file(padre_exec):
                     help_yourself("git clone ran, but I still don't see the launch script {}:{}".format(remote_host, padre_exec))
                 message("Success! Running remote in bootstrap mode")
@@ -609,7 +609,7 @@ if remote_host:
                 if fobj is ssh.stderr:
                     print_output = not line.startswith("Shared connection to")
                 else:
-                    print_output = not line.startswith("run-radiopadre:") or command != 'load'
+                    print_output = not line.startswith("run-radiopadre-server:") or command != 'load'
                 if options.verbose or print_output:
                     print("\r{}: {}\r".format(fname, line))
                 if not line:
@@ -977,7 +977,7 @@ else:
     LOAD_DIR = '.'
     LOAD_NOTEBOOK = None
 
-# get radiopadre install directory. __file__ is RADIOPADRE/bin/run-radiopadre, so take the dirname twice
+# get radiopadre install directory. __file__ is RADIOPADRE/bin/run-radiopadre-server, so take the dirname twice
 PADRE_PATH = os.path.abspath(os.path.dirname(os.path.dirname(__file__)))
 # cache and shadow dir base
 PADRE_WORKDIR = options.workdir or os.path.expanduser("~/.radiopadre")
@@ -995,7 +995,7 @@ if not os.path.exists(SHADOWDIR):
     os.system("mkdir -p {}".format(SHADOWDIR))
 # This is where the per-session js9prefs.js goes. In virtualenv mode, this is just a directory
 # In docker mode, we mount session_info_dir on this
-LOCAL_SESSION_DIR = ABSROOTDIR + "/.radiopadre-session"
+SESSION_DIR = ABSROOTDIR + "/.radiopadre-session"
 SHADOW_SESSION_DIR = SHADOWDIR + "/.radiopadre-session"
 
 # make .radiopadre and .radiopadre-session in target dir, or in shadow dir
@@ -1004,8 +1004,8 @@ cachelink = SHADOWDIR + "/.radiopadre"
 if os.access(ABSROOTDIR, os.W_OK):
     make_dir(cachedir)
     make_link(cachedir, cachelink, rm_fr=True)
-    make_dir(LOCAL_SESSION_DIR)
-    make_link(LOCAL_SESSION_DIR, SHADOW_SESSION_DIR, rm_fr=True)
+    make_dir(SESSION_DIR)
+    make_link(SESSION_DIR, SHADOW_SESSION_DIR, rm_fr=True)
 else:
     if os.path.islink(cachelink):
         os.unlink(cachelink)
@@ -1168,7 +1168,7 @@ if not attaching_to_ports and not options.virtual_env:
             # hides /home/user/.local, which if exposed, can confuse jupyter and ipython
             "-B", "{}:{}/.local".format(docker_local, homedir),
             # mount session info directory (needed to serve e.g. js9prefs.js)
-            "-B", "{}:{}".format(session_info_dir, LOCAL_SESSION_DIR),
+            "-B", "{}:{}".format(session_info_dir, SESSION_DIR),
             "-B", "{}:{}".format(session_info_dir, SHADOW_SESSION_DIR),
             # mount a writeable tmp dir for the js9 install -- needed by js9helper
             "-B", "{}:/.radiopadre/venv/js9-www/tmp".format(js9_tmp),
@@ -1205,7 +1205,7 @@ if not attaching_to_ports and not options.virtual_env:
                          # hides /home/user/.local, which if exposed, can confuse jupyter and ipython
                          "-v", "{}:{}/.local".format(docker_local, homedir),
                          # mount session info directory (needed to serve e.g. js9prefs.js)
-                         "-v", "{}:{}".format(session_info_dir, LOCAL_SESSION_DIR),
+                         "-v", "{}:{}".format(session_info_dir, SESSION_DIR),
                          "-v", "{}:{}".format(session_info_dir, SHADOW_SESSION_DIR),
                          # mount a writeable tmp dir for the js9 install -- needed by js9helper
                          "-v", "{}:/.radiopadre/venv/js9-www/tmp".format(js9_tmp),
@@ -1217,7 +1217,7 @@ if not attaching_to_ports and not options.virtual_env:
         # add image
         docker_opts.append(docker_image)
 
-    docker_opts += [ "/radiopadre/bin/run-radiopadre",
+    docker_opts += [ "/radiopadre/bin/run-radiopadre-server",
                      "--inside-container", ":".join(map(str, container_ports + userside_ports)),
                      "--workdir", PADRE_WORKDIR,
                    ]
@@ -1362,7 +1362,7 @@ http_rewrites = [ "/radiopadre-www/={}/".format(PADRE_PATH + "/html") ]
 
 if js9dir:
     os.environ['RADIOPADRE_JS9_HELPER_PORT'] = str(userside_helper_port)
-    js9prefs = LOCAL_SESSION_DIR + "/js9prefs.js"
+    js9prefs = SESSION_DIR + "/js9prefs.js"
     if not options.inside_container:
         # create JS9 settings file (in container mode, this is created above, and mounted inside container already)
         open(js9prefs, "w").write("JS9Prefs.globalOpts.helperPort = {};\n".format(userside_helper_port))

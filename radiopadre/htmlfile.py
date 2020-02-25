@@ -31,8 +31,8 @@ class HTMLFile(FileBase):
             try:
                 output = subprocess.check_output(cmd, shell=True)
             except subprocess.CalledProcessError as exc:
-                print cmd, exc.output
-                return render_error("phantomjs error (code {})".format(exc.returncode))
+                print(f"{cmd}: {exc.output}")
+                return render_error(f"phantomjs error (code {exc.returncode})")
             # print "Output was",output
 
         return imagefile.ImageFile._render_thumbnail(thumbnail, url=render_url(self.fullpath), npix=npix) + "\n"

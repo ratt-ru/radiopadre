@@ -5,21 +5,16 @@ from IPython.display import HTML, display, Javascript
 import matplotlib.pyplot as plt
 import matplotlib.colors
 import uuid
-import hashlib
 import math
-from collections import OrderedDict
 
+import iglesia
 import radiopadre
 import radiopadre.file
-from radiopadre.render import rich_string, render_preamble, render_title, render_table, TransientMessage, render_error
+from radiopadre.render import rich_string, render_title, render_table, render_error
 
-from radiopadre import js9, settings, imagefile
+from radiopadre import settings, imagefile
+from radiopadre_kernel import js9
 from .textfile import NumberedLineList
-
-_carta_port = os.environ.get("RADIOPADRE_CARTA_PORT")
-_carta_ws_port = os.environ.get("RADIOPADRE_CARTA_WS_PORT")
-_use_carta = _carta_port and _carta_ws_port
-
 
 def read_html_template(filename, subs):
     js9_source = os.path.join(js9.DIRNAME, filename)
@@ -40,7 +35,7 @@ def dict_to_js(dd):
         elif type(value) is str:
             value = "'{}'".format(value)
         else:
-            raise TypeError,"can't convert value of type {} to Javascript".format(type(value))
+            raise TypeError("can't convert value of type {} to Javascript".format(type(value)))
         js += "{}: {},".format(name, value)
     js += "}"
     return js
@@ -58,7 +53,7 @@ def dict_to_query(dd):
         elif type(value) is str:
             value = "{}".format(value)
         else:
-            raise TypeError,"can't convert value of type {} to Javascript".format(type(value))
+            raise TypeError("can't convert value of type {} to Javascript".format(type(value)))
         qs.append("{}={}".format(name, value))
     return "&".join(qs)
 
@@ -476,8 +471,8 @@ class FITSFile(radiopadre.file.FileBase):
         #    /home/user/.radiopadre/home/user/path/to/.radiopadre/js9-launch/x.fits
         # ...and if padre was started in /home/user/path, then jS9helper runs in its shadow equivalent,
         # so what we really want to return is the relative path "to/.radiopadre/js9-launch/x.fits"
-        assert symlink.startswith(radiopadre.SHADOW_BASEDIR)
-        return symlink[len(radiopadre.SHADOW_BASEDIR)+1:]
+        assert symlink.startswith(iglesia.SHADOW_BASEDIR)
+        return symlink[len(iglesia.SHADOW_BASEDIR)+1:]
 
     def _make_js9_launch_command(self, display_id):
         """Internal method: formats up Javascript statement to load the image into a JS9pPartneredDisplay"""
@@ -630,6 +625,8 @@ class FITSFile(radiopadre.file.FileBase):
     def _action_buttons_(self, context, defaults=None, **kw):
         """Renders JS9 buttons for image
         """
+        from iglesia import CARTA_PORT, CARTA_WS_PORT
+
         # ignore less than 2D images
         if len(self.shape) < 2:
             return None
@@ -667,13 +664,29 @@ class FITSFile(radiopadre.file.FileBase):
                     onclick="window.open('{newtab_html}', '_blank')">&#8663;JS9</button>
         """.format(**subs)
 
-        if _use_carta:
-            filepath = os.path.relpath(os.path.abspath(self.fullpath), radiopadre.SERVER_BASEDIR)
+        if CARTA_PORT and CARTA_WS_PORT:
+            filepath = os.path.relpath(os.path.abspath(self.fullpath), iglesia.ABSROOTDIR)
 
-            subs['newtab_carta_html'] = "http://localhost:{}/?socketUrl=ws://localhost:{}&file={}".format(
-                                            _carta_port, _carta_ws_port, filepath)
+            subs['newtab_carta_html'] =\
+                f"http://localhost:{CARTA_PORT}/?socketUrl=ws://localhost:{CARTA_WS_PORT}&file={filepath}"
+
             code += """
                     <button id="" title="display using CARTA in a new browser tab" style="font-size: 0.9em;"
                             onclick="window.open('{newtab_carta_html}', '_blank')">&#8663;C</button>
                     """.format(**subs)
         return code
+
+def add_general_buttons():
+    """Called to add a CARTA button to the output of the first cell"""
+    from iglesia import CARTA_PORT, CARTA_WS_PORT
+
+    if CARTA_PORT and CARTA_WS_PORT:
+        newtab_carta_html = f"http://localhost:{CARTA_PORT}/?socketUrl=ws://localhost:{CARTA_WS_PORT}"
+        return """
+                <button title="open CARTA in a new browser tab" 
+                    style="font-size: 0.9em; position: absolute; right: 0; top: 0;"
+                    onclick="window.open('{}', '_blank')">&#8663;C</button>
+               """.format(newtab_carta_html)
+    else:
+        return ""
+
