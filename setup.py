@@ -35,6 +35,7 @@ setup(
     packages=['radiopadre', 'radiopadre_kernel', 'radiopadre_utils'],
     cmdclass={
               'install': SetupVenvCommand,
+              'develop': SetupVenvCommand,
     },
     classifiers=[
         "Development Status :: 4 - Beta",
