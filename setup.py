@@ -3,7 +3,7 @@ import subprocess
 from setuptools import setup
 from setuptools.command.install import install
 
-__version__ = "1.0-pre3"
+__version__ = "1.0-pre4"
 
 with open("requirements.txt") as stdr:
     install_requires = stdr.readlines()
