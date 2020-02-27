@@ -1,5 +1,5 @@
 FROM kernsuite/base:5
-RUN docker-apt-install libboost-python-dev python3-pip
+RUN docker-apt-install libboost-python-dev python3-pip virtualenv python3-virtualenv
 RUN docker-apt-install libcfitsio-dev wcslib-dev
 RUN docker-apt-install nodejs wget git
 RUN docker-apt-install casacore-dev
