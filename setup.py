@@ -26,7 +26,7 @@ class DevelopSetupVenvCommand(develop):
     def run(self):
         """Run command"""
         develop.run(self)
-        command = ['/bin/setup-radiopadre-virtualenv']
+        command = ['./bin/setup-radiopadre-virtualenv', '--editable']
         subprocess.check_call(command)
 
 setup(
