@@ -57,14 +57,14 @@ def which(cmd):
 
 def remove_installation(path):
     if os.path.lexists(path):
-        if os.path.islink(path):
-            message(f"Removing existing symlink {path}")
+        if os.path.islink(path) or os.path.isfile(path):
+            message(f"Removing existing symlink or file {path}")
             os.unlink(path)
         elif os.path.isdir(path):
             message(f"Removing existing directory {path}")
             shutil.rmtree(path, ignore_errors=True)
         else:
-            bye(f"{path} is neither a dir nor symlink, don't know how to proceed")
+            bye(f"{path} is neither a dir nor a symlink nor a file, don't know how to proceed")
 
 
 # See https://stackoverflow.com/questions/1871549/determine-if-python-is-running-inside-virtualenv
