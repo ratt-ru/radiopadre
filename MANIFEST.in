@@ -1,4 +1,7 @@
 include LICENSE
+include README.md
 include Dockerfile
 include requirements.txt
-include notebooks/*
+recursive-include notebooks *.ipynb
+recursive-include html *.js *.css
+recursive-include js9-config *.js *.json
