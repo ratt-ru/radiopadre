@@ -12,6 +12,13 @@ ENV PATH="$VIRTUAL_ENV/bin:$PATH"
 
 ADD . /code
 RUN pip install --upgrade pip
+
+# check normal install
 RUN pip3 install /code
+
+# check editable install
+RUN pip3 uninstall -y radiopadre
+RUN pip3 install -e /code
+
 WORKDIR /code
 ENV USER=root
