@@ -163,13 +163,13 @@ else:
 # unpack (here or in venv)
 if options.editable:
     message(f"Unpacking {carta_tarball} in {PADRE_PATH}")
-    subprocess.check_call(f"cd {PADRE_PATH}; tar zxvf {carta_tarball}", shell=True)
+    subprocess.check_call(f"cd {PADRE_PATH}; tar zxf {carta_tarball}", shell=True)
     carta_padre_dir = os.path.join(PADRE_PATH, carta_base)
     message(f"Linking {carta_dir} to {carta_padre_dir}")
     os.symlink(carta_padre_dir, carta_dir)
 else:
     message(f"Unpacking {carta_tarball} in {PADRE_VENV}")
-    subprocess.check_call(f"cd {PADRE_VENV}; tar zxvf {carta_tarball_path}", shell=True)
+    subprocess.check_call(f"cd {PADRE_VENV}; tar zxf {carta_tarball_path}", shell=True)
 
 if os.path.exists(carta_dir):
     message(f"Linking {carta_link} to {carta_dir}")
