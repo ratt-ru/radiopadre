@@ -4,7 +4,8 @@ from setuptools import setup
 from setuptools.command.install import install
 from setuptools.command.develop import develop
 
-__version__ = "1.0-pre4"
+__version__ = "1.0-pre5"
+build_root = os.path.dirname(__file__)
 
 with open("requirements.txt") as stdr:
     install_requires = stdr.readlines()
@@ -29,6 +30,11 @@ class DevelopSetupVenvCommand(develop):
         command = ['./bin/setup-radiopadre-virtualenv', '--editable']
         subprocess.check_call(command)
 
+def readme():
+    """Get readme content for package long description"""
+    with open(os.path.join(build_root, 'README.md')) as f:
+        return f.read()
+
 setup(
     name="radiopadre",
     version=__version__,
@@ -38,6 +44,7 @@ setup(
     author="Oleg Smirnov",
     author_email="osmirnov@gmail.com",
     description=("A data visualization framework for jupyter notebooks"),
+    long_description=readme(),
     license="MIT",
     keywords="ipython notebook jupyter fits dataset resultset visualisation",
     url="http://github.com/ratt-ru/radiopadre",
