@@ -17,9 +17,9 @@ script:
 deploy:
   provider: pypi
   user: athanaseus
+  distributions: sdist bdist_wheel
   password:
     secure: NfSxCXOU9WywE0S2Pdhlpu+BLmeUA5XVL3O6jFouLOFQOznZ53YTiqesYCkvoYm2a3bIMPLpKRFnSvKZ9gmLW3lwRkfBaF7c8RwWSYRaw9YfZ5S/gQUhPiPc7sQcIQz/umpdNLKgz35KEBx2BS3d2Kpapbf/ysziyYBbyf3zWBIig/sdNS/ogt3uG6yAuBDn3lie7m6P/fu/l99UCyZrl5eScoU+5fn6MYlSLfgtOIkzC8lQ1FcNuRXDHgwlfJjMshAEbIiVDBwVWhCVs71/N6ed8qbfhPbGA3Qg+Bur4xiQEyRCg24hx1BZ6ombFE068nOXHLMe357qDGwybFpcNsslkI737SLOZnXdIbhQ1IWk0z99CALHym0f8oJ426FPK0C4n9+uwotDzrr5o2eQsKnQq1cLuVrBBfUSxcCDkKk55VG820qY9NklNgmyhZIGm+Ijs+xN+QKwqMhVMfMy8tIpJgYYwIdY7w2mFUhp7Q64XdxDyC/QTVo+zT/0Z0TlFHnH36ibsriRrITf61zmIYzP8U1ShsNFKTEbIu5W4z+labixI8DUutnWsuo+MXtflrPLxzCCL/01W9NHvOG1+3vre27qwgo1T1H7E9jQObYF7eGvr2QQXQs98fOesMjsUxUC2y30YKRqf3JAwsfuDRH77pxylMr8tGghuBjuuuE=
   on:
     tags: true
-    distributions: sdist bdist_wheel
-repo: ratt-ru/radiopadre
+    repo: ratt-ru/radiopadre
