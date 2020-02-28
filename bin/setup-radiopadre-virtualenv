@@ -4,7 +4,9 @@ import subprocess
 import sys
 import shutil
 
-# get radiopadre install directory
+# get radiopadre install source directory
+# This is where we're installing from. If called with --editable, stuff in this
+# directory needs to be symlinked to. Otherwise, assume the directory is temporary, and copy from it
 PADRE_PATH = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 JS9_REPO = "https://github.com/ericmandel/js9.git"
@@ -14,6 +16,9 @@ CARTA_LINK = "https://github.com/CARTAvis/carta-releases/releases/download/v1.2.
 
 import argparse
 parser = argparse.ArgumentParser(description="Installs radiopadre components inside an existing virtual environment")
+
+parser.add_argument("-e", "--editable", action="store_true",
+                    help="install in editable mode (use with pip install -e)")
 
 parser.add_argument("--js9", metavar="DIR", type=str,
                     help="JS9 source directory or repository URL. Default is to try {JS9_DIR}, then {JS9_REPO}. "
@@ -49,6 +54,18 @@ def shell(cmd):
 
 def which(cmd):
     return subprocess.check_output("which {}".format(cmd), shell=True).strip()
+
+def remove_installation(path):
+    if os.path.lexists(path):
+        if os.path.islink(path) or os.path.isfile(path):
+            message(f"Removing existing symlink or file {path}")
+            os.unlink(path)
+        elif os.path.isdir(path):
+            message(f"Removing existing directory {path}")
+            shutil.rmtree(path, ignore_errors=True)
+        else:
+            bye(f"{path} is neither a dir nor a symlink nor a file, don't know how to proceed")
+
 
 # See https://stackoverflow.com/questions/1871549/determine-if-python-is-running-inside-virtualenv
 if hasattr(sys, 'real_prefix') or (hasattr(sys, 'base_prefix') and sys.base_prefix != sys.prefix):
@@ -106,45 +123,59 @@ for line in out.decode().split("\n"):
 else:
     bye("jupyter kernelspec list did not return the radiopadre kernel. This is a bug?")
 message("Linking kernel.js to {kerneldir}")
-os.symlink(PADRE_PATH + "/html/radiopadre-kernel.js", kerneldir + "/kernel.js")
+shutil.copy2(PADRE_PATH + "/html/radiopadre-kernel.js", kerneldir + "/kernel.js")
 
 # add link to radiopadre web components in notebook static dir
 notebook_padre_www = notebook_dir + "/notebook/static/radiopadre-www"
 padre_www = PADRE_PATH + "/html"
-message("making link from {notebook_padre_www} to {padre_www}")
-if not os.path.exists(notebook_padre_www):
+remove_installation(notebook_padre_www)
+if options.editable:
+    message("making link from {notebook_padre_www} to {padre_www}")
     os.symlink(padre_www, notebook_padre_www)
+else:
+    message("copying {notebook_padre_www} to {padre_www}")
+    shutil.copytree(padre_www, notebook_padre_www)
+
 colormap_js = notebook_dir + "/notebook/static/js9colormaps.js"
 message("creating colormap definitions in {colormap_js}")
 shell("{PADRE_VENV}/bin/python {PADRE_PATH}/bin/install-js9-colormaps {colormap_js}")
 shutil.copy(colormap_js, PADRE_WORKDIR)
 
 # add link to CARTA
-carta = PADRE_PATH + "/carta"
-if not os.path.exists(carta):
-    carta_tarball = os.path.basename(CARTA_LINK)
-    carta_dir = os.path.splitext(carta_tarball)[0]
-    carta_tarball_path = os.path.join(PADRE_PATH, carta_tarball)
-    if os.path.exists(carta_tarball_path):
-        message(f"CARTA tarball {carta_tarball_path} is already here")
-    else:
-        message(f"Trying to download CARTA via {CARTA_LINK}")
-        subprocess.check_call(f"cd {PADRE_PATH}; wget {CARTA_LINK}", shell=True)
-        if not os.path.exists(carta_tarball_path):
-            bye(f"{carta_tarball} failed to download")
-    message(f"Unpacking CARTA tarball")
-    subprocess.check_call(f"cd {PADRE_PATH}; tar zxvf {carta_tarball}", shell=True)
-    message(f"Linking {carta} to {carta_dir}")
-    os.symlink(carta_dir, carta)
+carta_tarball = os.path.basename(CARTA_LINK)
+carta_base    = os.path.splitext(carta_tarball)[0]
+carta_dir     = os.path.join(PADRE_VENV, carta_base)
+carta_link    = os.path.join(PADRE_VENV, "carta")
 
-if os.path.exists(carta):
-    carta_link = PADRE_VENV + "/carta"
-    message(f"Linking {carta_link} to {carta}")
-    if os.path.exists(carta_link):
-        os.unlink(carta_link)
-    os.symlink(carta, carta_link)
+remove_installation(carta_dir)
+remove_installation(carta_link)
+
+# download tarball
+carta_tarball_path = os.path.join(PADRE_PATH, carta_tarball)
+if os.path.exists(carta_tarball_path):
+    message(f"CARTA tarball {carta_tarball_path} is already here")
 else:
-    message("No CARTA installation found")
+    message(f"Trying to download CARTA via {CARTA_LINK}")
+    subprocess.check_call(f"cd {PADRE_PATH}; wget {CARTA_LINK}", shell=True)
+    if not os.path.exists(carta_tarball_path):
+        bye(f"{carta_tarball} failed to download")
+
+# unpack (here or in venv)
+if options.editable:
+    message(f"Unpacking {carta_tarball} in {PADRE_PATH}")
+    subprocess.check_call(f"cd {PADRE_PATH}; tar zxvf {carta_tarball}", shell=True)
+    carta_padre_dir = os.path.join(PADRE_PATH, carta_base)
+    message(f"Linking {carta_dir} to {carta_padre_dir}")
+    os.symlink(carta_padre_dir, carta_dir)
+else:
+    message(f"Unpacking {carta_tarball} in {PADRE_VENV}")
+    subprocess.check_call(f"cd {PADRE_VENV}; tar zxvf {carta_tarball_path}", shell=True)
+
+if os.path.exists(carta_dir):
+    message(f"Linking {carta_link} to {carta_dir}")
+    os.symlink(carta_dir, carta_link)
+else:
+    message(f"WARNING: No CARTA installation ({carta_dir}) found")
 
 # install JS9
 if not options.no_js9:
@@ -212,15 +243,26 @@ if not options.no_js9:
 
     # Make symlink to js9 install dir in notebook dir
     notebook_js9_www = notebook_dir + "/notebook/static/js9-www"
-    message("making link from {notebook_js9_www} to {js9_www}")
-    if not os.path.exists(notebook_js9_www):
+    
+    remove_installation(notebook_js9_www)
+    if options.editable:
+        message("making link from {notebook_js9_www} to {js9_www}")
         os.symlink(js9_www, notebook_js9_www)
+    else:
+        message("copying {js9_www} to {notebook_js9_www}")
+        shutil.copytree(js9_www, notebook_js9_www)
 
     notebook_socket_io = notebook_dir + "/notebook/static/socket.io.js"
     js9_socket_io = js9_www + "/node_modules/socket.io-client/dist/socket.io.js"
-    message("making link from {notebook_socket_io} to {js9_socket_io}")
-    if not os.path.exists(notebook_socket_io):
+    
+    remove_installation(notebook_socket_io)
+    
+    if options.editable:
+        message("making link from {notebook_socket_io} to {js9_socket_io}")
         os.symlink(js9_socket_io, notebook_socket_io)
+    else:
+        message("copying {js9_socket_io} to {notebook_socket_io}")
+        shutil.copy2(js9_socket_io, notebook_socket_io)
 
     # copy config
     shutil.copy2(PADRE_PATH + "/js9-config/js9prefs.js", js9_www)

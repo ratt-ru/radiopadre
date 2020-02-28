@@ -2,21 +2,31 @@ import os
 import subprocess
 from setuptools import setup
 from setuptools.command.install import install
+from setuptools.command.develop import develop
 
-__version__ = "1.0-pre3"
+__version__ = "1.0-pre4"
 
 with open("requirements.txt") as stdr:
     install_requires = stdr.readlines()
 
 scripts = ["bin/" + i for i in os.listdir("bin")]
 
-class SetupVenvCommand(install):
-    """A custom command to setup radiopadre virtual environment"""
+class InstallSetupVenvCommand(install):
+    """A custom install command to setup radiopadre virtual environment"""
 
     def run(self):
         """Run command"""
         install.run(self)
         command = ['./bin/setup-radiopadre-virtualenv']
+        subprocess.check_call(command)
+
+class DevelopSetupVenvCommand(develop):
+    """A custom develop command to setup radiopadre virtual environment"""
+
+    def run(self):
+        """Run command"""
+        develop.run(self)
+        command = ['./bin/setup-radiopadre-virtualenv', '--editable']
         subprocess.check_call(command)
 
 setup(
@@ -34,7 +44,8 @@ setup(
     scripts=scripts,
     packages=['radiopadre', 'radiopadre_kernel', 'radiopadre_utils'],
     cmdclass={
-              'install': SetupVenvCommand,
+              'install': InstallSetupVenvCommand,
+              'develop': DevelopSetupVenvCommand,
     },
     classifiers=[
         "Development Status :: 4 - Beta",

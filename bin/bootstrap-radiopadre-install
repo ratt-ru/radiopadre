@@ -23,6 +23,8 @@ parser.add_argument("--js9", metavar="DIR", type=str,
                        "Set to 'git' to force use of {JS9_REPO}.".format(**globals()))
 parser.add_argument("--venv", type=str,
                     help="Install into non-default virtualenv.")
+parser.add_argument("--venv-extras", type=str, 
+                    help="Additional packages to install when creating a new virtual environment (comma-separated list).")
 parser.add_argument("--client-path", type=str, default="~/radiopadre-client",
                     help="Path to radiopadre-client, for pip install -e. Specify 'None' to install from PyPI.")
 parser.add_argument("--no-casacore", action="store_true",
@@ -103,12 +105,17 @@ if not os.path.exists(activation_script):
     site_packages = "--system-site-packages" if options.inside_container else ""
     if shell("virtualenv -p python3 {PADRE_VENV} {site_packages}"):
         bye("Failed to create virtualenv")
+        
+    if options.venv_extras:
+        extras = " ".join(options.venv_extras.split(","))
+        message(f"Installing specified extras: {extras}")
+        shell(f"pip install {extras}")
 
 message("Activating virtualenv")
 with open(activation_script) as f:
     code = compile(f.read(), activation_script, 'exec')
     exec(code, dict(__file__=activation_script), {})
-
+    
 # install requirements
 if options.command in ["install", "reinstall", "reqs"] and not options.skip_reqs:
     message("Installing dependencies. This may take a few minutes")
