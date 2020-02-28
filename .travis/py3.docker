@@ -12,6 +12,7 @@ ENV PATH="$VIRTUAL_ENV/bin:$PATH"
 
 ADD . /code
 RUN pip install --upgrade pip
+RUN pip install jupyter
 
 # check normal install
 RUN pip3 install /code
