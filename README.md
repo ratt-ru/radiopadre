@@ -2,7 +2,10 @@
 
 Astronomy visualization framework for ipython notebooks.
 
-[![Build Status](https://travis-ci.org/radio-astro/radiopadre.svg?branch=master](https://travis-ci.org/radio-astro/radiopadre)
+[![Build Status](https://travis-ci.org/ratt-ru/radiopadre.svg?branch=master)](https://travis-ci.org/radio-astro/radiopadre/)
+[![PyPI version shields.io](https://img.shields.io/pypi/v/radiopadre.svg)](https://pypi.python.org/pypi/radiopadre/)
+[![PyPI pyversions](https://img.shields.io/pypi/pyversions/radiopadre.svg)](https://pypi.python.org/pypi/radiopadre/)
+[![PyPI status](https://img.shields.io/pypi/status/radiopadre.svg)](https://pypi.python.org/pypi/radiopadre/)
 
 [radiopadre on pypi](https://pypi.python.org/pypi/radiopadre)
 
