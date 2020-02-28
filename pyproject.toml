@@ -1,0 +1,6 @@
+[build-system]
+requires = ["jupyter",
+            "numpy",
+            "pip",
+            "setuptools", 
+            "wheel"]
