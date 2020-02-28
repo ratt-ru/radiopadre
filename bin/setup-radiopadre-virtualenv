@@ -12,7 +12,7 @@ PADRE_PATH = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 JS9_REPO = "https://github.com/ericmandel/js9.git"
 JS9_DIR = PADRE_PATH + "/js9"
 
-CARTA_LINK = "https://github.com/CARTAvis/carta-releases/releases/download/v1.2.1/CARTA-v1.2.1-remote.tgz"
+CARTA_LINK = "https://github.com/CARTAvis/carta-releases/releases/download/v1.2.2/CARTA-v1.2.2-remote.tgz"
 
 import argparse
 parser = argparse.ArgumentParser(description="Installs radiopadre components inside an existing virtual environment")
