@@ -50,7 +50,7 @@ def bye(x, code=1):
     sys.exit(code)
 
 def shell(cmd):
-    return subprocess.call(cmd.format(**globals()), shell=True)
+    return subprocess.check_call(cmd.format(**globals()), shell=True)
 
 def which(cmd):
     return subprocess.check_output("which {}".format(cmd), shell=True).strip()
@@ -135,11 +135,6 @@ if options.editable:
 else:
     message("copying {notebook_padre_www} to {padre_www}")
     shutil.copytree(padre_www, notebook_padre_www)
-
-colormap_js = notebook_dir + "/notebook/static/js9colormaps.js"
-message("creating colormap definitions in {colormap_js}")
-shell("{PADRE_VENV}/bin/python {PADRE_PATH}/bin/install-js9-colormaps {colormap_js}")
-shutil.copy(colormap_js, PADRE_WORKDIR)
 
 # add link to CARTA
 carta_tarball = os.path.basename(CARTA_LINK)
@@ -240,6 +235,10 @@ if not options.no_js9:
         js9status.write("cfitsio missing")
         bye("JS9 did not find the cfitsio library. Try installing it (apt install libcfitsio-dev), and/or specifying"
             " the path to it with --cfitsio-path, and/or running with --no-js9 if you're really stuck.")
+
+    # add colormap definitions from matplotlib
+    message("copying extra colormap definitions to {js9_www}")
+    shutil.copy2(f"{PADRE_PATH}/html/js9colormaps.js", js9_www)
 
     # Make symlink to js9 install dir in notebook dir
     notebook_js9_www = notebook_dir + "/notebook/static/js9-www"

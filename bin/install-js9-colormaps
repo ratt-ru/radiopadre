@@ -2,7 +2,7 @@
 if __name__ == "__main__":
     import sys
     colormap_js = sys.argv[1]
-    with open(colormap_js, "w") as ff:
+    with open(colormap_js, "wt") as ff:
         import matplotlib.pyplot
         import matplotlib.cm
         import numpy as np
