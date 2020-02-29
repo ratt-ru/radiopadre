@@ -26,7 +26,7 @@ parser.add_argument("--venv", type=str,
 parser.add_argument("--venv-extras", type=str, 
                     help="Additional packages to install when creating a new virtual environment (comma-separated list).")
 parser.add_argument("--client-path", type=str, default="~/radiopadre-client",
-                    help="Path to radiopadre-client, for pip install -e. Specify 'None' to install from PyPI.")
+                    help="Path to radiopadre-client, for pip install -e. Specify 'None' to skip installation.")
 parser.add_argument("--no-casacore", action="store_true",
                     help="ignores missing python-casacore. Table functionality will be reduced.")
 parser.add_argument("--no-js9", action="store_true",

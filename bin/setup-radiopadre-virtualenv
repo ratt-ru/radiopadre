@@ -151,7 +151,7 @@ if os.path.exists(carta_tarball_path):
     message(f"CARTA tarball {carta_tarball_path} is already here")
 else:
     message(f"Trying to download CARTA via {CARTA_LINK}")
-    subprocess.check_call(f"cd {PADRE_PATH}; wget {CARTA_LINK}", shell=True)
+    subprocess.check_call(f"cd {PADRE_PATH}; wget -c {CARTA_LINK}", shell=True)
     if not os.path.exists(carta_tarball_path):
         bye(f"{carta_tarball} failed to download")
 

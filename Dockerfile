@@ -33,6 +33,7 @@ RUN docker-apt-install \
 
 #    python-notebook jupyter-notebook jupyter-nbextension-jupyter-js-widgets \
 
+RUN pip3 install -U pip setuptools
 RUN pip3 install git+https://github.com/ratt-ru/CubiCal
 
 RUN ldconfig
@@ -51,6 +52,6 @@ RUN cd /radiopadre && if [ ! -d js9 ]; then git clone https://github.com/ericman
 RUN cd /radiopadre/js9 && make clean
 RUN git clone -b $CLIENT_BRANCH https://github.com/ratt-ru/radiopadre-client.git
 RUN pip3 install -e /radiopadre-client
-RUN /radiopadre/bin/bootstrap-radiopadre-install --inside-container --client-path /radiopadre-client
+RUN /radiopadre/bin/bootstrap-radiopadre-install --inside-container --client-path None
 
 CMD sleep infinity
