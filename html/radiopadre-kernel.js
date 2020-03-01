@@ -257,7 +257,7 @@ if (appname === 'NotebookApp')
                            '/static/js9-www/js9support.min.js',
                            '/static/js9-www/js9.min.js',
                            '/static/js9-www/js9plugins.js',
-                           '/static/js9colormaps.js',
+                           '/static/js9-www/js9colormaps.js',
                            '/static/radiopadre-www/js9partners.js'
                           ]
 
