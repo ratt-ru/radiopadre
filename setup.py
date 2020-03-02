@@ -3,6 +3,7 @@ import subprocess
 from setuptools import setup
 from setuptools.command.install import install
 from setuptools.command.develop import develop
+from wheel.bdist_wheel import bdist_wheel
 
 __version__ = "1.0-pre5"
 build_root = os.path.dirname(__file__)
@@ -11,6 +12,14 @@ with open("requirements.txt") as stdr:
     install_requires = stdr.readlines()
 
 scripts = ["bin/" + i for i in os.listdir("bin")]
+
+
+class WheelSetupVenvCommand(bdist_wheel):
+    """A custom wheel command to setup radiopadre virtual environment"""
+
+    def run(self):
+        """Run command"""
+        pass
 
 class InstallSetupVenvCommand(install):
     """A custom install command to setup radiopadre virtual environment"""
@@ -53,6 +62,7 @@ setup(
     cmdclass={
               'install': InstallSetupVenvCommand,
               'develop': DevelopSetupVenvCommand,
+              'bdist_wheel': WheelSetupVenvCommand,
     },
     classifiers=[
         "Development Status :: 4 - Beta",
