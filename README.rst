@@ -11,9 +11,9 @@ Radiopadre is a Jupyter
 notebook framework for quick and easy visualization of [radio astronomy, primarily]
 data products and pipelines.
 
-**Radiopadre includes integration with `JS9 <https://js9.si.edu/>`_
+**Radiopadre includes integration with** `JS9 <https://js9.si.edu/>`_
 and `CARTA <https://cartavis.github.io/>`_
-for  live FITS viewing of [remote] FITS files straight from your browser.**
+**for live FITS viewing of [remote] FITS files straight from your browser.**
 (In boldface, because this is a pretty neat capability to have!)
 
 Radiopadre is a custom Jupyter kernel, so in principle you could install it
