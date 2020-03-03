@@ -41,7 +41,7 @@ class DevelopSetupVenvCommand(develop):
 
 def readme():
     """Get readme content for package long description"""
-    with open(os.path.join(build_root, 'README.md')) as f:
+    with open(os.path.join(build_root, 'README.rst')) as f:
         return f.read()
 
 setup(
