@@ -665,7 +665,7 @@ class FITSFile(radiopadre.file.FileBase):
         """.format(**subs)
 
         if CARTA_PORT and CARTA_WS_PORT:
-            filepath = os.path.relpath(os.path.abspath(self.fullpath), iglesia.ABSROOTDIR)
+            filepath = os.path.relpath(os.path.abspath(self.fullpath), iglesia.SERVER_BASEDIR)
 
             subs['newtab_carta_html'] =\
                 f"http://localhost:{CARTA_PORT}/?socketUrl=ws://localhost:{CARTA_WS_PORT}&file={filepath}"

@@ -12,7 +12,8 @@ PADRE_PATH = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 JS9_REPO = "https://github.com/ericmandel/js9.git"
 JS9_DIR = PADRE_PATH + "/js9"
 
-CARTA_LINK = "https://github.com/CARTAvis/carta-releases/releases/download/v1.2.1/CARTA-v1.2.1-remote.tgz"
+CARTA_LINK = "https://github.com/CARTAvis/carta-releases/releases/download/v1.2.2/CARTA-v1.2.2-remote.tgz"
+SOCKET_IO_LINK = "https://cdnjs.cloudflare.com/ajax/libs/socket.io/2.3.0/socket.io.js"
 
 import argparse
 parser = argparse.ArgumentParser(description="Installs radiopadre components inside an existing virtual environment")
@@ -50,7 +51,7 @@ def bye(x, code=1):
     sys.exit(code)
 
 def shell(cmd):
-    return subprocess.call(cmd.format(**globals()), shell=True)
+    return subprocess.check_call(cmd.format(**globals()), shell=True)
 
 def which(cmd):
     return subprocess.check_output("which {}".format(cmd), shell=True).strip()
@@ -92,42 +93,47 @@ if not os.path.exists(PADRE_WORKDIR):
     os.mkdir(PADRE_WORKDIR)
 
 # get jupyter base path
-notebook_dir = subprocess.check_output(f"{PADRE_VENV}/bin/pip show jupyter| "
-                                       "grep Location:|cut -d ':' -f 2", shell=True).decode().strip()
-if not notebook_dir:
-    raise subprocess.CalledProcessError(-1, "jupyter", "no jupyter found")
+notebook_dir = f"{PADRE_VENV}/lib/python3.6/site-packages"
 
 # init radiopadre kernel etc.
 message("Creating radiopadre jupyter kernel")
-if options.inside_container:
-    python, jupyter, user = "python", "jupyter", ""
-else:
-    python, jupyter, user = f"{PADRE_VENV}/bin/python", f"{PADRE_VENV}/bin/jupyter", "--user"
-cmd = f"{python} -m ipykernel install {user} --name radiopadre"
+# if options.inside_container:
+#     python, jupyter, user = "python", "jupyter", ""
+# else:
+#python, jupyter, user = f"{PADRE_VENV}/bin/python3", f"{PADRE_VENV}/bin/jupyter"
+cmd = f"{PADRE_VENV}/bin/python3 -m ipykernel install --sys-prefix --name radiopadre"
 message(f"  {cmd}")
 if shell(cmd):
     bye("jupyter kernel failed to install, see log above")
 
-# get path to it because we want to install our own kernel.js
-out = kerneldir = ''
-try:
-    out = subprocess.check_output(f"{jupyter} kernelspec list", shell=True)
-except subprocess.CalledProcessError:
-    bye("jupyter kernelspec list failed, see log above")
+# # get path to it because we want to install our own kernel.js
+# out = kerneldir = ''
+# try:
+#     out = subprocess.check_output(f"{jupyter} kernelspec list", shell=True)
+# except subprocess.CalledProcessError:
+#     bye("jupyter kernelspec list failed, see log above")
+#
+# for line in out.decode().split("\n"):
+#     columns = line.strip().split()
+#     if columns[0] == "radiopadre":
+#         kerneldir = columns[1]
+#         break
+# else:
+#     bye("jupyter kernelspec list did not return the radiopadre kernel. This is a bug?")
 
-for line in out.decode().split("\n"):
-    columns = line.strip().split()
-    if columns[0] == "radiopadre":
-        kerneldir = columns[1]
-        break
-else:
-    bye("jupyter kernelspec list did not return the radiopadre kernel. This is a bug?")
-message("Linking kernel.js to {kerneldir}")
-shutil.copy2(PADRE_PATH + "/html/radiopadre-kernel.js", kerneldir + "/kernel.js")
+kerneldir = f"{PADRE_VENV}/share/jupyter/kernels/radiopadre"
+message("Copying kernel.js to {kerneldir}")
+shutil.copy2(f"{PADRE_PATH}/html/radiopadre-kernel.js", f"{kerneldir}/kernel.js")
+
+notebook_static = f"{notebook_dir}/notebook/static"
+
+# download socket.io.js
+message("Downloading socket.io.js into {notebook_static}")
+shell(f"wget {SOCKET_IO_LINK} -O {notebook_static}/socket.io.js")
 
 # add link to radiopadre web components in notebook static dir
-notebook_padre_www = notebook_dir + "/notebook/static/radiopadre-www"
-padre_www = PADRE_PATH + "/html"
+notebook_padre_www = f"{notebook_static}/radiopadre-www"
+padre_www = f"{PADRE_PATH}/html"
 remove_installation(notebook_padre_www)
 if options.editable:
     message("making link from {notebook_padre_www} to {padre_www}")
@@ -135,11 +141,6 @@ if options.editable:
 else:
     message("copying {notebook_padre_www} to {padre_www}")
     shutil.copytree(padre_www, notebook_padre_www)
-
-colormap_js = notebook_dir + "/notebook/static/js9colormaps.js"
-message("creating colormap definitions in {colormap_js}")
-shell("{PADRE_VENV}/bin/python {PADRE_PATH}/bin/install-js9-colormaps {colormap_js}")
-shutil.copy(colormap_js, PADRE_WORKDIR)
 
 # add link to CARTA
 carta_tarball = os.path.basename(CARTA_LINK)
@@ -156,20 +157,20 @@ if os.path.exists(carta_tarball_path):
     message(f"CARTA tarball {carta_tarball_path} is already here")
 else:
     message(f"Trying to download CARTA via {CARTA_LINK}")
-    subprocess.check_call(f"cd {PADRE_PATH}; wget {CARTA_LINK}", shell=True)
+    subprocess.check_call(f"cd {PADRE_PATH}; wget -c {CARTA_LINK}", shell=True)
     if not os.path.exists(carta_tarball_path):
         bye(f"{carta_tarball} failed to download")
 
 # unpack (here or in venv)
 if options.editable:
     message(f"Unpacking {carta_tarball} in {PADRE_PATH}")
-    subprocess.check_call(f"cd {PADRE_PATH}; tar zxvf {carta_tarball}", shell=True)
+    subprocess.check_call(f"cd {PADRE_PATH}; tar zxf {carta_tarball}", shell=True)
     carta_padre_dir = os.path.join(PADRE_PATH, carta_base)
     message(f"Linking {carta_dir} to {carta_padre_dir}")
     os.symlink(carta_padre_dir, carta_dir)
 else:
     message(f"Unpacking {carta_tarball} in {PADRE_VENV}")
-    subprocess.check_call(f"cd {PADRE_VENV}; tar zxvf {carta_tarball_path}", shell=True)
+    subprocess.check_call(f"cd {PADRE_VENV}; tar zxf {carta_tarball_path}", shell=True)
 
 if os.path.exists(carta_dir):
     message(f"Linking {carta_link} to {carta_dir}")
@@ -240,6 +241,10 @@ if not options.no_js9:
         js9status.write("cfitsio missing")
         bye("JS9 did not find the cfitsio library. Try installing it (apt install libcfitsio-dev), and/or specifying"
             " the path to it with --cfitsio-path, and/or running with --no-js9 if you're really stuck.")
+
+    # add colormap definitions from matplotlib
+    message("copying extra colormap definitions to {js9_www}")
+    shutil.copy2(f"{PADRE_PATH}/html/js9colormaps.js", js9_www)
 
     # Make symlink to js9 install dir in notebook dir
     notebook_js9_www = notebook_dir + "/notebook/static/js9-www"
