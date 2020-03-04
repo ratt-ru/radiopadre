@@ -165,7 +165,7 @@ def _init_js_side():
             </script>
          """.format(os.environ['USER'], reset_code)
 
-    styles_file = os.path.join(os.path.dirname(__file__), "../html/radiopadre.css")
+    styles_file = os.path.join(os.path.dirname(__file__), "html/radiopadre.css")
 
     html += """<style>
         {}

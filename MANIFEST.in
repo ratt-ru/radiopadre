@@ -2,6 +2,9 @@ include LICENSE
 include README.md
 include Dockerfile
 include requirements.txt
-recursive-include notebooks *.ipynb
-recursive-include html *.js *.css
-recursive-include js9-config *.js *.json
+recursive-include radiopadre/notebooks *.ipynb
+recursive-include radiopadre/html *.js *.css
+recursive-include radiopadre_kernel/js9 *.html
+
+## this is not necessary: it is copied over by the custom setup script
+# recursive-include js9-config *.js *.json

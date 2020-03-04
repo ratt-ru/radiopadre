@@ -59,6 +59,7 @@ setup(
     url="http://github.com/ratt-ru/radiopadre",
     scripts=scripts,
     packages=['radiopadre', 'radiopadre_kernel', 'radiopadre_kernel/js9', 'radiopadre_utils'],
+    include_package_data=True,
     cmdclass={
               'install': InstallSetupVenvCommand,
               'develop': DevelopSetupVenvCommand,
