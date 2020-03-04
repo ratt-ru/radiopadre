@@ -3,14 +3,17 @@ import os
 import subprocess
 import sys
 import shutil
+import traceback
 
 # get radiopadre install source directory
 # This is where we're installing from. If called with --editable, stuff in this
 # directory needs to be symlinked to. Otherwise, assume the directory is temporary, and copy from it
 PADRE_PATH = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
+JS9_VERSION = "3.0"
+JS9_TGZ  = "js9-{}.tar.gz"   # will be passed to format(JS9_VERSION)
+JS9_LINK = "https://github.com/ericmandel/js9/archive/v{}.tar.gz" # will be passed to format(JS9_VERSION)
 JS9_REPO = "https://github.com/ericmandel/js9.git"
-JS9_DIR = PADRE_PATH + "/js9"
 
 CARTA_LINK = "https://github.com/CARTAvis/carta-releases/releases/download/v1.2.2/CARTA-v1.2.2-remote.tgz"
 SOCKET_IO_LINK = "https://cdnjs.cloudflare.com/ajax/libs/socket.io/2.3.0/socket.io.js"
@@ -21,9 +24,14 @@ parser = argparse.ArgumentParser(description="Installs radiopadre components ins
 parser.add_argument("-e", "--editable", action="store_true",
                     help="install in editable mode (use with pip install -e)")
 
-parser.add_argument("--js9", metavar="DIR", type=str,
-                    help="JS9 source directory or repository URL. Default is to try {JS9_DIR}, then {JS9_REPO}. "
-                       "Set to 'git' to force use of {JS9_REPO}.".format(**globals()))
+parser.add_argument("--js9-release", metavar="VERSION", type=str, default=JS9_VERSION,
+                    help=f"Installs specific JS9 release. Default is {JS9_VERSION}.")
+
+parser.add_argument("--js9-branch", metavar="BRANCH", type=str,
+                    help=f"If set, installs JS9 from branch of {JS9_REPO}.")
+
+parser.add_argument("--js9-dir", metavar="DIR", type=str,
+                    help=f"If set, installs JS9 from directory. If not absolute, taken relative to radiopadre source.")
 
 parser.add_argument("--no-js9", action="store_true",
                     help="skips the JS9 installation. FITS functionality will be reduced.")
@@ -153,24 +161,37 @@ remove_installation(carta_link)
 
 # download tarball
 carta_tarball_path = os.path.join(PADRE_PATH, carta_tarball)
-if os.path.exists(carta_tarball_path):
-    message(f"CARTA tarball {carta_tarball_path} is already here")
-else:
-    message(f"Trying to download CARTA via {CARTA_LINK}")
-    subprocess.check_call(f"cd {PADRE_PATH}; wget -c {CARTA_LINK}", shell=True)
-    if not os.path.exists(carta_tarball_path):
-        bye(f"{carta_tarball} failed to download")
+for retry in True, False:
+    # try to download if not present
+    if os.path.exists(carta_tarball_path):
+        message(f"CARTA tarball {carta_tarball_path} is already here")
+    else:
+        message(f"Trying to download CARTA via {CARTA_LINK}")
+        subprocess.check_call(f"cd {PADRE_PATH}; wget -c {CARTA_LINK}", shell=True)
+        if not os.path.exists(carta_tarball_path):
+            bye(f"{carta_tarball} failed to download")
+        # download successfull, will not retry
+        retry = False
 
-# unpack (here or in venv)
-if options.editable:
-    message(f"Unpacking {carta_tarball} in {PADRE_PATH}")
-    subprocess.check_call(f"cd {PADRE_PATH}; tar zxf {carta_tarball}", shell=True)
-    carta_padre_dir = os.path.join(PADRE_PATH, carta_base)
-    message(f"Linking {carta_dir} to {carta_padre_dir}")
-    os.symlink(carta_padre_dir, carta_dir)
-else:
-    message(f"Unpacking {carta_tarball} in {PADRE_VENV}")
-    subprocess.check_call(f"cd {PADRE_VENV}; tar zxf {carta_tarball_path}", shell=True)
+    try:
+        # unpack (here or in venv)
+        if options.editable:
+            message(f"Unpacking {carta_tarball} in {PADRE_PATH}")
+            subprocess.check_call(f"cd {PADRE_PATH}; tar zxf {carta_tarball}", shell=True)
+            carta_padre_dir = os.path.join(PADRE_PATH, carta_base)
+            message(f"Linking {carta_dir} to {carta_padre_dir}")
+            os.symlink(carta_padre_dir, carta_dir)
+        else:
+            message(f"Unpacking {carta_tarball} in {PADRE_VENV}")
+            subprocess.check_call(f"cd {PADRE_VENV}; tar zxf {carta_tarball_path}", shell=True)
+        break
+    # on error, see if we can retry the download
+    except Exception as exc:
+        if retry and os.path.exists(carta_tarball_path):
+            message("Will retry the download")
+            os.unlink(carta_tarball_path)
+        else:
+            raise
 
 if os.path.exists(carta_dir):
     message(f"Linking {carta_link} to {carta_dir}")
@@ -181,103 +202,115 @@ else:
 # install JS9
 if not options.no_js9:
     js9status = open(PADRE_VENV + "/js9status", "w")
-
-    # install JS9 inside venv
-    # determine whether to use existing directory or repo
-    js9_git = js9_dir = js9_temp = None
-    if options.js9:
-        if options.js9 == 'git':
-            js9_git = JS9_REPO
-            message("Will clone JS9 from default location ({JS9_REPO})")
-        elif options.js9.split(":")[0] in ["http", "git"]:
-            js9_git = options.js9
-            message("Will clone JS9 from {js9_git}")
-        elif os.path.isdir(options.js9):
-            js9_dir = options.js9
-            message("Will install JS9 from local directory {js9_dir}")
-        else:
-            js9status.write("not a valid repo")
-            bye("--js9 {options.js9}: not a valid directory or git repository")
-    elif os.path.isdir(JS9_DIR):
-        js9_dir = JS9_DIR
-        message("Will install JS9 from default directory {js9_dir}")
-    else:
-        js9_git = JS9_REPO
-        message("{JS9_DIR} not found. Will clone JS9 from default location ({JS9_REPO})")
-
-    # Run git clone if needed
-    if js9_git:
-        if os.access(PADRE_PATH, os.W_OK) and not os.path.exists(JS9_DIR):
-            js9_dir = JS9_DIR
-        else:
-            import tempfile
-            js9_dir = js9_temp = tempfile.mkdtemp(prefix="js9")
-        message("Cloning {js9_git} into {js9_dir}")
-        if shell("git clone {js9_git} {js9_dir}") != 0:
-            js9status.write("git clone failed")
-            bye("Failed to clone JS9 repo, see log above")
-    else:
-        if js9_dir == JS9_DIR and os.access(JS9_DIR, os.W_OK) and os.path.exists(JS9_DIR + "/.git"):
-            if not options.skip_git_pull:
-                message("Will do a git pull in {js9_dir}")
-                if shell("git -C {js9_dir} pull") != 0:
-                    js9status.write("git pull failed")
-                    bye("Failed to git pull in JS9 directory, see log above")
-
-    # Configure and install
-    js9_www = PADRE_VENV + "/js9-www"
-    if subprocess.call("""cd {js9_dir} && \
-            ./configure --prefix={PADRE_VENV} --with-webdir={js9_www} --with-helper=nodejs --with-cfitsio={options.cfitsio_path} && \
-            make && make install""".format(**globals()), shell=True):
-        js9status.write("build failed")
-        bye("Failed to configure and/or build JS9 in {js9_dir}, see log above. Fix it, or run with --no-js9.")
-
-    # check for cfitsio
+    js9_www = None
     try:
-        output = subprocess.check_output("grep FITSLIB {js9_dir}/config.log".format(**globals()), shell=True)
-        if output.strip() != b"FITSLIB='cfitsio'":
-            raise subprocess.CalledProcessError("cfitsio",-1,"no cfitsio")
-    except subprocess.CalledProcessError:
-        js9status.write("cfitsio missing")
-        bye("JS9 did not find the cfitsio library. Try installing it (apt install libcfitsio-dev), and/or specifying"
-            " the path to it with --cfitsio-path, and/or running with --no-js9 if you're really stuck.")
+        # install JS9 inside venv
+        # determine whether to use existing directory or repo
+        js9_dir = js9_temp = None
+        if options.js9_dir:
+            js9_dir = options.js9_dir
+            if not os.path.isabs(js9_dir):
+                js9_dir = os.path.join(PADRE_PATH, js9_dir)
+                message(f"Will try to install JS9 from existing directory {js9_dir}")
+            if not os.path.isdir(js9_dir):
+                bye(f"no such directory: {js9_dir}")
+        elif options.js9_branch:
+            js9_dir = f"{PADRE_PATH}/js9"
+            if os.path.isdir(js9_dir) and os.path.isdir(f"{js9_dir}/.git"):
+                message(f"Pulling {options.js9_branch} in {js9_dir}")
+                shell("cd {js9_dir} && git fetch origin && git checkout {options.js9_branch} && git pull")
+            else:
+                import tempfile
+                js9_dir = js9_temp = tempfile.mkdtemp(prefix="js9")
+                message(f"Cloning {JS9_REPO} branch {options.js9_branch} into {js9_dir}")
+                shell("git clone -b {options.js9_branch} {JS9_REPO} {js9_dir}")
+        elif options.js9_release:
+            JS9_TGZ = JS9_TGZ.format(options.js9_release)
+            JS9_LINK = JS9_LINK.format(options.js9_release)
+            js9_tarball_path = f"{PADRE_PATH}/{JS9_TGZ}"
+            for retry in True, False:
+                if os.path.exists(js9_tarball_path):
+                    message(f"{js9_tarball_path} is already here, will try to unpack")
+                else:
+                    message(f"Will try to download JS9 from {JS9_LINK}")
+                    shell(f"wget -c {JS9_LINK} -O {js9_tarball_path}")
+                # try to unpack
+                try:
+                    shell(f"cd {PADRE_PATH} && tar zxf {JS9_TGZ}")
+                    break
+                except Exception as exc:
+                    if retry and os.path.exists(js9_tarball_path):
+                        message("Will retry the download")
+                        os.unlink(js9_tarball_path)
+                    else:
+                        raise
 
-    # add colormap definitions from matplotlib
-    message("copying extra colormap definitions to {js9_www}")
-    shutil.copy2(f"{PADRE_PATH}/html/js9colormaps.js", js9_www)
+            js9_dir = f"{PADRE_PATH}/js9-{options.js9_release}"
+            if not os.path.isdir(js9_dir):
+                bye("{js9_dir} does not exist. Did the tarball download and unpack?")
+        else:
+            bye("unknown JS9 install method. Specify one of --js9-release, --js9-branch, --js9-dir")
 
-    # Make symlink to js9 install dir in notebook dir
-    notebook_js9_www = notebook_dir + "/notebook/static/js9-www"
-    
-    remove_installation(notebook_js9_www)
-    if options.editable:
-        message("making link from {notebook_js9_www} to {js9_www}")
-        os.symlink(js9_www, notebook_js9_www)
-    else:
-        message("copying {js9_www} to {notebook_js9_www}")
-        shutil.copytree(js9_www, notebook_js9_www)
+        # Configure and install
+        js9_www = PADRE_VENV + "/js9-www"
+        if subprocess.call("""cd {js9_dir} && \
+                ./configure --prefix={PADRE_VENV} --with-webdir={js9_www} --with-helper=nodejs --with-cfitsio={options.cfitsio_path} && \
+                make && make install""".format(**globals()), shell=True):
+            js9status.write("build failed")
+            bye("Failed to configure and/or build JS9 in {js9_dir}, see log above. Fix it, or run with --no-js9.")
 
-    notebook_socket_io = notebook_dir + "/notebook/static/socket.io.js"
-    js9_socket_io = js9_www + "/node_modules/socket.io-client/dist/socket.io.js"
-    
-    remove_installation(notebook_socket_io)
-    
-    if options.editable:
-        message("making link from {notebook_socket_io} to {js9_socket_io}")
-        os.symlink(js9_socket_io, notebook_socket_io)
-    else:
-        message("copying {js9_socket_io} to {notebook_socket_io}")
-        shutil.copy2(js9_socket_io, notebook_socket_io)
+        # check for cfitsio
+        try:
+            output = subprocess.check_output("grep FITSLIB {js9_dir}/config.log".format(**globals()), shell=True)
+            if output.strip() != b"FITSLIB='cfitsio'":
+                raise subprocess.CalledProcessError("cfitsio",-1,"no cfitsio")
+        except subprocess.CalledProcessError:
+            js9status.write("cfitsio missing")
+            bye("JS9 did not find the cfitsio library. Try installing it (apt install libcfitsio-dev), and/or specifying"
+                " the path to it with --cfitsio-path, and/or running with --no-js9 if you're really stuck.")
 
-    # copy config
-    shutil.copy2(PADRE_PATH + "/js9-config/js9prefs.js", js9_www)
-    shutil.copy2(PADRE_PATH + "/js9-config/js9Prefs.json", js9_www)
+        # add colormap definitions from matplotlib
+        message("copying extra colormap definitions to {js9_www}")
+        shutil.copy2(f"{PADRE_PATH}/html/js9colormaps.js", js9_www)
 
-    if js9_temp:
-        message("Removing JS9 source directory {js9_temp}")
-        shutil.rmtree(js9_temp)
+        # Make symlink to js9 install dir in notebook dir
+        notebook_js9_www = notebook_dir + "/notebook/static/js9-www"
 
-    js9status.write(os.path.abspath(js9_www))
+        remove_installation(notebook_js9_www)
+        if options.editable:
+            message("making link from {notebook_js9_www} to {js9_www}")
+            os.symlink(js9_www, notebook_js9_www)
+        else:
+            message("copying {js9_www} to {notebook_js9_www}")
+            shutil.copytree(js9_www, notebook_js9_www)
+
+        notebook_socket_io = notebook_dir + "/notebook/static/socket.io.js"
+        js9_socket_io = js9_www + "/node_modules/socket.io-client/dist/socket.io.js"
+
+        remove_installation(notebook_socket_io)
+
+        if options.editable:
+            message("making link from {notebook_socket_io} to {js9_socket_io}")
+            os.symlink(js9_socket_io, notebook_socket_io)
+        else:
+            message("copying {js9_socket_io} to {notebook_socket_io}")
+            shutil.copy2(js9_socket_io, notebook_socket_io)
+
+        # copy config
+        shutil.copy2(PADRE_PATH + "/js9-config/js9prefs.js", js9_www)
+        shutil.copy2(PADRE_PATH + "/js9-config/js9Prefs.json", js9_www)
+
+        if js9_temp:
+            message("Removing JS9 source directory {js9_temp}")
+            shutil.rmtree(js9_temp)
+
+    except Exception as exc:
+        traceback.print_exc()
+        js9status.write(str(exc))
+        bye(f"Error installing JS9: {exc}")
+
+    finally:
+        js9status.write(os.path.abspath(js9_www))
 
 
 open(complete_cookie, "w").write("installed by {__file__}".format(**globals()))
