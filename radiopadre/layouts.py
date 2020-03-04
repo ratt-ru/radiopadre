@@ -53,7 +53,14 @@ def Section(name):
     
     if name[0] == "*":
         name = name[1:]
-        refresh = render.render_refresh_button(style="font-size: 1em; padding: 1px; width: 1.5em; height: 1.5em")
+        btn_style = None
+        # btn_style = """font-size: 1em; padding: 1px;
+        #             height: 2em; width: 2em; line-height: 2em;
+        #             border-radius: 2px; -moz-border-radius: 2px;
+        #             vertical-align: middle;
+        # """
+        #btn_style = "font-size: 1em; padding: 1px; width: 1.5em; height: 1.5em"
+        refresh = render.render_refresh_button(style=btn_style)
         refresh = """<div style="float: left;"> {refresh} </div>""".format(**locals())
         title_style = "" 
     else:
@@ -66,7 +73,9 @@ def Section(name):
     bookmarks = render_bookmarks_bar(name)
 
     code = """{refresh}
-              <div style="float: left; font-size: 1.5em; font-weight: bold; {title_style}; margin-top: 0.4em;">
+              <div style="float: left; font-size: 1.5em; font-weight: bold; {title_style}; 
+                          margin-top: 0.4em; margin-left: 0.5em; 
+                          ">
                 <A name="{label}" />
                 {name}
               </div>
