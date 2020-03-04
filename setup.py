@@ -58,7 +58,7 @@ setup(
     keywords="ipython notebook jupyter fits dataset resultset visualisation",
     url="http://github.com/ratt-ru/radiopadre",
     scripts=scripts,
-    packages=['radiopadre', 'radiopadre_kernel', 'radiopadre_utils'],
+    packages=['radiopadre', 'radiopadre_kernel', 'radiopadre_kernel/js9', 'radiopadre_utils'],
     cmdclass={
               'install': InstallSetupVenvCommand,
               'develop': DevelopSetupVenvCommand,
