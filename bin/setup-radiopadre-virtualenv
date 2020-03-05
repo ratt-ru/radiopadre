@@ -114,24 +114,9 @@ message(f"  {cmd}")
 if shell(cmd):
     bye("jupyter kernel failed to install, see log above")
 
-# # get path to it because we want to install our own kernel.js
-# out = kerneldir = ''
-# try:
-#     out = subprocess.check_output(f"{jupyter} kernelspec list", shell=True)
-# except subprocess.CalledProcessError:
-#     bye("jupyter kernelspec list failed, see log above")
-#
-# for line in out.decode().split("\n"):
-#     columns = line.strip().split()
-#     if columns[0] == "radiopadre":
-#         kerneldir = columns[1]
-#         break
-# else:
-#     bye("jupyter kernelspec list did not return the radiopadre kernel. This is a bug?")
-
 kerneldir = f"{PADRE_VENV}/share/jupyter/kernels/radiopadre"
 message("Copying kernel.js to {kerneldir}")
-shutil.copy2(f"{PADRE_PATH}/html/radiopadre-kernel.js", f"{kerneldir}/kernel.js")
+shutil.copy2(f"{PADRE_PATH}/radiopadre/html/radiopadre-kernel.js", f"{kerneldir}/kernel.js")
 
 notebook_static = f"{notebook_dir}/notebook/static"
 
@@ -141,7 +126,7 @@ shell(f"wget {SOCKET_IO_LINK} -O {notebook_static}/socket.io.js")
 
 # add link to radiopadre web components in notebook static dir
 notebook_padre_www = f"{notebook_static}/radiopadre-www"
-padre_www = f"{PADRE_PATH}/html"
+padre_www = f"{PADRE_PATH}/radiopadre/html"
 remove_installation(notebook_padre_www)
 if options.editable:
     message("making link from {notebook_padre_www} to {padre_www}")
@@ -271,7 +256,7 @@ if not options.no_js9:
 
         # add colormap definitions from matplotlib
         message("copying extra colormap definitions to {js9_www}")
-        shutil.copy2(f"{PADRE_PATH}/html/js9colormaps.js", js9_www)
+        shutil.copy2(f"{PADRE_PATH}/radiopadre/html/js9colormaps.js", js9_www)
 
         # Make symlink to js9 install dir in notebook dir
         notebook_js9_www = notebook_dir + "/notebook/static/js9-www"

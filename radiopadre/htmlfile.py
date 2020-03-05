@@ -24,7 +24,7 @@ class HTMLFile(FileBase):
         npix = npix or 800
 
         if update:
-            script = os.path.join(os.path.dirname(__file__), "../html/html-thumbnail.js")
+            script = os.path.join(os.path.dirname(__file__), "html/html-thumbnail.js")
             path = os.path.abspath(self.fullpath)
             cmd = "phantomjs --debug=true {script} file://{path} {thumbnail} {npix} {npix} 200".format(**locals())
             # print "Command is",cmd

@@ -5,7 +5,7 @@ from setuptools.command.install import install
 from setuptools.command.develop import develop
 from wheel.bdist_wheel import bdist_wheel
 
-__version__ = "1.0-pre6"
+__version__ = "1.0-pre7"
 build_root = os.path.dirname(__file__)
 
 with open("requirements.txt") as stdr:
@@ -58,7 +58,8 @@ setup(
     keywords="ipython notebook jupyter fits dataset resultset visualisation",
     url="http://github.com/ratt-ru/radiopadre",
     scripts=scripts,
-    packages=['radiopadre', 'radiopadre_kernel', 'radiopadre_utils'],
+    packages=['radiopadre', 'radiopadre_kernel', 'radiopadre_kernel/js9', 'radiopadre_utils'],
+    include_package_data=True,
     cmdclass={
               'install': InstallSetupVenvCommand,
               'develop': DevelopSetupVenvCommand,
