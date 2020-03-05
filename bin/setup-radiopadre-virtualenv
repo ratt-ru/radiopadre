@@ -119,10 +119,7 @@ message("Copying kernel.js to {kerneldir}")
 shutil.copy2(f"{PADRE_PATH}/radiopadre/html/radiopadre-kernel.js", f"{kerneldir}/kernel.js")
 
 notebook_static = f"{notebook_dir}/notebook/static"
-
-# download socket.io.js
-message("Downloading socket.io.js into {notebook_static}")
-shell(f"wget {SOCKET_IO_LINK} -O {notebook_static}/socket.io.js")
+notebook_socket_io = f"{notebook_static}/socket.io.js"
 
 # add link to radiopadre web components in notebook static dir
 notebook_padre_www = f"{notebook_static}/radiopadre-www"
@@ -145,14 +142,14 @@ remove_installation(carta_dir)
 remove_installation(carta_link)
 
 # download tarball
-carta_tarball_path = os.path.join(PADRE_PATH, carta_tarball)
+carta_tarball_path = os.path.join(PADRE_WORKDIR, carta_tarball)
 for retry in True, False:
     # try to download if not present
     if os.path.exists(carta_tarball_path):
         message(f"CARTA tarball {carta_tarball_path} is already here")
     else:
         message(f"Trying to download CARTA via {CARTA_LINK}")
-        subprocess.check_call(f"cd {PADRE_PATH}; wget -c {CARTA_LINK}", shell=True)
+        subprocess.check_call(f"wget -c {CARTA_LINK} -O {carta_tarball_path}", shell=True)
         if not os.path.exists(carta_tarball_path):
             bye(f"{carta_tarball} failed to download")
         # download successfull, will not retry
@@ -162,7 +159,7 @@ for retry in True, False:
         # unpack (here or in venv)
         if options.editable:
             message(f"Unpacking {carta_tarball} in {PADRE_PATH}")
-            subprocess.check_call(f"cd {PADRE_PATH}; tar zxf {carta_tarball}", shell=True)
+            subprocess.check_call(f"cd {PADRE_PATH}; tar zxf {carta_tarball_path}", shell=True)
             carta_padre_dir = os.path.join(PADRE_PATH, carta_base)
             message(f"Linking {carta_dir} to {carta_padre_dir}")
             os.symlink(carta_padre_dir, carta_dir)
@@ -212,7 +209,7 @@ if not options.no_js9:
         elif options.js9_release:
             JS9_TGZ = JS9_TGZ.format(options.js9_release)
             JS9_LINK = JS9_LINK.format(options.js9_release)
-            js9_tarball_path = f"{PADRE_PATH}/{JS9_TGZ}"
+            js9_tarball_path = f"{PADRE_WORKDIR}/{JS9_TGZ}"
             for retry in True, False:
                 if os.path.exists(js9_tarball_path):
                     message(f"{js9_tarball_path} is already here, will try to unpack")
@@ -221,7 +218,7 @@ if not options.no_js9:
                     shell(f"wget -c {JS9_LINK} -O {js9_tarball_path}")
                 # try to unpack
                 try:
-                    shell(f"cd {PADRE_PATH} && tar zxf {JS9_TGZ}")
+                    shell(f"cd {PADRE_PATH} && tar zxf {js9_tarball_path}")
                     break
                 except Exception as exc:
                     if retry and os.path.exists(js9_tarball_path):
@@ -262,28 +259,21 @@ if not options.no_js9:
         notebook_js9_www = notebook_dir + "/notebook/static/js9-www"
 
         remove_installation(notebook_js9_www)
-        if options.editable:
-            message("making link from {notebook_js9_www} to {js9_www}")
-            os.symlink(js9_www, notebook_js9_www)
-        else:
-            message("copying {js9_www} to {notebook_js9_www}")
-            shutil.copytree(js9_www, notebook_js9_www)
+        message("making link from {notebook_js9_www} to {js9_www}")
+        os.symlink(js9_www, notebook_js9_www)
 
         notebook_socket_io = notebook_dir + "/notebook/static/socket.io.js"
         js9_socket_io = js9_www + "/node_modules/socket.io-client/dist/socket.io.js"
 
         remove_installation(notebook_socket_io)
-
-        if options.editable:
-            message("making link from {notebook_socket_io} to {js9_socket_io}")
-            os.symlink(js9_socket_io, notebook_socket_io)
-        else:
-            message("copying {js9_socket_io} to {notebook_socket_io}")
-            shutil.copy2(js9_socket_io, notebook_socket_io)
+        message("making link from {notebook_socket_io} to {js9_socket_io}")
+        os.symlink(js9_socket_io, notebook_socket_io)
 
         # copy config
-        shutil.copy2(PADRE_PATH + "/js9-config/js9prefs.js", js9_www)
-        shutil.copy2(PADRE_PATH + "/js9-config/js9Prefs.json", js9_www)
+        message("copying js9prefs.js to {js9_www}")
+        shutil.copy2(f"{PADRE_PATH}/js9-config/js9prefs.js", js9_www)
+        message("copying js9Prefs.json to {js9_www}")
+        shutil.copy2(f"{PADRE_PATH}/js9-config/js9Prefs.json", js9_www)
 
         if js9_temp:
             message("Removing JS9 source directory {js9_temp}")
@@ -296,6 +286,12 @@ if not options.no_js9:
 
     finally:
         js9status.write(os.path.abspath(js9_www))
+else:
+    # no JS9, still need to download socket.io.js
+    remove_installation(notebook_socket_io)
+    message("Downloading socket.io.js into {notebook_socket_io}")
+    shell(f"wget {SOCKET_IO_LINK} -O {notebook_socket_io}")
+
 
 
 open(complete_cookie, "w").write("installed by {__file__}".format(**globals()))
