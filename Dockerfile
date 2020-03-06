@@ -1,11 +1,5 @@
 FROM kernsuite/base:5
 
-ARG CLIENT_BRANCH=b1.0-pre7
-ARG CARTA_VERSION=v1.2.2
-ARG CARTA_BASE=CARTA-$CARTA_VERSION-remote
-ARG CARTA_TGZ=$CARTA_BASE.tgz
-ARG CARTA_URL=https://github.com/CARTAvis/carta-releases/releases/download/$CARTA_VERSION/$CARTA_TGZ
-
 ################################
 # install latest masters
 ################################
@@ -42,8 +36,12 @@ RUN pip3 install -U pip setuptools
 
 ADD . /radiopadre
 
+ARG CLIENT_BRANCH=b1.0-pre8
+ARG CARTA_VERSION=1.2.1       # 1.2.2 has problems in Singularity
+
 RUN git clone -b $CLIENT_BRANCH https://github.com/ratt-ru/radiopadre-client.git
 RUN pip3 install -e /radiopadre-client
+ENV RADIOPADRE_CARTA_VERSION=$CARTA_VERSION
 RUN pip3 install -e /radiopadre
 
 CMD sleep infinity
