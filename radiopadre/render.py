@@ -356,8 +356,11 @@ class TransientMessage(object):
     def __del__(self):
         # when None, we're shutting down, so no more HTML
         if getattr(sys, 'meta_path', None) is not None:
-            display(Javascript("$('#{}').fadeOut('slow')".format(self.id)))
-            self.hide()
+            try:
+                display(Javascript("$('#{}').fadeOut('slow')".format(self.id)))
+                self.hide()
+            except AttributeError:  # can also happen on shutdown
+                pass
 
 
 
