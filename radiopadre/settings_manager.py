@@ -171,3 +171,8 @@ class RadiopadreSettingsManager(SettingsManager):
         text.head = 10, D("default number of lines to show from head of file")
         text.tail = 10, D("default number of lines to show from tail of file")
         text.fs   = 0.8, D("font size for text display")
+
+        html = self.add_section("html", "settings for rendering of HTML thumbnails")
+
+        html.width  = 1920, D("default width of thumbnail")
+        html.height = 1920, D("default height of thumbnail")

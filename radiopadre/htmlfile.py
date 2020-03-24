@@ -19,20 +19,22 @@ class HTMLFile(FileBase):
         html += """<IFRAME width={width} height={height} src={url}></IFRAME>""".format(**locals())
         return html
 
-    def _render_thumb_impl(self, npix=None, **kw):
+    def _render_thumb_impl(self, width=None, height=None, **kw):
         thumbnail, thumbnail_url, update = self._get_cache_file("html-render", "png")
-        npix = npix or 800
+        width  = settings.html.get(width=width)
+        height = settings.html.get(height=height)
 
         if update:
             script = os.path.join(os.path.dirname(__file__), "html/html-thumbnail.js")
             path = os.path.abspath(self.fullpath)
-            cmd = "phantomjs --debug=true {script} file://{path} {thumbnail} {npix} {npix} 200".format(**locals())
+            cmd = f"phantomjs --debug=true {script} file://{path} {thumbnail} {width} {height} 200"
             # print "Command is",cmd
             try:
-                output = subprocess.check_output(cmd, shell=True)
+                output = subprocess.check_output(cmd, shell=True).decode()
             except subprocess.CalledProcessError as exc:
-                print(f"{cmd}: {exc.output}")
+                output = exc.output.decode()
+                print(f"{cmd}: {output}, code {exc.returncode}")
                 return render_error(f"phantomjs error (code {exc.returncode})")
             # print "Output was",output
 
-        return imagefile.ImageFile._render_thumbnail(thumbnail, url=render_url(self.fullpath), npix=npix) + "\n"
+        return imagefile.ImageFile._render_thumbnail(thumbnail, url=render_url(self.fullpath), npix=width) + "\n"
