@@ -31,6 +31,7 @@ RUN virtualenv -p python3 $VIRTUAL_ENV
 ENV PATH="$VIRTUAL_ENV/bin:$PATH"
 
 RUN pip3 install -U pip setuptools
+RUN pip3 install bokeh
 
 #RUN pip3 install git+https://github.com/ratt-ru/CubiCal
 

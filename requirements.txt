@@ -1,5 +1,6 @@
 APLpy
 astropy
+bokeh
 ipython
 jupyter
 notebook
