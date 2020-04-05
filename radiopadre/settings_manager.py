@@ -126,6 +126,9 @@ class RadiopadreSettingsManager(SettingsManager):
 
         gen.timeformat = "%H:%M:%S %b %d", D("time format")
 
+        gen.ncpu = 0, D("number of CPU cores to use, 0 to detect automatically ")
+        gen.max_ncpu = 32, D("max number of CPU cores to use (when detecting automatically)")
+
         files = self.add_section("files", "file settings")  # generic settings
 
 #        files.include       = "*.jpg *.png *.fits *.txt *.log", D("filename patterns to include in the listings. If None, all files will be included")
@@ -175,4 +178,4 @@ class RadiopadreSettingsManager(SettingsManager):
         html = self.add_section("html", "settings for rendering of HTML thumbnails")
 
         html.width  = 1920, D("default width of thumbnail")
-        html.height = 1920, D("default height of thumbnail")
+        html.height = 1024, D("default height of thumbnail")
