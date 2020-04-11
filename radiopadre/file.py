@@ -490,7 +490,7 @@ def autodetect_file_type(path):
         return HTMLFile
     elif ext in [".pdf"]:
         return PDFFile
-    elif ext in [".png", ".jpg", ".jpeg"]:
+    elif ext in [".png", ".jpg", ".jpeg", ".svg", ".gif"]:
         return ImageFile
     elif ext in [".txt", ".log", ".py", ".sh"]:
         return TextFile

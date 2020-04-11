@@ -13,6 +13,9 @@ from radiopadre import settings
 
 PIL.Image.MAX_IMAGE_PIXELS = 30000**2
 
+def is_svg_file(imagepath):
+    return os.path.splitext(imagepath)[1].lower() == ".svg"
+
 def _make_thumbnail(image, width):
     thumbdir, thumbdir_url = radiopadre.get_cache_dir(image, "thumbs")
     if thumbdir is None:
@@ -28,8 +31,8 @@ def _make_thumbnail(image, width):
         # can't write? That's ok too
         if not os.access(thumbdir, os.W_OK) or os.path.exists(thumb) and not os.access(thumb, os.W_OK):
             return None, None
-        img = PIL.Image.open(image)
         try:
+            img = PIL.Image.open(image)
             img.thumbnail((width,int(round(width*(img.height/float(img.width))))), PIL.Image.ANTIALIAS)
         except Exception as exc:
             print(f"Error generating thumbnail for {image}: {exc}")
@@ -63,7 +66,10 @@ class ImageFile(radiopadre.file.FileBase):
         npix = npix or npix_thumb
         url = url or render_url(imagepath)
 
-        thumb_realfile, thumb = _make_thumbnail(imagepath, npix_thumb)
+        if is_svg_file(imagepath):
+            thumb_realfile = thumb = None    # SVG files rendered natively, no thumbnail needed
+        else:
+            thumb_realfile, thumb = _make_thumbnail(imagepath, npix_thumb)
 
         if thumb:
             return "<a href='{}?mtime={}' target='_blank'><img src='{}' width={} alt='?'></a>".format(
@@ -85,9 +91,17 @@ class ImageFile(radiopadre.file.FileBase):
 
     def _scan_impl(self):
         radiopadre.file.FileBase._scan_impl(self)
-        img = PIL.Image.open(self.fullpath)
-        size = "{} {}&times;{}".format(img.format, img.width, img.height)
-        self.size = self.description = rich_string(size.replace("&times;", "x"), size)
+        if is_svg_file(self.fullpath):
+            self.description = "SVG"
+        else:
+            try:
+                img = PIL.Image.open(self.fullpath)
+            except Exception as exc:
+                print(f"Error opening image {self.fullpath}: {exc}")
+                self.size = self.description = "(error)"
+                return
+            size = "{} {}&times;{}".format(img.format, img.width, img.height)
+            self.size = self.description = rich_string(size.replace("&times;", "x"), size)
 
 #
 #
