@@ -161,7 +161,7 @@ class FileList(FileBase, list):
             if action_buttons:
                 html += action_buttons(self, context=context)
 
-            html += radiopadre.tabulate(thumbs, ncol=ncol,
+            html += radiopadre.tabulate(thumbs, ncol=ncol, cw="equal",
                                 mincol=mincol or settings.thumb.mincol, maxcol=maxcol or settings.thumb.maxcol,
                                 zebra=False, align="center").render_html(context=context, **kw)
         return html

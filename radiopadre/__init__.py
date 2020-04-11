@@ -127,6 +127,10 @@ def get_cache_dir(path, subdir=None):
 
 _init_js_side_done = None
 
+
+def _display_reset():
+    display(Javascript("document.radiopadre.reset_display_settings();"))
+
 def _init_js_side():
     """Checks that Javascript components of radiopadre are initialized, does various other init"""
     global _init_js_side_done
@@ -144,32 +148,23 @@ def _init_js_side():
     #initjs = os.path.join(os.path.dirname(__file__), "html", "init-radiopadre-components.js")
     #display(Javascript(open(initjs).read()))
 
-    reset_code = """
-        var width = $(".rendered_html")[0].clientWidth;
-        console.log("reset display, width is", window.innerWidth, window.innerHeight);
-        Jupyter.notebook.kernel.execute(`print "executing reset"; import radiopadre; radiopadre.set_window_sizes(
-                                                ${width}, 
-                                                ${window.innerWidth}, ${window.innerHeight})`);
-    """
-
-    def reset():
-        display(Javascript(reset_code))
-
-    settings.display.reset = reset, settings_manager.DocString("call this to reset sizes after e.g. a browser resize")
+    settings.display.reset = _display_reset, settings_manager.DocString("call this to reset sizes explicitly")
 
     #warns = "\n".join([render_status_message(msg, bgcolor='yellow') for msg in radiopadre_kernel._startup_warnings])
 
     html = """<script type='text/javascript'>
             document.radiopadre.register_user('{}');
-            {}
+            document.radiopadre.reset_display_settings();
             </script>
-         """.format(os.environ['USER'], reset_code)
+         """.format(os.environ['USER'])
 
     styles_file = os.path.join(os.path.dirname(__file__), "html/radiopadre.css")
 
     html += """<style>
         {}
     </style>""".format(open(styles_file).read())
+
+    html += """<DIV onload=radiopadre.document.reset_display_settings></DIV>"""
 
     from radiopadre_kernel import js9
     if not js9.JS9_ERROR:
@@ -187,8 +182,10 @@ def _init_js_side():
     display(HTML(html))
 
 
-def set_window_sizes(cell_width,window_width,window_height):
-    settings.display.cell_width, settings.display.window_width, settings.display.window_height = cell_width, window_width, window_height
+def set_window_sizes(cell_width, window_width, window_height):
+    if settings.display.auto_reset:
+        settings.display.cell_width, settings.display.window_width, settings.display.window_height = \
+            cell_width, window_width, window_height
 
 
 # def protect(author=None):

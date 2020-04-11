@@ -8,10 +8,13 @@ _NULL_CELL = rich_string("")
 
 
 class Table(RenderableElement):
-    def __init__ (self, items, zebra=True, align="left", cw="auto", tw="auto", fs=None, lh=1.5, styles={}):
+    def __init__ (self, items, ncol=0, zebra=True, align="left", cw="auto", tw="auto", fs=None, lh=1.5, styles={}):
+        """
+        ncol: if set, fixes number of columns
+        """
         self._data = {}
         self._nrow = len(items)
-        self._ncol = 0
+        self._ncol = ncol
         self._styles = styles.copy()
 
         if zebra:
@@ -44,6 +47,8 @@ class Table(RenderableElement):
         if cw is not None:
             if cw is "auto":
                 cw = {}
+            elif cw is "equal":
+                cw = {i: 1/float(ncol) for i in range(ncol)}
             elif type(cw) in (list, tuple):
                 cw = {i: w for i, w in enumerate(cw)}
             # set styles
@@ -154,7 +159,6 @@ class Table(RenderableElement):
 
 
 def tabulate(items, ncol=0, mincol=0, maxcol=8, **kw):
-
     # if items is a list of lists, invoke Table directly
     if all([type(row) is list for row in items]):
         return Table(items, **kw)
@@ -172,4 +176,4 @@ def tabulate(items, ncol=0, mincol=0, maxcol=8, **kw):
         tablerows.append(itemlist[:ncol])
         del itemlist[:ncol]
 
-    return Table(tablerows, **kw)
+    return Table(tablerows, ncol=ncol, **kw)

@@ -145,6 +145,7 @@ class RadiopadreSettingsManager(SettingsManager):
         display.cell_width = 800, D("width of Jupyter cell output, in pixels")
         display.window_width = 1024, D("width of browser window")
         display.window_height = 768, D("height of browser window")
+        display.auto_reset     = True, D("auto-reset when the browser window is resized")
 
         plot = self.add_section("plot", "settings for rendering of plots")
 
@@ -157,7 +158,7 @@ class RadiopadreSettingsManager(SettingsManager):
 
         thumb.mincol = 2, D("minimum number of columns to display in thumbnail view")
         thumb.maxcol = 4, D("maximum number of columns to display in thumbnail view")
-
+        thumb.width  = 0, D("default thumbnail width, 0 to set automatically")
 
         fits = self.add_section("fits", "settings for rendering of FITS files")
 

@@ -59,7 +59,7 @@ class ImageFile(radiopadre.file.FileBase):
 
     @staticmethod
     def _render_thumbnail(imagepath, url=None, npix=None, mtime=0):
-        npix_thumb = settings.display.cell_width // settings.thumb.mincol
+        npix_thumb = settings.thumb.width or settings.display.cell_width // settings.thumb.mincol
         npix = npix or npix_thumb
         url = url or render_url(imagepath)
 

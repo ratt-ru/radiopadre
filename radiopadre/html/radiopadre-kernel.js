@@ -143,6 +143,14 @@ if (appname === 'NotebookApp')
             width_btn.innerHTML = '&larr;<nbsp>full width<nbsp>&rarr;';
             width_btn.title = 'Set notebook display to full browser width.';
         }
+        var code_btn = document.radiopadre.controls.button_code;
+        if( document.radiopadre._show_code ) {
+            code_btn.innerHTML = 'hide code';
+            code_btn.title = 'Hide notebook cell code.';
+        } else {
+            code_btn.innerHTML = 'show code';
+            code_btn.title = 'Show notebook cell code.';
+        }
     }
 
     document.radiopadre.toggle_scrubbing = function()
@@ -167,8 +175,31 @@ if (appname === 'NotebookApp')
 //            console.log("set default width", document.radiopadre._default_width_px);
         }
         document.radiopadre.controls.update();
+        document.radiopadre.reset_display_settings();
     }
 
+    document.radiopadre._show_code = 0
+    document.radiopadre.toggle_show_code = function() {
+        document.radiopadre.controls.update();
+        document.radiopadre._show_code = !document.radiopadre._show_code;
+        if (document.radiopadre._show_code){
+             $('div.input').show();
+        } else {
+             $('div.input').hide();
+        }
+        document.radiopadre.controls.update();
+    }
+
+    document.radiopadre.reset_display_settings = function (user)
+    {
+        var width = $(".rendered_html")[0].clientWidth;
+        console.log("reset display, width is", window.innerWidth, window.innerHeight);
+        Jupyter.notebook.kernel.execute(`import radiopadre; radiopadre.set_window_sizes(
+                                                ${width},
+                                                ${window.innerWidth}, ${window.innerHeight})`);
+    }
+
+    window.addEventListener("resize", document.radiopadre.reset_display_settings);
 
     document.radiopadre.before_unload = function (e) {
         console.log("before unload")
@@ -212,6 +243,11 @@ if (appname === 'NotebookApp')
                     'label'   : 'width',
                     'icon'    : 'icon-play-circle',
                     'callback':  function () { document.radiopadre.toggle_width() }
+                },
+                {   'id'      : 'radiopadre_btn_code',
+                    'label'   : 'hide code',
+                    'icon'    : 'icon-play-circle',
+                    'callback':  function () { document.radiopadre.toggle_show_code() }
                 }
                 ],'radiopadre_controls');
             var save = IPython.menubar.element.find("#save_checkpoint");
@@ -221,6 +257,7 @@ if (appname === 'NotebookApp')
         document.radiopadre.controls.button_scrub = document.getElementById("radiopadre_btn_scrub")
         document.radiopadre.controls.button_protected = document.getElementById("radiopadre_btn_protected")
         document.radiopadre.controls.button_width = document.getElementById("radiopadre_btn_width")
+        document.radiopadre.controls.button_code = document.getElementById("radiopadre_btn_code")
         document.radiopadre.controls.update();
         var nbpath = Jupyter.notebook.notebook_path;
         if( nbpath.search('/') >=0 ) {
@@ -243,6 +280,8 @@ if (appname === 'NotebookApp')
         document.radiopadre.user = user;
         document.radiopadre.controls.update();
     }
+
+
 
     // init controls for null user
     document.radiopadre.init_controls('')

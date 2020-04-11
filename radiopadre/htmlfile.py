@@ -20,9 +20,10 @@ class HTMLFile(FileBase):
         return html
 
     def _render_thumb_impl(self, width=None, height=None, **kw):
-        thumbnail, thumbnail_url, update = self._get_cache_file("html-render", "png")
         width  = settings.html.get(width=width)
         height = settings.html.get(height=height)
+        thumbnail, thumbnail_url, update = self._get_cache_file("html-render", "png",
+                                                                keydict=dict(width=width, height=height))
 
         if update:
             script = os.path.join(os.path.dirname(__file__), "html/html-thumbnail.js")
