@@ -174,7 +174,9 @@ for retry in True, False:
 
 if os.path.exists(carta_dir):
     message(f"Linking {carta_link} to {carta_dir}")
-    os.symlink(carta_dir, carta_link)
+    os.symlink(os.path.basename(carta_dir), carta_link)
+    message(f"Adjusting permissions on {carta_dir}")
+    subprocess.check_call(f"chmod -R a+rX {carta_dir}", shell=True)
 else:
     message(f"WARNING: No CARTA installation ({carta_dir}) found")
 
