@@ -8,9 +8,13 @@ from radiopadre import settings
 from radiopadre.table import tabulate
 
 class NumberedLineList(ItemBase):
-    def __init__ (self, enumerated_lines=[], title=None):
+    def __init__ (self, enumerated_lines=[], title=None, number=True):
+        """
+        number: if False, do not show numbers
+        """
         ItemBase.__init__(self, title=title)
         self.lines = enumerated_lines
+        self._show_numbers = number
 
     @property
     def lines(self):
@@ -106,13 +110,14 @@ class NumberedLineList(ItemBase):
         # empty head and tail: return just the title
         if not head and not tail:
             return txt
+        format = "{0}: {1}\n" if self._show_numbers else "{1}\n"
         for line_num, line in head:
-            txt += "{}: {}\n".format(line_num+1, line.strip())
+            txt += format.format(line_num+1, line.strip())
             # txt += "{}: {}\n".format(line_num + 1, line.encode("utf-8").strip())
         if tail:
             txt += "...\n"
             for line_num, line in tail:
-                txt += "{}: {}\n".format(line_num + 1, line.strip())
+                txt += format.format(line_num + 1, line.strip())
                 # txt += "{}: {}\n".format(line_num + 1, line.encode("utf-8").strip())
         return txt
 
@@ -143,12 +148,17 @@ class NumberedLineList(ItemBase):
             border_bottom = border_style if line_num == firstlast[1] else "none"
             border_rl = border_style if line_num != "..." else "none"
             background = "#f2f2f2" if line_num != "..." else "none"
+            line_num_html = ""
+            if self._show_numbers:
+                line_num_html = \
+                    """<DIV style="display: table-cell; border-top: {border_top}; border-bottom: {border_bottom};
+                                    border-left: {border_rl}; padding-left: 4px; padding-right: 4px;
+                                    height=1em; background-color: {background}">{line_num}
+                     </DIV>""".format(**locals())
+
             return """
                 <DIV style="display: table-row; height=1em">
-                    <DIV style="display: table-cell; border-top: {border_top}; border-bottom: {border_bottom};
-                                border-left: {border_rl}; padding-left: 4px; padding-right: 4px;
-                                height=1em; background-color: {background}">{line_num}
-                    </DIV>
+                    {line_num_html}
                     <DIV style="display: table-cell; border-top: {border_top}; border-bottom: {border_bottom};
                                 height=1em; border-right: {border_rl}; padding-left: 4px; padding-right: 4px"><PRE>{line}</PRE>
                     </DIV>
@@ -256,9 +266,10 @@ class NumberedLineList(ItemBase):
         self.rescan(load=True)
         return NumberedLineList(self._get_lines(slicer=slicer)[0])
 
-    def __call__(self, *args):
+    def __call__(self, *args, **kw):
         self.rescan(load=True)
-        return NumberedLineList(self._get_lines(grep=args)[0])
+        lines = self._get_lines(grep=args)[0] if args else self.lines
+        return NumberedLineList(lines, **kw)
 
 
 
