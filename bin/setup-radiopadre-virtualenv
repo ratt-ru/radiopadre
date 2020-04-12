@@ -120,8 +120,10 @@ if shell(cmd):
     bye("jupyter kernel failed to install, see log above")
 
 kerneldir = f"{PADRE_VENV}/share/jupyter/kernels/radiopadre"
-message("Copying kernel.js to {kerneldir}")
+message("Copying kernel.js and logos to {kerneldir}")
 shutil.copy2(f"{PADRE_PATH}/radiopadre/html/radiopadre-kernel.js", f"{kerneldir}/kernel.js")
+shutil.copy2(f"{PADRE_PATH}/icons/radiopadre-logo-32x32.png", f"{kerneldir}/logo-32x32.png")
+shutil.copy2(f"{PADRE_PATH}/icons/radiopadre-logo-64x64.png", f"{kerneldir}/logo-64x64.png")
 
 notebook_static = f"{notebook_dir}/notebook/static"
 notebook_socket_io = f"{notebook_static}/socket.io.js"
@@ -136,6 +138,10 @@ if options.editable:
 else:
     message("copying {notebook_padre_www} to {padre_www}")
     shutil.copytree(padre_www, notebook_padre_www)
+
+# overwrite icons
+shutil.copy2(f"{PADRE_PATH}/icons/radiopadre-logo.ico", f"{notebook_static}/favicon.ico")
+shutil.copy2(f"{PADRE_PATH}/icons/radiopadre-logo.ico", f"{notebook_static}/base/images/favicon-notebook.ico")
 
 # add link to CARTA
 carta_url = CARTA_URL.format(options.carta_release)

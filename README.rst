@@ -1,3 +1,7 @@
+.. image:: icons/radiopadre-logo-with-text-400px.png?raw=True 
+   :width: 400
+
+
 ============================================================
 radiopadre: Python (Radio) Astronomy Data & Results Examiner
 ============================================================

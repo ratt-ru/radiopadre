@@ -10,3 +10,4 @@ recursive-include radiopadre_kernel/js9 *.html
 
 # needs to be in tarball, copied over by setup script
 recursive-include js9-config *.js *.json
+recursive-include icons *.png *.ico
