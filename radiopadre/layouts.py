@@ -55,7 +55,6 @@ def Title(title, sections=[], logo=None, logo_width=0, logo_padding=8, icon=None
         icon_width = f" width={icon_width}" if icon_width else ""
         icon_image = f"""<img src="{icon}" alt="" {icon_width}></img>"""
 
-
     display(HTML(f"""
         <div style="display: table-row; margin-top: 0.5em; width: 100%">
             <div style="display: table-cell; {logo_style}">{logo_image}</div>
@@ -63,7 +62,7 @@ def Title(title, sections=[], logo=None, logo_width=0, logo_padding=8, icon=None
                 <div style="display: table; width: 100%">
                     <div style="display: table-row">
                         <div style="display: table-cell">
-                            <div style="float:left; line-height: 1.2em; font-size: 1.8em; font-weight: bold; margin-top: 0px;">{title}</div>
+                            <div style="float:left; line-height: 1.2em; font-size: 1.5em; font-weight: bold; margin-top: 0px;">{title}</div>
                         </div>
                     </div>
                     <div style="display: table-row;">
@@ -94,7 +93,8 @@ def Section(name):
         refresh = """<div style="float: left;"> {refresh} </div>""".format(**locals())
         title_style = "" 
     else:
-        refresh = title_style = ""
+        refresh = icon_image
+        title_style = ""
 
     if name not in _ALL_SECTIONS:
         add_section(name)
@@ -102,17 +102,35 @@ def Section(name):
 
     bookmarks = render_bookmarks_bar(name)
 
-    code = """{refresh}
-              <div style="float: left; font-size: 1.5em; font-weight: bold; {title_style}; 
-                          margin-top: 0em; margin-left: 0.5em; 
-                          ">
-                <A name="{label}" />
-                {name}
-              </div>
-              <div style="float: right;"> 
-                {bookmarks} 
-              </div>
-           """.format(**locals())
+    code = f"""
+        <div style="display: table-cell; font-size: 0.8em; vertical-align: top; text-align: right; float: right"> 
+            {bookmarks} 
+        </div>
+        <div style="display: table">
+            <div style="display: table-row">
+                <div style="display: table-cell; vertical-align: middle; padding-right: 4px">
+                    {refresh}  
+                </div>
+                <div style="display: table-cell; vertical-align: middle; font-size: 1.5em; font-weight: bold; {title_style};">
+                    <A name="{label}" /> {name}
+                </div>
+                <div style="display: table-cell;>
+                </div>  
+            </div>
+        </div>
+        """
+
+    # code = """{refresh}
+    #           <div style="float: left; font-size: 1.5em; font-weight: bold; {title_style};
+    #                       margin-top: 0em; margin-left: 0.5em;
+    #                       ">
+    #             <A name="{label}" />
+    #             {name}
+    #           </div>
+    #           <div style="float: right;">
+    #             {bookmarks}
+    #           </div>
+    #        """.format(**locals())
 
     display(HTML(code))
 
