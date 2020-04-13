@@ -5,11 +5,10 @@ from collections import OrderedDict
 from IPython.display import HTML, Markdown, display
 from radiopadre import render
 
-
 _ALL_SECTIONS = OrderedDict()
 
-# "Logs", "Reports", "Plots", "Obsinfo", "Images", "Caltables"
-
+logo_image = ''
+icon_image = ''
 
 def add_section(name):
     """Adds a know section to the TOC"""
@@ -26,7 +25,7 @@ def render_bookmarks_bar(current_name=None):
     return " ".join(bookmarks)
 
 
-def Title(title, sections=[]):
+def Title(title, sections=[], logo=None, logo_width=0, logo_padding=8, icon=None, icon_width=None):
     """Renders a title, and registers section names for a bookmark bar"""
     if type(sections) is str:
         sections = [x.strip() for x in sections.split("|")]
@@ -41,9 +40,41 @@ def Title(title, sections=[]):
     if rootdir.startswith(homedir):
         rootdir = rootdir[len(homedir):]
 
-    display(HTML("""<div style="float:left; font-size: 2em; font-weight: bold; margin-top: 0.67em;">{title}</div> 
-                    <div style="float: right; font-family: 'Courier New'"> {rootdir}</div>
-                 """.format(**locals())))
+    global logo_image, icon_image
+
+    if logo and os.path.exists(logo):
+        mw = logo_width + logo_padding
+        logo_width = f" width={logo_width}" if logo_width else ""
+        logo = render.render_url(logo)
+        logo_image = f"""<img src="{logo}" alt="" {logo_width}></img>"""
+        logo_style = f"padding-right: {logo_padding}px; vertical-align: middle; min-width: {mw}px"
+    else:
+        logo_style = ""
+
+    if icon:
+        icon_width = f" width={icon_width}" if icon_width else ""
+        icon_image = f"""<img src="{icon}" alt="" {icon_width}></img>"""
+
+
+    display(HTML(f"""
+        <div style="display: table-row; margin-top: 0.5em; width: 100%">
+            <div style="display: table-cell; {logo_style}">{logo_image}</div>
+            <div style="display: table-cell; vertical-align: middle; width: 90%">
+                <div style="display: table; width: 100%">
+                    <div style="display: table-row">
+                        <div style="display: table-cell">
+                            <div style="float:left; font-size: 1.8em; font-weight: bold; margin-top: 0px;">{title}</div>
+                        </div>
+                    </div>
+                    <div style="display: table-row;">
+                        <div style="display: table-cell; width: 100%; padding-top: .2em">
+                            <div style="float: right; font-size: 0.8em; font-family: 'Courier New'">{rootdir}</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    """))
 
 
 
@@ -53,14 +84,13 @@ def Section(name):
     
     if name[0] == "*":
         name = name[1:]
-        btn_style = None
-        # btn_style = """font-size: 1em; padding: 1px;
-        #             height: 2em; width: 2em; line-height: 2em;
-        #             border-radius: 2px; -moz-border-radius: 2px;
-        #             vertical-align: middle;
-        # """
-        #btn_style = "font-size: 1em; padding: 1px; width: 1.5em; height: 1.5em"
-        refresh = render.render_refresh_button(style=btn_style)
+
+        if icon_image:
+            btn_style = "padding-left: 1px; padding-right: 1px;"
+        else:
+            btn_style = "padding-left: 1px; padding-right: 1px; width: 1.5em; height: 1.5em"
+
+        refresh = render.render_refresh_button(style=btn_style, content=icon_image)
         refresh = """<div style="float: left;"> {refresh} </div>""".format(**locals())
         title_style = "" 
     else:
@@ -74,7 +104,7 @@ def Section(name):
 
     code = """{refresh}
               <div style="float: left; font-size: 1.5em; font-weight: bold; {title_style}; 
-                          margin-top: 0.4em; margin-left: 0.5em; 
+                          margin-top: 0em; margin-left: 0.5em; 
                           ">
                 <A name="{label}" />
                 {name}

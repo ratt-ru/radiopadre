@@ -187,7 +187,7 @@ if (appname === 'NotebookApp')
         document.radiopadre.reset_display_settings();
     }
 
-    document.radiopadre._show_code = 0
+    document.radiopadre._show_code = 1
     document.radiopadre.toggle_show_code = function() {
         document.radiopadre.controls.update();
         document.radiopadre._show_code = !document.radiopadre._show_code;
