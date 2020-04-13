@@ -63,12 +63,12 @@ def Title(title, sections=[], logo=None, logo_width=0, logo_padding=8, icon=None
                 <div style="display: table; width: 100%">
                     <div style="display: table-row">
                         <div style="display: table-cell">
-                            <div style="float:left; font-size: 1.8em; font-weight: bold; margin-top: 0px;">{title}</div>
+                            <div style="float:left; line-height: 1.2em; font-size: 1.8em; font-weight: bold; margin-top: 0px;">{title}</div>
                         </div>
                     </div>
                     <div style="display: table-row;">
                         <div style="display: table-cell; width: 100%; padding-top: .2em">
-                            <div style="float: right; font-size: 0.8em; font-family: 'Courier New'">{rootdir}</div>
+                            <div style="float: right; font-size: 0.8em; font-family: 'Courier New'; padding-top: 0em">[{rootdir}]</div>
                         </div>
                     </div>
                 </div>
