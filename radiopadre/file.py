@@ -187,12 +187,12 @@ class ItemBase(RenderableElement):
         title = self._render_title_link(context=context, **kw)
         thumb_content = self._render_thumb_impl(context=context, **kw)
         action_buttons = self._action_buttons_(context=context, defaults=kw) or ""
-        path = self.path
+        path = getattr(self, 'path', self.title)
 
         if action_buttons:
             action_buttons = """<tr style="background: transparent"><td style="padding: 0; padding-top: 2px">{}</td></tr>""".format(action_buttons)
 
-        return """
+        return f"""
             <div style="width: 100%">
             <table style="border: 0px; text-align: left; width: 100%">
                 <tr style="border: 0px; text-align: left">
@@ -219,7 +219,7 @@ class ItemBase(RenderableElement):
                 </tr>
             </table>
             </div>
-            """.format(**locals())
+            """
 
     def _render_title_link(self, **kw):
         """Renders the name of the item and/or link"""
