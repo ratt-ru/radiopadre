@@ -18,7 +18,7 @@ from radiopadre_kernel import SESSION_ID, VERBOSE, HOSTNAME, \
     LOGFILE, ABSROOTDIR, ROOTDIR, DISPLAY_ROOTDIR, SHADOW_HOME, SERVER_BASEDIR, \
     SHADOW_BASEDIR, SHADOW_ROOTDIR, SHADOW_URL_PREFIX, \
     FILE_URL_ROOT, NOTEBOOK_URL_ROOT, CACHE_URL_BASE, CACHE_URL_ROOT, \
-    SESSION_DIR, SESSION_URL
+    SESSION_DIR, SESSION_URL, NBCONVERT
 
 # init settings
 settings = settings_manager.RadiopadreSettingsManager()
@@ -171,8 +171,9 @@ def _init_js_side():
         html += js9.JS9_INIT_HTML_DYNAMIC
 
     # get buttons from various modules
-    from . import fitsfile
-    html += fitsfile.add_general_buttons()
+    if not NBCONVERT:
+        from . import fitsfile
+        html += fitsfile.add_general_buttons()
 
     # get list of warnings and errors from init
     errors = radiopadre_kernel.log_handler.get_records('WARNING')
