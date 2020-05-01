@@ -30,13 +30,14 @@ class HTMLFile(FileBase):
         if update:
             script = os.path.join(os.path.dirname(__file__), "html/html-thumbnail.js")
             path = os.path.abspath(self.fullpath)
-            cmd = f"phantomjs {script} file://{path} {thumbnail} {width} {height} 200"
+            debug = " --debug=true" if settings.html.debug_phantomjs else ""
+            cmd = f"phantomjs{debug} {script} file://{path} {thumbnail} {width} {height} 200"
             # print "Command is",cmd
             try:
                 output = subprocess.check_output(cmd, shell=True).decode()
             except subprocess.CalledProcessError as exc:
                 output = exc.output.decode()
-                print(f"{cmd}: {output}, code {exc.returncode}")
+                # print(f"{cmd}: {output}, code {exc.returncode}")
                 return render_error(f"phantomjs error (code {exc.returncode})")
             # print "Output was",output
 

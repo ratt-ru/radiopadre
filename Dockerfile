@@ -44,4 +44,5 @@ RUN pip3 install -e /radiopadre-client
 ENV RADIOPADRE_CARTA_VERSION=$CARTA_VERSION
 RUN pip3 install -e /radiopadre
 
-CMD sleep infinity
+ENTRYPOINT ["/.radiopadre/venv/bin/run-radiopadre"]
+
