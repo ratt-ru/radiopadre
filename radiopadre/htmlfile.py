@@ -31,7 +31,7 @@ class HTMLFile(FileBase):
             script = os.path.join(os.path.dirname(__file__), "html/html-thumbnail.js")
             path = os.path.abspath(self.fullpath)
             debug = " --debug=true" if settings.html.debug_phantomjs else ""
-            cmd = f"phantomjs{debug} {script} file://{path} {thumbnail} {width} {height} 200"
+            cmd = f"QT_QPA_PLATFORM=offscreen phantomjs{debug} {script} file://{path} {thumbnail} {width} {height} 200"
             # print "Command is",cmd
             try:
                 output = subprocess.check_output(cmd, shell=True).decode()

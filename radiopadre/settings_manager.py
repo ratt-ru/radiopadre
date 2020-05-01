@@ -180,4 +180,4 @@ class RadiopadreSettingsManager(SettingsManager):
 
         html.width  = 1920, D("default width of thumbnail")
         html.height = 1024, D("default height of thumbnail")
-        html.debug_phantomjs = True, D("enables debugging output from phantomjs")
+        html.debug_phantomjs = False, D("enables debugging output from phantomjs")
