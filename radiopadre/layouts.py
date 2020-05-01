@@ -85,9 +85,14 @@ def Section(name):
         name = name[1:]
 
         if icon_image:
-            btn_style = "padding-left: 1px; padding-right: 1px;"
+            btn_style = """padding-left: 1px; padding-right: 1px;
+                           border-right-width: 1px; border-left-width: 1px; 
+                           border-top-width: 1px; border-bottom-width: 1px;"""
         else:
-            btn_style = "padding-left: 1px; padding-right: 1px; width: 1.5em; height: 1.5em"
+            btn_style = """padding-left: 1px; padding-right: 1px; 
+                           border-right-width: 1px; border-left-width: 1px; 
+                           border-top-width: 1px; border-bottom-width: 1px; 
+                           width: 1.5em; height: 1.5em"""
 
         refresh = render.render_refresh_button(style=btn_style, content=icon_image)
         refresh = """<div style="float: left;"> {refresh} </div>""".format(**locals())
