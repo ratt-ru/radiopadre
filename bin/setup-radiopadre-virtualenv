@@ -11,11 +11,13 @@ import traceback
 PADRE_PATH = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 JS9_VERSION = "3.0"
+CARTA_VERSION = os.environ.get("RADIOPADRE_CARTA_VERSION", "1.3")
+
 JS9_TGZ  = "js9-{}.tar.gz"   # will be passed to format(JS9_VERSION)
-JS9_LINK = "https://github.com/ericmandel/js9/archive/v{}.tar.gz" # will be passed to format(JS9_VERSION)
+JS9_LINK = "https://github.com/ericmandel/js9/archive/v{0}.tar.gz" # will be passed to format(JS9_VERSION)
 JS9_REPO = "https://github.com/ericmandel/js9.git"
 
-CARTA_LINK = "https://github.com/CARTAvis/carta-releases/releases/download/v1.2.2/CARTA-v1.2.2-remote.tgz"
+CARTA_URL = "https://github.com/CARTAvis/carta-releases/releases/download/v{0}/CARTA-v{0}-remote.tgz"
 SOCKET_IO_LINK = "https://cdnjs.cloudflare.com/ajax/libs/socket.io/2.3.0/socket.io.js"
 
 import argparse
@@ -23,6 +25,9 @@ parser = argparse.ArgumentParser(description="Installs radiopadre components ins
 
 parser.add_argument("-e", "--editable", action="store_true",
                     help="install in editable mode (use with pip install -e)")
+
+parser.add_argument("--carta-release", metavar="VERSION", type=str, default=CARTA_VERSION,
+                    help=f"Installs specific JS9 release. Default is {CARTA_VERSION}.")
 
 parser.add_argument("--js9-release", metavar="VERSION", type=str, default=JS9_VERSION,
                     help=f"Installs specific JS9 release. Default is {JS9_VERSION}.")
@@ -115,8 +120,10 @@ if shell(cmd):
     bye("jupyter kernel failed to install, see log above")
 
 kerneldir = f"{PADRE_VENV}/share/jupyter/kernels/radiopadre"
-message("Copying kernel.js to {kerneldir}")
+message("Copying kernel.js and logos to {kerneldir}")
 shutil.copy2(f"{PADRE_PATH}/radiopadre/html/radiopadre-kernel.js", f"{kerneldir}/kernel.js")
+shutil.copy2(f"{PADRE_PATH}/icons/radiopadre-logo-32x32.png", f"{kerneldir}/logo-32x32.png")
+shutil.copy2(f"{PADRE_PATH}/icons/radiopadre-logo-64x64.png", f"{kerneldir}/logo-64x64.png")
 
 notebook_static = f"{notebook_dir}/notebook/static"
 notebook_socket_io = f"{notebook_static}/socket.io.js"
@@ -132,8 +139,13 @@ else:
     message("copying {notebook_padre_www} to {padre_www}")
     shutil.copytree(padre_www, notebook_padre_www)
 
+# overwrite icons
+shutil.copy2(f"{PADRE_PATH}/icons/radiopadre-logo.ico", f"{notebook_static}/favicon.ico")
+shutil.copy2(f"{PADRE_PATH}/icons/radiopadre-logo.ico", f"{notebook_static}/base/images/favicon-notebook.ico")
+
 # add link to CARTA
-carta_tarball = os.path.basename(CARTA_LINK)
+carta_url = CARTA_URL.format(options.carta_release)
+carta_tarball = os.path.basename(carta_url)
 carta_base    = os.path.splitext(carta_tarball)[0]
 carta_dir     = os.path.join(PADRE_VENV, carta_base)
 carta_link    = os.path.join(PADRE_VENV, "carta")
@@ -148,25 +160,16 @@ for retry in True, False:
     if os.path.exists(carta_tarball_path):
         message(f"CARTA tarball {carta_tarball_path} is already here")
     else:
-        message(f"Trying to download CARTA via {CARTA_LINK}")
-        subprocess.check_call(f"wget -c {CARTA_LINK} -O {carta_tarball_path}", shell=True)
+        message(f"Trying to download CARTA via {carta_url}")
+        subprocess.check_call(f"wget -c {carta_url} -O {carta_tarball_path}", shell=True)
         if not os.path.exists(carta_tarball_path):
             bye(f"{carta_tarball} failed to download")
         # download successfull, will not retry
         retry = False
 
     try:
-        # unpack (here or in venv)
-        if options.editable:
-            message(f"Unpacking {carta_tarball} in {PADRE_PATH}")
-            subprocess.check_call(f"cd {PADRE_PATH}; tar zxf {carta_tarball_path}", shell=True)
-            carta_padre_dir = os.path.join(PADRE_PATH, carta_base)
-            message(f"Linking {carta_dir} to {carta_padre_dir}")
-            os.symlink(carta_padre_dir, carta_dir)
-        else:
-            message(f"Unpacking {carta_tarball} in {PADRE_VENV}")
-            subprocess.check_call(f"cd {PADRE_VENV}; tar zxf {carta_tarball_path}", shell=True)
-        break
+        message(f"Unpacking {carta_tarball} in {PADRE_VENV}")
+        subprocess.check_call(f"cd {PADRE_VENV}; tar zxf {carta_tarball_path}", shell=True)
     # on error, see if we can retry the download
     except Exception as exc:
         if retry and os.path.exists(carta_tarball_path):
@@ -177,7 +180,9 @@ for retry in True, False:
 
 if os.path.exists(carta_dir):
     message(f"Linking {carta_link} to {carta_dir}")
-    os.symlink(carta_dir, carta_link)
+    os.symlink(os.path.basename(carta_dir), carta_link)
+    message(f"Adjusting permissions on {carta_dir}")
+    subprocess.check_call(f"chmod -R a+rX {carta_dir}", shell=True)
 else:
     message(f"WARNING: No CARTA installation ({carta_dir}) found")
 

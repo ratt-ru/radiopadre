@@ -1,14 +1,12 @@
-import IPython
 from IPython.display import display, HTML, Javascript
 import os
 import fnmatch
-from collections import OrderedDict
-import uuid
 import itertools
-
 
 from .file import FileBase
 from .render import render_table, render_preamble, render_refresh_button, render_url, rich_string
+
+from . import executor
 
 import radiopadre
 from radiopadre import settings
@@ -148,11 +146,14 @@ class FileList(FileBase, list):
 
     def render_thumbnail_catalog(self, ncol=None, mincol=None, maxcol=None, context=None, **kw):
         self._load()
-        thumbs = []
         with self.transient_message("Rendering {} thumbnail(s)".format(len(self))):
-            for num, item in enumerate(self):
-            # with self.transient_message("Rendering thumbnail {}/{}...".format(num, len(self))):
-                thumbs.append(item.thumb(prefix=num, **kw))
+            def _make_thumb(num_item):
+                return num_item[1].thumb(prefix=num_item[0], **kw)
+
+            if executor.ncpu() < 2:
+                thumbs = list(map(_make_thumb, enumerate(self)))
+            else:
+                thumbs = list(executor.executor().map(_make_thumb, enumerate(self)))
 
             html = render_preamble() + self._header_html()
 
@@ -160,7 +161,7 @@ class FileList(FileBase, list):
             if action_buttons:
                 html += action_buttons(self, context=context)
 
-            html += radiopadre.tabulate(thumbs, ncol=ncol,
+            html += radiopadre.tabulate(thumbs, ncol=ncol, cw="equal",
                                 mincol=mincol or settings.thumb.mincol, maxcol=maxcol or settings.thumb.maxcol,
                                 zebra=False, align="center").render_html(context=context, **kw)
         return html

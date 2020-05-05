@@ -126,6 +126,9 @@ class RadiopadreSettingsManager(SettingsManager):
 
         gen.timeformat = "%H:%M:%S %b %d", D("time format")
 
+        gen.ncpu = 0, D("number of CPU cores to use, 0 to detect automatically ")
+        gen.max_ncpu = 32, D("max number of CPU cores to use (when detecting automatically)")
+
         files = self.add_section("files", "file settings")  # generic settings
 
 #        files.include       = "*.jpg *.png *.fits *.txt *.log", D("filename patterns to include in the listings. If None, all files will be included")
@@ -142,6 +145,7 @@ class RadiopadreSettingsManager(SettingsManager):
         display.cell_width = 800, D("width of Jupyter cell output, in pixels")
         display.window_width = 1024, D("width of browser window")
         display.window_height = 768, D("height of browser window")
+        display.auto_reset     = True, D("auto-reset when the browser window is resized")
 
         plot = self.add_section("plot", "settings for rendering of plots")
 
@@ -154,7 +158,7 @@ class RadiopadreSettingsManager(SettingsManager):
 
         thumb.mincol = 2, D("minimum number of columns to display in thumbnail view")
         thumb.maxcol = 4, D("maximum number of columns to display in thumbnail view")
-
+        thumb.width  = 0, D("default thumbnail width, 0 to set automatically")
 
         fits = self.add_section("fits", "settings for rendering of FITS files")
 
@@ -171,3 +175,8 @@ class RadiopadreSettingsManager(SettingsManager):
         text.head = 10, D("default number of lines to show from head of file")
         text.tail = 10, D("default number of lines to show from tail of file")
         text.fs   = 0.8, D("font size for text display")
+
+        html = self.add_section("html", "settings for rendering of HTML thumbnails")
+
+        html.width  = 1920, D("default width of thumbnail")
+        html.height = 1024, D("default height of thumbnail")

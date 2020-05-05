@@ -6,7 +6,13 @@
 //
 
 
-define(['base/js/namespace', 'base/js/promises', 'socket.io' ], function(Jupyter, promises, io1) {
+//define(['base/js/namespace', 'base/js/promises', 'socket.io' ], function(Jupyter, promises, io1) {
+
+requirejs([
+    'jquery',
+    'base/js/utils',
+    'base/js/namespace', 'base/js/promises', 'socket.io'
+], function($, utils, Jupyter, promises, io1){
 
 promises.app_initialized.then(function(appname) {
 if (appname === 'NotebookApp')
@@ -14,6 +20,9 @@ if (appname === 'NotebookApp')
     io = io1
 
     console.log("initializing radiopadre components")
+
+    utils.change_favicon("/static/radiopadre-www/radiopadre-logo.ico")
+
 
 //    var width = $(".rendered_html")[0].clientWidth;
 //
@@ -143,6 +152,14 @@ if (appname === 'NotebookApp')
             width_btn.innerHTML = '&larr;<nbsp>full width<nbsp>&rarr;';
             width_btn.title = 'Set notebook display to full browser width.';
         }
+        var code_btn = document.radiopadre.controls.button_code;
+        if( document.radiopadre._show_code ) {
+            code_btn.innerHTML = 'hide code';
+            code_btn.title = 'Hide notebook cell code.';
+        } else {
+            code_btn.innerHTML = 'show code';
+            code_btn.title = 'Show notebook cell code.';
+        }
     }
 
     document.radiopadre.toggle_scrubbing = function()
@@ -167,8 +184,31 @@ if (appname === 'NotebookApp')
 //            console.log("set default width", document.radiopadre._default_width_px);
         }
         document.radiopadre.controls.update();
+        document.radiopadre.reset_display_settings();
     }
 
+    document.radiopadre._show_code = 1
+    document.radiopadre.toggle_show_code = function() {
+        document.radiopadre.controls.update();
+        document.radiopadre._show_code = !document.radiopadre._show_code;
+        if (document.radiopadre._show_code){
+             $('div.input').show();
+        } else {
+             $('div.input').hide();
+        }
+        document.radiopadre.controls.update();
+    }
+
+    document.radiopadre.reset_display_settings = function (user)
+    {
+        var width = $(".rendered_html")[0].clientWidth;
+        console.log("reset display, width is", window.innerWidth, window.innerHeight);
+        Jupyter.notebook.kernel.execute(`import radiopadre; radiopadre.set_window_sizes(
+                                                ${width},
+                                                ${window.innerWidth}, ${window.innerHeight})`);
+    }
+
+    window.addEventListener("resize", document.radiopadre.reset_display_settings);
 
     document.radiopadre.before_unload = function (e) {
         console.log("before unload")
@@ -212,6 +252,11 @@ if (appname === 'NotebookApp')
                     'label'   : 'width',
                     'icon'    : 'icon-play-circle',
                     'callback':  function () { document.radiopadre.toggle_width() }
+                },
+                {   'id'      : 'radiopadre_btn_code',
+                    'label'   : 'hide code',
+                    'icon'    : 'icon-play-circle',
+                    'callback':  function () { document.radiopadre.toggle_show_code() }
                 }
                 ],'radiopadre_controls');
             var save = IPython.menubar.element.find("#save_checkpoint");
@@ -221,6 +266,7 @@ if (appname === 'NotebookApp')
         document.radiopadre.controls.button_scrub = document.getElementById("radiopadre_btn_scrub")
         document.radiopadre.controls.button_protected = document.getElementById("radiopadre_btn_protected")
         document.radiopadre.controls.button_width = document.getElementById("radiopadre_btn_width")
+        document.radiopadre.controls.button_code = document.getElementById("radiopadre_btn_code")
         document.radiopadre.controls.update();
         var nbpath = Jupyter.notebook.notebook_path;
         if( nbpath.search('/') >=0 ) {
@@ -244,10 +290,14 @@ if (appname === 'NotebookApp')
         document.radiopadre.controls.update();
     }
 
+
+
     // init controls for null user
     document.radiopadre.init_controls('')
 
-
+//    // set icon
+//    $("link[rel*='icon']").attr("href", "/static/radiopadre-www/radiopadre-logo.ico")
+//
     // sequence of scripts need to be loaded for JS9
     // this is a global variable -- it can be appended to in the cell-side JS9 init code
     // (with e.g. a custom js9partners.js script, since at this point we don't have its location)
@@ -279,10 +329,11 @@ if (appname === 'NotebookApp')
       <link type='image/x-icon' rel='shortcut icon' href='/static/js9-www/favicon.ico'>\
       <link type='text/css' rel='stylesheet' href='/static/js9-www/js9support.css'>\
       <link type='text/css' rel='stylesheet' href='/static/js9-www/js9.css'>\
-      <link rel='apple-touch-icon' href='/static/js9-www/images/js9-apple-touch-icon.png'>\
       <script type='text/javascript'> js9init_script_sequencer(); </script>\
     "
     Jupyter.toolbar.element.append(js9init_element);
+
+//      <link rel='apple-touch-icon' href='/static/js9-www/images/js9-apple-touch-icon.png'>\
 
 //    var js9init_element = document.createElement("div");
 //

@@ -1,6 +1,9 @@
-============================================================
-radiopadre: Python (Radio) Astronomy Data & Results Examiner
-============================================================
+.. image:: icons/radiopadre-logo-long-400px.png?raw=True 
+   :width: 400
+
+Python (Radio) Astronomy Data & Results Examiner
+================================================
+
 |Build Status|
 |PyPI version|
 |PyPI pyversions|

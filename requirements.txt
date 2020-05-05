@@ -1,10 +1,11 @@
 APLpy
-astropy             #<2.0.11   # avoiding https://github.com/kernsuite/packaging/issues/176
+astropy
+bokeh
 ipython
-jupyter             #<1.0.1
-notebook            #<5.7.3   # 5.7.3 has bug, see https://github.com/jupyter/notebook/issues/4303
-matplotlib          #<2.2.4
+jupyter
+notebook
+matplotlib
 pillow
 python-casacore
 radiopadre-client
-
+jupyter-contrib-nbextensions
