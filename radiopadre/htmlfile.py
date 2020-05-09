@@ -37,10 +37,10 @@ def _render_html(url, dest, width, height, timeout):
     if settings.html.method == "phantomjs":
         script = os.path.join(os.path.dirname(__file__), "html/phantomjs-html-thumbnail.js")
         debugopt = " --debug=true" if settings.html.debug_phantomjs else ""
-        cmd = f"QT_QPA_PLATFORM=offscreen {phantomjs}{debugopt} {script} {url} {dest} {width} {height} {timeout}"
+        cmd = f"QT_QPA_PLATFORM=offscreen {phantomjs}{debugopt} {script} '{url}' {dest} {width} {height} {timeout}"
     elif settings.html.method == "puppeteer":
         script = os.path.join(os.path.dirname(__file__), "html/puppeteer-html-thumbnail.js")
-        cmd = f"NODE_PATH={sys.prefix}/node_modules {nodejs} {script} {url} {dest} {width} {height} {timeout}"
+        cmd = f"NODE_PATH={sys.prefix}/node_modules {nodejs} {script} '{url}' {dest} {width} {height} {timeout}"
     else:
         raise RenderError("settings.html.method not set")
 
