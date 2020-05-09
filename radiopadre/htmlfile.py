@@ -97,8 +97,8 @@ class HTMLFile(FileBase):
 
 
 class URL(ItemBase):
-    def __init__(self, url):
-        super().__init__(url)
+    def __init__(self, url, title=None):
+        super().__init__(title or url)
         self.url = url
         self.fullpath = self.path = url
 
