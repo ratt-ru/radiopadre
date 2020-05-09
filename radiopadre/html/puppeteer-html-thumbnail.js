@@ -14,7 +14,10 @@ height = parseInt(args[3]);
 delay = parseInt(args[4]);
 
 (async () => {
-  const browser = await puppeteer.launch();
+  const browser = await puppeteer.launch({
+     headless: true,
+     args: ['--no-sandbox', '--disable-setuid-sandbox']
+  });
   const page = await browser.newPage();
   page.setViewport({width: width, height:height})
   await page.goto(url);
