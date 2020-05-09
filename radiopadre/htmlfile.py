@@ -7,7 +7,10 @@ from radiopadre.file import FileBase, ItemBase
 from radiopadre.render import render_title, render_url, render_preamble, render_error
 from radiopadre import settings
 from radiopadre import imagefile
-from iglesia import message, debug
+from iglesia import message, debug, find_which
+
+phantomjs = find_which("phantomjs")
+nodejs = find_which("node") or find_which("nodejs")
 
 class HTMLFile(FileBase):
     def __init__(self, *args, **kw):
@@ -29,18 +32,21 @@ class HTMLFile(FileBase):
                                                                 keydict=dict(width=width, height=height))
 
         if update or refresh:
-            script = os.path.join(os.path.dirname(__file__), "html/html-thumbnail.js")
-            path = os.path.abspath(self.fullpath)
-            debugopt = " --debug=true" if settings.html.debug_phantomjs else ""
-            cmd = f"QT_QPA_PLATFORM=offscreen phantomjs{debugopt} {script} file://{path} {thumbnail} {width} {height} 200"
-            message(f"running {cmd}")
-            try:
-                output = subprocess.check_output(cmd, shell=True).decode()
-            except subprocess.CalledProcessError as exc:
-                output = exc.output.decode()
-                debug(f"{cmd}: exit code {exc.returncode}, output: {output}")
-                return render_error(f"phantomjs error (code {exc.returncode})")
-            debug(f"{cmd}: {output}")
+            if phantomjs:
+                script = os.path.join(os.path.dirname(__file__), "html/phantomjs-html-thumbnail.js")
+                path = os.path.abspath(self.fullpath)
+                debugopt = " --debug=true" if settings.html.debug_phantomjs else ""
+                cmd = f"QT_QPA_PLATFORM=offscreen phantomjs{debugopt} {script} file://{path} {thumbnail} {width} {height} 200"
+                message(f"running {cmd}")
+                try:
+                    output = subprocess.check_output(cmd, shell=True).decode()
+                except subprocess.CalledProcessError as exc:
+                    output = exc.output.decode()
+                    debug(f"{cmd}: exit code {exc.returncode}, output: {output}")
+                    return render_error(f"phantomjs error (code {exc.returncode})")
+                debug(f"{cmd}: {output}")
+            else:
+                return render_error("node/phantomjs not installed")
 
         return imagefile.ImageFile._render_thumbnail(thumbnail, url=render_url(self.fullpath), npix=width) + "\n"
 
@@ -65,15 +71,18 @@ class URL(ItemBase):
         basepath, baseurl = radiopadre.get_cache_dir("./.urls", "html-render")  # fake ".urls" name which will be stripped
         thumbnail = f"{basepath}/{filename}"
 
-        script = os.path.join(os.path.dirname(__file__), "html/live-html-thumbnail.js")
-        cmd = f"phantomjs {script} {self.url} {thumbnail} {width} {height} 200"
-        # print "Command is",cmd
-        try:
-            output = subprocess.check_output(cmd, shell=True).decode()
-        except subprocess.CalledProcessError as exc:
-            output = exc.output.decode()
-            print(f"{cmd}: {output}, code {exc.returncode}")
-            return render_error(f"phantomjs error (code {exc.returncode})")
-        print("Output was",output)
+        if phantomjs:
+            script = os.path.join(os.path.dirname(__file__), "html/phantomjs-html-thumbnail.js")
+            cmd = f"phantomjs {script} {self.url} {thumbnail} {width} {height} 200"
+            message(f"running {cmd}")
+            try:
+                output = subprocess.check_output(cmd, shell=True).decode()
+            except subprocess.CalledProcessError as exc:
+                output = exc.output.decode()
+                debug(f"{cmd}: exit code {exc.returncode}, output: {output}")
+                return render_error(f"phantomjs error (code {exc.returncode})")
+            debug(f"{cmd}: {output}")
+        else:
+            return render_error("node/phantomjs not installed")
 
         return imagefile.ImageFile._render_thumbnail(thumbnail, url=self.url, npix=width) + "\n"

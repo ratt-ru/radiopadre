@@ -297,7 +297,15 @@ else:
     message("Downloading socket.io.js into {notebook_socket_io}")
     shell(f"wget {SOCKET_IO_LINK} -O {notebook_socket_io}")
 
-
+# install puppeteer
+npm = which('npm')
+node = which('node') or which('nodejs')
+if not npm:
+    message("WARNING: npm command not found. Puppeteer HTML rendering will not be available. Will try phantomjs instead.")
+elif not node:
+    message("WARNING: node/nodejs command not found. Puppeteer HTML rendering will not be available. Will try phantomjs instead.")
+else:
+    shell(f"cd {PADRE_VENV}; npm install utf-8-validate bufferutil puppeteer@2.1.0")
 
 open(complete_cookie, "w").write("installed by {__file__}".format(**globals()))
 
