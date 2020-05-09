@@ -1,7 +1,7 @@
 import subprocess
 import os.path
 import sys
-import traceback
+import re
 import radiopadre
 
 from radiopadre.file import FileBase, ItemBase
@@ -36,24 +36,35 @@ class RenderError(RuntimeError):
 def _render_html(url, dest, width, height, timeout):
     if settings.html.method == "phantomjs":
         script = os.path.join(os.path.dirname(__file__), "html/phantomjs-html-thumbnail.js")
-        debugopt = " --debug=true" if settings.html.debug_phantomjs else ""
-        cmd = f"QT_QPA_PLATFORM=offscreen {phantomjs}{debugopt} {script} '{url}' {dest} {width} {height} {timeout}"
+        cmd = [nodejs]
+        if settings.html.debug_phantomjs:
+            cmd.append("--debug=true")
+        cmd += [script, url, dest, width, height, timeout]
+        env = os.environ.copy()
+        env['QT_QPA_PLATFORM'] = 'offscreen'
     elif settings.html.method == "puppeteer":
         script = os.path.join(os.path.dirname(__file__), "html/puppeteer-html-thumbnail.js")
-        cmd = f"NODE_PATH={sys.prefix}/node_modules {nodejs} {script} '{url}' {dest} {width} {height} {timeout}"
+        cmd = [nodejs, script, url, dest, width, height, timeout]
+        env = os.environ.copy()
+        env['NODE_PATH'] = f"{sys.prefix}/node_modules"
     else:
         raise RenderError("settings.html.method not set")
 
+    error = None
+    cmd = list(map(str, cmd))
     # run the command set up
-    message(f"running {cmd}")
+    message(f"running {' '.join(cmd)}")
     try:
-        output = subprocess.check_output(cmd, shell=True).decode()
-    except subprocess.CalledProcessError as exc:
-        output = exc.output.decode()
-        debug(f"{cmd}: exit code {exc.returncode}, output: {output}")
-        raise RenderError(f"{settings.html.method} error (code {exc.returncode})")
+        result = subprocess.run(cmd, check=True, env=env, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    except subprocess.CalledProcessError as result:
+        error = f"{cmd[0]}: exit code {result.returncode}"
+        debug(error)
+    stdout = result.stdout.decode() if result.stdout is not None else None
+    stderr = result.stderr.decode() if result.stderr is not None else None
+    debug(f"{cmd[0]} stdout: {stdout}; stderr:{stderr}")
 
-    debug(f"{cmd}: {output}")
+    if error:
+        raise RenderError(error)
 
 
 class HTMLFile(FileBase):
@@ -89,6 +100,7 @@ class URL(ItemBase):
     def __init__(self, url):
         super().__init__(url)
         self.url = url
+        self.fullpath = self.path = url
 
     def render_html(self, width="99%", context=None, height=None):
         width = width or settings.display.cell_width
@@ -100,14 +112,15 @@ class URL(ItemBase):
     def _render_thumb_impl(self, width=None, height=None, **kw):
         width  = settings.html.get(width=width)
         height = settings.html.get(height=height)
-        filename = self.url.replace("/","_").replace(":", "_") + ".png"
+        delay = kw.get('delay', 200)
+        filename = re.sub(r"[/:;&?#]", "_", self.url) + ".png"
 
         basepath, baseurl = radiopadre.get_cache_dir("./.urls", "html-render")  # fake ".urls" name which will be stripped
         thumbnail = f"{basepath}/{filename}"
 
         try:
-            _render_html(self.url, thumbnail, width, height, 200)
+            _render_html(self.url, thumbnail, width, height, delay)
         except Exception as exc:
             return render_error(str(exc))
 
-        return imagefile.ImageFile._render_thumbnail(thumbnail, url=self.url, npix=width) + "\n"
+        return imagefile.ImageFile._render_thumbnail(thumbnail, url=self.url, npix=width, mtime=None) + "\n"

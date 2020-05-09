@@ -16,7 +16,7 @@ RUN docker-apt-install \
     libboost-python-dev \
     wcslib-dev \
     git \
-    nodejs \
+    nodejs npm \
     phantomjs \
     ghostscript \
     ipython python3-aplpy python3-astropy \

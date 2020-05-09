@@ -74,7 +74,9 @@ class ImageFile(radiopadre.file.FileBase):
     def _render_thumbnail(imagepath, url=None, npix=None, mtime=0):
         npix_thumb = settings.thumb.width or settings.display.cell_width // settings.thumb.mincol
         npix = npix or npix_thumb
-        url = (url or render_url(imagepath)) + _mtime(mtime or os.path.getmtime(imagepath))
+        url = url or render_url(imagepath)
+        if mtime is not None:
+            url += _mtime(mtime or os.path.getmtime(imagepath))
 
         if is_svg_file(imagepath):
             thumb = None    # SVG files rendered natively, no thumbnail needed

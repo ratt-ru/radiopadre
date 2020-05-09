@@ -11,13 +11,14 @@ url = args[0];
 output = args[1];
 width = parseInt(args[2]);
 height = parseInt(args[3]);
-timeout = parseInt(args[4]);
+delay = parseInt(args[4]);
 
 (async () => {
   const browser = await puppeteer.launch();
   const page = await browser.newPage();
   page.setViewport({width: width, height:height})
   await page.goto(url);
+  await page.waitFor(delay);
   await page.screenshot({path: output});
 
   await browser.close();
