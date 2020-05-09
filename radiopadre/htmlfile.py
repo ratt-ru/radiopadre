@@ -12,7 +12,15 @@ from radiopadre.settings_manager import DocString
 from iglesia import message, debug, find_which
 
 phantomjs = find_which("phantomjs")
+if not phantomjs:
+    message("phantomjs not found")
 nodejs = find_which("node") or find_which("nodejs")
+if not nodejs:
+    message("node/nodejs not found")
+# check for puppeteer module
+if nodejs and not os.path.exists(f"{sys.prefix}/node_modules/puppeteer"):
+    message(f"{sys.prefix}/node_modules/puppeteer not found")
+    nodejs = None
 
 _methods = (["puppeteer"] if nodejs else []) + (["phantomjs"] if phantomjs else [])
 
