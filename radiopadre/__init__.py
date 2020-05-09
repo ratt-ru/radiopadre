@@ -182,7 +182,7 @@ def _init_js_side():
 
     display(HTML(html))
 
-def hide_cell_code(hide):
+def hide_cell_code(hide=True):
     display(Javascript(f"document.radiopadre.set_show_code({int(not hide)});"))
 
 def set_window_sizes(cell_width, window_width, window_height):
