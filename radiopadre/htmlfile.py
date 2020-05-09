@@ -1,5 +1,6 @@
 import subprocess
 import os.path
+import sys
 import traceback
 import radiopadre
 
@@ -7,10 +8,45 @@ from radiopadre.file import FileBase, ItemBase
 from radiopadre.render import render_title, render_url, render_preamble, render_error
 from radiopadre import settings
 from radiopadre import imagefile
+from radiopadre.settings_manager import DocString
 from iglesia import message, debug, find_which
 
 phantomjs = find_which("phantomjs")
 nodejs = find_which("node") or find_which("nodejs")
+
+_methods = (["puppeteer"] if nodejs else []) + (["phantomjs"] if phantomjs else [])
+
+if _methods:
+    settings.html.method = _methods[0], DocString(f"HTML rendering method (available: {', '.join(_methods)})")
+else:
+    settings.html.method = None, DocString(f"No HTML rendering (phantomjs/nodejs not found)")
+settings.html.debug  =  False, DocString("enables debugging output from phantomjs and/or puppeteer")
+
+class RenderError(RuntimeError):
+    pass
+
+def _render_html(url, dest, width, height, timeout):
+    if settings.html.method == "phantomjs":
+        script = os.path.join(os.path.dirname(__file__), "html/phantomjs-html-thumbnail.js")
+        debugopt = " --debug=true" if settings.html.debug_phantomjs else ""
+        cmd = f"QT_QPA_PLATFORM=offscreen {phantomjs}{debugopt} {script} {url} {dest} {width} {height} {timeout}"
+    elif settings.html.method == "puppeteer":
+        script = os.path.join(os.path.dirname(__file__), "html/puppeteer-html-thumbnail.js")
+        cmd = f"NODE_PATH={sys.prefix}/node_modules {nodejs} {script} {url} {dest} {width} {height} {timeout}"
+    else:
+        raise RenderError("settings.html.method not set")
+
+    # run the command set up
+    message(f"running {cmd}")
+    try:
+        output = subprocess.check_output(cmd, shell=True).decode()
+    except subprocess.CalledProcessError as exc:
+        output = exc.output.decode()
+        debug(f"{cmd}: exit code {exc.returncode}, output: {output}")
+        raise RenderError(f"{settings.html.method} error (code {exc.returncode})")
+
+    debug(f"{cmd}: {output}")
+
 
 class HTMLFile(FileBase):
     def __init__(self, *args, **kw):
@@ -32,21 +68,11 @@ class HTMLFile(FileBase):
                                                                 keydict=dict(width=width, height=height))
 
         if update or refresh:
-            if phantomjs:
-                script = os.path.join(os.path.dirname(__file__), "html/phantomjs-html-thumbnail.js")
-                path = os.path.abspath(self.fullpath)
-                debugopt = " --debug=true" if settings.html.debug_phantomjs else ""
-                cmd = f"QT_QPA_PLATFORM=offscreen phantomjs{debugopt} {script} file://{path} {thumbnail} {width} {height} 200"
-                message(f"running {cmd}")
-                try:
-                    output = subprocess.check_output(cmd, shell=True).decode()
-                except subprocess.CalledProcessError as exc:
-                    output = exc.output.decode()
-                    debug(f"{cmd}: exit code {exc.returncode}, output: {output}")
-                    return render_error(f"phantomjs error (code {exc.returncode})")
-                debug(f"{cmd}: {output}")
-            else:
-                return render_error("node/phantomjs not installed")
+            url = "file://" + os.path.abspath(self.fullpath)
+            try:
+                _render_html(url, thumbnail, width, height, 200)
+            except Exception as exc:
+                return render_error(str(exc))
 
         return imagefile.ImageFile._render_thumbnail(thumbnail, url=render_url(self.fullpath), npix=width) + "\n"
 
@@ -71,18 +97,9 @@ class URL(ItemBase):
         basepath, baseurl = radiopadre.get_cache_dir("./.urls", "html-render")  # fake ".urls" name which will be stripped
         thumbnail = f"{basepath}/{filename}"
 
-        if phantomjs:
-            script = os.path.join(os.path.dirname(__file__), "html/phantomjs-html-thumbnail.js")
-            cmd = f"phantomjs {script} {self.url} {thumbnail} {width} {height} 200"
-            message(f"running {cmd}")
-            try:
-                output = subprocess.check_output(cmd, shell=True).decode()
-            except subprocess.CalledProcessError as exc:
-                output = exc.output.decode()
-                debug(f"{cmd}: exit code {exc.returncode}, output: {output}")
-                return render_error(f"phantomjs error (code {exc.returncode})")
-            debug(f"{cmd}: {output}")
-        else:
-            return render_error("node/phantomjs not installed")
+        try:
+            _render_html(self.url, thumbnail, width, height, 200)
+        except Exception as exc:
+            return render_error(str(exc))
 
         return imagefile.ImageFile._render_thumbnail(thumbnail, url=self.url, npix=width) + "\n"
