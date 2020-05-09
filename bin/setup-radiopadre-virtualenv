@@ -184,7 +184,7 @@ for retry in True, False:
         else:
             raise
     finally:
-        if sys.prefix == "/radiopadre/.venv":
+        if sys.prefix == "/.radiopadre/venv":
             os.unlink(carta_tarball_path)
 
 if os.path.exists(carta_dir):
@@ -241,7 +241,7 @@ if not options.no_js9:
                     else:
                         raise
                 finally:
-                    if sys.prefix == "/radiopadre/.venv":
+                    if sys.prefix == "/.radiopadre/venv":
                         os.unlink(js9_tarball_path)
 
             js9_dir = f"{PADRE_PATH}/js9-{options.js9_release}"
