@@ -7,6 +7,7 @@ from radiopadre.file import FileBase, ItemBase
 from radiopadre.render import render_title, render_url, render_preamble, render_error
 from radiopadre import settings
 from radiopadre import imagefile
+from iglesia import message, debug
 
 class HTMLFile(FileBase):
     def __init__(self, *args, **kw):
@@ -20,26 +21,26 @@ class HTMLFile(FileBase):
         html += """<IFRAME width={width} height={height} src={url}></IFRAME>""".format(**locals())
         return html
 
-    def _render_thumb_impl(self, width=None, height=None, **kw):
+    def _render_thumb_impl(self, width=None, height=None, refresh=False, **kw):
         width  = settings.html.get(width=width)
         height = settings.html.get(height=height)
 
         thumbnail, thumbnail_url, update = self._get_cache_file("html-render", "png",
                                                                 keydict=dict(width=width, height=height))
 
-        if update:
+        if update or refresh:
             script = os.path.join(os.path.dirname(__file__), "html/html-thumbnail.js")
             path = os.path.abspath(self.fullpath)
-            debug = " --debug=true" if settings.html.debug_phantomjs else ""
-            cmd = f"QT_QPA_PLATFORM=offscreen phantomjs{debug} {script} file://{path} {thumbnail} {width} {height} 200"
-            # print "Command is",cmd
+            debugopt = " --debug=true" if settings.html.debug_phantomjs else ""
+            cmd = f"QT_QPA_PLATFORM=offscreen phantomjs{debugopt} {script} file://{path} {thumbnail} {width} {height} 200"
+            message(f"running {cmd}")
             try:
                 output = subprocess.check_output(cmd, shell=True).decode()
             except subprocess.CalledProcessError as exc:
                 output = exc.output.decode()
-                # print(f"{cmd}: {output}, code {exc.returncode}")
+                debug(f"{cmd}: exit code {exc.returncode}, output: {output}")
                 return render_error(f"phantomjs error (code {exc.returncode})")
-            # print "Output was",output
+            debug(f"{cmd}: {output}")
 
         return imagefile.ImageFile._render_thumbnail(thumbnail, url=render_url(self.fullpath), npix=width) + "\n"
 
