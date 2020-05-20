@@ -57,11 +57,12 @@ RUN pip3 install --no-cache-dir -U pip setuptools
 ADD . /radiopadre
 
 ARG CLIENT_BRANCH=b1.0-pre11
-ARG CARTA_VERSION=1.3
+
+#ARG CARTA_VERSION=1.3.1
+#ENV RADIOPADRE_CARTA_VERSION=$CARTA_VERSION
 
 RUN git clone -b $CLIENT_BRANCH https://github.com/ratt-ru/radiopadre-client.git
 RUN pip3 install --no-cache-dir  -e /radiopadre-client
-ENV RADIOPADRE_CARTA_VERSION=$CARTA_VERSION
 RUN pip3 install --no-cache-dir  -e /radiopadre
 
 RUN echo 'kernel.unprivileged_userns_clone=1' > /etc/sysctl.d/userns.conf
