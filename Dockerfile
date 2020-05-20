@@ -56,7 +56,7 @@ RUN pip3 install --no-cache-dir -U pip setuptools
 
 ADD . /radiopadre
 
-ARG CLIENT_BRANCH=b1.0-pre10
+ARG CLIENT_BRANCH=b1.0-pre11
 ARG CARTA_VERSION=1.3
 
 RUN git clone -b $CLIENT_BRANCH https://github.com/ratt-ru/radiopadre-client.git
