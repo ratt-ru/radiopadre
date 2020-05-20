@@ -69,6 +69,12 @@ def shell(cmd):
 def which(cmd):
     return subprocess.check_output("which {}".format(cmd), shell=True).strip()
 
+def which_opt(cmd):
+    try:
+        return subprocess.check_output("which {}".format(cmd), shell=True).strip()
+    except subprocess.CalledProcessError as exc:
+        return None
+
 def remove_installation(path):
     if os.path.lexists(path):
         if os.path.islink(path) or os.path.isfile(path):
@@ -177,6 +183,9 @@ for retry in True, False:
             os.unlink(carta_tarball_path)
         else:
             raise
+    finally:
+        if sys.prefix == "/.radiopadre/venv":
+            os.unlink(carta_tarball_path)
 
 if os.path.exists(carta_dir):
     message(f"Linking {carta_link} to {carta_dir}")
@@ -231,6 +240,9 @@ if not options.no_js9:
                         os.unlink(js9_tarball_path)
                     else:
                         raise
+                finally:
+                    if sys.prefix == "/.radiopadre/venv":
+                        os.unlink(js9_tarball_path)
 
             js9_dir = f"{PADRE_PATH}/js9-{options.js9_release}"
             if not os.path.isdir(js9_dir):
@@ -297,7 +309,16 @@ else:
     message("Downloading socket.io.js into {notebook_socket_io}")
     shell(f"wget {SOCKET_IO_LINK} -O {notebook_socket_io}")
 
+# install puppeteer
 
+npm = which_opt('npm')
+node = which_opt('node') or which_opt('nodejs')
+if not npm:
+    message("WARNING: npm command not found. Puppeteer HTML rendering will not be available. Will try phantomjs instead.")
+elif not node:
+    message("WARNING: node/nodejs command not found. Puppeteer HTML rendering will not be available. Will try phantomjs instead.")
+else:
+    shell(f"cd {PADRE_VENV}; npm install utf-8-validate bufferutil puppeteer@2.1.0")
 
 open(complete_cookie, "w").write("installed by {__file__}".format(**globals()))
 

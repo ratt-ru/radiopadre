@@ -205,8 +205,7 @@ def render_url(fullpath, notebook=False): # , prefix="files"):
     if fullpath.startswith('http://'):
         url = fullpath
     else:
-        url = os.path.normpath(os.path.join(radiopadre.FILE_URL_ROOT if not notebook else radiopadre.NOTEBOOK_URL_ROOT,
-                                            fullpath))
+        url = (radiopadre.FILE_URL_ROOT if not notebook else radiopadre.NOTEBOOK_URL_ROOT) + fullpath
     # print "{} URL is {}".format(fullpath, url)
     return url
 

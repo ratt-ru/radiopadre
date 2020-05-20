@@ -16,6 +16,16 @@ PIL.Image.MAX_IMAGE_PIXELS = 30000**2
 def is_svg_file(imagepath):
     return os.path.splitext(imagepath)[1].lower() == ".svg"
 
+def _mtime(mtime):
+    """
+    Sticks mtime into URL, to force a reload of cache if the file has changed.
+    Since this breaks nbconvert, we omit it in that mode.
+    """
+    if radiopadre.NBCONVERT:
+        return ""
+    else:
+        return f"?mtime={mtime}"
+
 def _make_thumbnail(image, width):
     thumbdir, thumbdir_url = radiopadre.get_cache_dir(image, "thumbs")
     if thumbdir is None:
@@ -41,7 +51,7 @@ def _make_thumbnail(image, width):
         img.save(thumb)
 #        print "rendered thumb", thumb
 
-    thumb_url += "?mtime={}".format(os.path.getmtime(thumb))
+    thumb_url += _mtime(os.path.getmtime(thumb))
 
     #        if os.system("convert -thumbnail %d %s %s" % (width, image, thumb)):
 #            raise RuntimeError("thumbnail convert failed, maybe imagemagick is not installed?")
@@ -65,18 +75,17 @@ class ImageFile(radiopadre.file.FileBase):
         npix_thumb = settings.thumb.width or settings.display.cell_width // settings.thumb.mincol
         npix = npix or npix_thumb
         url = url or render_url(imagepath)
+        if mtime is not None:
+            url += _mtime(mtime or os.path.getmtime(imagepath))
 
         if is_svg_file(imagepath):
-            thumb_realfile = thumb = None    # SVG files rendered natively, no thumbnail needed
+            thumb = None    # SVG files rendered natively, no thumbnail needed
         else:
-            thumb_realfile, thumb = _make_thumbnail(imagepath, npix_thumb)
+            _, thumb = _make_thumbnail(imagepath, npix_thumb)
 
-        if thumb:
-            return "<a href='{}?mtime={}' target='_blank'><img src='{}' width={} alt='?'></a>".format(
-                url, mtime, render_url(thumb), npix)
-        else:
-            return "<a href='{}?mtime={}' target='_blank'><img src='{}?mtime={}' width={} alt='?'></a>".format(
-                url, mtime, url, mtime, npix)
+        thumb_url = render_url(thumb) if thumb else url
+
+        return f"<a href='{url}' target='_blank'><img src='{thumb_url}' width={npix} alt='?'></a>"
 
     def _render_thumb_impl(self, npix=None, **kw):
         return ImageFile._render_thumbnail(self.fullpath, npix=npix)

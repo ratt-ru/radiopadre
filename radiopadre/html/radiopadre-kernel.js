@@ -190,7 +190,11 @@ if (appname === 'NotebookApp')
     document.radiopadre._show_code = 1
     document.radiopadre.toggle_show_code = function() {
         document.radiopadre.controls.update();
-        document.radiopadre._show_code = !document.radiopadre._show_code;
+        document.radiopadre.set_show_code(!document.radiopadre._show_code);
+    }
+
+    document.radiopadre.set_show_code = function(show) {
+        document.radiopadre._show_code = show;
         if (document.radiopadre._show_code){
              $('div.input').show();
         } else {

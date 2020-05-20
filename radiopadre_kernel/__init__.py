@@ -14,6 +14,8 @@ NOTEBOOK_URL_ROOT = None    # root URL for accessing notebooks through Jupyter (
 CACHE_URL_BASE = None       # base URL for cache, e.g. http://localhost:port/{SESSION_ID}/home/user/path
 CACHE_URL_ROOT = None       # URL for cache of root dir, e.g. http://localhost:port/{SESSION_ID}/home/user/path/to
 
+NBCONVERT = None            # set to True if running in notebook-convert mode (i.e. non-interactive)
+
 casacore_tables = None
 
 class PadreLogHandler(logging.Handler):
@@ -77,8 +79,6 @@ def init():
         # Since Jupyter is running under ~/.radiopadre/home/other/path, we can serve other's files from
         # /home/other/path/to as /files/to/.content
         subdir = SHADOW_ROOTDIR[len(SERVER_BASEDIR):]   # this becomes "/to" (or "" if paths are the same)
-        FILE_URL_ROOT = "/files{}/.radiopadre.content".format(subdir)
-        NOTEBOOK_URL_ROOT = "/notebooks{}/.radiopadre.content".format(subdir)
         # but do make sure that the .content symlink is in place!
         _make_symlink(ABSROOTDIR, SHADOW_ROOTDIR + "/.radiopadre.content")
     # else running in native mode
@@ -88,8 +88,6 @@ def init():
                 This is probably a bug! """)
         # for a server dir of /home/user/path, and an ABSROOTDIR of /home/oms/path/to, get the subdir
         subdir = ABSROOTDIR[len(SERVER_BASEDIR):]   # this becomes "/to" (or "" if paths are the same)
-        FILE_URL_ROOT = "/files" + subdir
-        NOTEBOOK_URL_ROOT = "/notebooks" + subdir
 
     os.chdir(ABSROOTDIR)
     ROOTDIR = '.'
@@ -114,6 +112,18 @@ def init():
     SHADOW_URL_PREFIX = f"http://localhost:{iglesia.HTTPSERVER_PORT}/{SESSION_ID}"
     CACHE_URL_ROOT = SHADOW_URL_PREFIX + ABSROOTDIR
     CACHE_URL_BASE = CACHE_URL_ROOT[:-len(subdir)] if subdir else CACHE_URL_ROOT
+
+    # when running nbconvert, it doesn't know about the magic "/files" URL, and just needs a local filename
+    global NBCONVERT
+    NBCONVERT = bool(os.environ.get("RADIOPADRE_NBCONVERT"))
+    files_prefix = "." if NBCONVERT else "/files"
+
+    if SNOOP_MODE:
+        FILE_URL_ROOT = f"{files_prefix}{subdir}/.radiopadre.content/"
+        NOTEBOOK_URL_ROOT = f"/notebooks{subdir}/.radiopadre.content/"
+    else:
+        FILE_URL_ROOT = f"{files_prefix}{subdir}/"
+        NOTEBOOK_URL_ROOT = f"/notebooks{subdir}/"
 
     # init JS9 sources
     from . import js9

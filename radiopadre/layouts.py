@@ -80,14 +80,19 @@ def Title(title, sections=[], logo=None, logo_width=0, logo_padding=8, icon=None
 def Section(name):
     """Renders a section heading, with a bookmarks bar"""
     global _ALL_SECTIONS
-    
-    if name[0] == "*":
+
+    if name[0] == "*" and not radiopadre.NBCONVERT:
         name = name[1:]
 
         if icon_image:
-            btn_style = "padding-left: 1px; padding-right: 1px;"
+            btn_style = """padding-left: 1px; padding-right: 1px;
+                           border-right-width: 1px; border-left-width: 1px; 
+                           border-top-width: 1px; border-bottom-width: 1px;"""
         else:
-            btn_style = "padding-left: 1px; padding-right: 1px; width: 1.5em; height: 1.5em"
+            btn_style = """padding-left: 1px; padding-right: 1px; 
+                           border-right-width: 1px; border-left-width: 1px; 
+                           border-top-width: 1px; border-bottom-width: 1px; 
+                           width: 1.5em; height: 1.5em"""
 
         refresh = render.render_refresh_button(style=btn_style, content=icon_image)
         refresh = """<div style="float: left;"> {refresh} </div>""".format(**locals())
@@ -96,11 +101,13 @@ def Section(name):
         refresh = icon_image
         title_style = ""
 
+    name = name.lstrip("*")
+
     if name not in _ALL_SECTIONS:
         add_section(name)
     label = _ALL_SECTIONS[name]
 
-    bookmarks = render_bookmarks_bar(name)
+    bookmarks = render_bookmarks_bar(name) if not radiopadre.NBCONVERT else ""
 
     code = f"""
         <div style="display: table-cell; font-size: 0.8em; vertical-align: top; text-align: right; float: right"> 
@@ -114,8 +121,8 @@ def Section(name):
                 <div style="display: table-cell; vertical-align: middle; font-size: 1.5em; font-weight: bold; {title_style};">
                     <A name="{label}" /> {name}
                 </div>
-                <div style="display: table-cell;>
-                </div>  
+                <div style="display: table-cell;">
+                </div>
             </div>
         </div>
         """

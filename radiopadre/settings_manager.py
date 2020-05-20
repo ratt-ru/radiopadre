@@ -178,5 +178,5 @@ class RadiopadreSettingsManager(SettingsManager):
 
         html = self.add_section("html", "settings for rendering of HTML thumbnails")
 
-        html.width  = 1920, D("default width of thumbnail")
-        html.height = 1024, D("default height of thumbnail")
+        html.width  = 1920, D("default width of HTML canvas")
+        html.height = 1024, D("default height of HTML canvas")

@@ -18,7 +18,7 @@ from radiopadre_kernel import SESSION_ID, VERBOSE, HOSTNAME, \
     LOGFILE, ABSROOTDIR, ROOTDIR, DISPLAY_ROOTDIR, SHADOW_HOME, SERVER_BASEDIR, \
     SHADOW_BASEDIR, SHADOW_ROOTDIR, SHADOW_URL_PREFIX, \
     FILE_URL_ROOT, NOTEBOOK_URL_ROOT, CACHE_URL_BASE, CACHE_URL_ROOT, \
-    SESSION_DIR, SESSION_URL
+    SESSION_DIR, SESSION_URL, NBCONVERT
 
 # init settings
 settings = settings_manager.RadiopadreSettingsManager()
@@ -171,8 +171,9 @@ def _init_js_side():
         html += js9.JS9_INIT_HTML_DYNAMIC
 
     # get buttons from various modules
-    from . import fitsfile
-    html += fitsfile.add_general_buttons()
+    if not NBCONVERT:
+        from . import fitsfile
+        html += fitsfile.add_general_buttons()
 
     # get list of warnings and errors from init
     errors = radiopadre_kernel.log_handler.get_records('WARNING')
@@ -181,6 +182,8 @@ def _init_js_side():
 
     display(HTML(html))
 
+def hide_cell_code(hide=True):
+    display(Javascript(f"document.radiopadre.set_show_code({int(not hide)});"))
 
 def set_window_sizes(cell_width, window_width, window_height):
     if settings.display.auto_reset:
@@ -271,6 +274,7 @@ from .filelist import FileList
 from .fitsfile import FITSFile
 from .imagefile import ImageFile
 from .casatable import CasaTable
+from .htmlfile import HTMLFile, URL
 from .table import tabulate
 from .render import render_table, render_preamble, render_refresh_button, render_status_message, rich_string, render_url, render_title
 

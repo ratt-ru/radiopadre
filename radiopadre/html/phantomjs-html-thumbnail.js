@@ -5,7 +5,7 @@ var page = new WebPage(),
     address, output, size, width, height, timeout;
 
 if (system.args.length < 6) {
-    console.log('Usage: html-thumbnail.js URL filename width height timeout');
+    console.log('Usage: phantomjs-html-thumbnail.js URL filename width height timeout');
     system.exit();
 } else {
     address = system.args[1];
