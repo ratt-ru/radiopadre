@@ -36,8 +36,8 @@ class RenderError(RuntimeError):
 def _render_html(url, dest, width, height, timeout):
     if settings.html.method == "phantomjs":
         script = os.path.join(os.path.dirname(__file__), "html/phantomjs-html-thumbnail.js")
-        cmd = [nodejs]
-        if settings.html.debug_phantomjs:
+        cmd = [phantomjs]
+        if settings.html.debug:
             cmd.append("--debug=true")
         cmd += [script, url, dest, width, height, timeout]
         env = os.environ.copy()
