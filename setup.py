@@ -5,7 +5,7 @@ from setuptools.command.install import install
 from setuptools.command.develop import develop
 from wheel.bdist_wheel import bdist_wheel
 
-__version__ = "1.0-pre12"
+__version__ = "1.0"
 build_root = os.path.dirname(__file__)
 
 with open("requirements.txt") as stdr:
@@ -66,7 +66,7 @@ setup(
               'bdist_wheel': WheelSetupVenvCommand,
     },
     classifiers=[
-        "Development Status :: 4 - Beta",
+        "Development Status :: 5 - Production/Stable",
         "Topic :: Utilities",
         "License :: OSI Approved :: MIT License",
         "Programming Language :: Python :: 3.6",

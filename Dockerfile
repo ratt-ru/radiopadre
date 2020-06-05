@@ -56,7 +56,7 @@ RUN pip3 install --no-cache-dir -U pip setuptools
 
 ADD . /radiopadre
 
-ARG CLIENT_BRANCH=b1.0-pre12
+ARG CLIENT_BRANCH=b1.0
 
 #ARG CARTA_VERSION=1.3.1
 #ENV RADIOPADRE_CARTA_VERSION=$CARTA_VERSION
