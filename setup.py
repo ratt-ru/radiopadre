@@ -66,7 +66,7 @@ setup(
               'bdist_wheel': WheelSetupVenvCommand,
     },
     classifiers=[
-        "Development Status :: 4 - Beta",
+        "Development Status :: 5 - Production/Stable",
         "Topic :: Utilities",
         "License :: OSI Approved :: MIT License",
         "Programming Language :: Python :: 3.6",
