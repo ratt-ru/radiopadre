@@ -11,7 +11,7 @@ from radiopadre import settings
 from radiopadre.render import RenderableElement, render_refresh_button, rich_string, render_url, TransientMessage
 from collections import OrderedDict
 from radiopadre import casacore_tables
-
+from iglesia import debug
 
 class ItemBase(RenderableElement):
     """Base class referring to an abstract displayable data item.
@@ -180,36 +180,46 @@ class ItemBase(RenderableElement):
         finally:
             self.clear_message()
 
-    def render_thumb(self, context=None, prefix="", **kw):
+    def render_thumb(self, context=None, prefix="", title=True, buttons=True, **kw):
         """
         Renders a "thumbnail view" of the file, using _render_thumb_impl() for the content
         """
-        title = self._render_title_link(context=context, **kw)
-        thumb_content = self._render_thumb_impl(context=context, **kw)
-        action_buttons = self._action_buttons_(context=context, defaults=kw) or ""
         path = getattr(self, 'path', self.title)
-
-        if action_buttons:
-            action_buttons = """<tr style="background: transparent"><td style="padding: 0; padding-top: 2px">{}</td></tr>""".format(action_buttons)
-
-        return f"""
-            <div style="width: 100%">
-            <table style="border: 0px; text-align: left; width: 100%">
+        if title:
+            title = self._render_title_link(context=context, **kw)
+            title = f"""
                 <tr style="border: 0px; text-align: left">
                     <td style="padding: 0">
                         <table style="border: 0px; text-align: left; width: 100%">
                             <tr>
                                 <td style="border: 0px; background: #D0D0D0; text-align: left; width: 3em">{prefix}</td>
-                                <td title={path} style="border: 0px; background: #D0D0D0; text-align: center; max-width: 99%">
+                                <td title="{path}" style="border: 0px; background: #D0D0D0; text-align: center; max-width: 99%">
                                     {title}
                                 </td>
                             </tr>
                         </table>
                     </td>
                 </tr>
+            """
+        else:
+            title = ""
+        if buttons:
+            action_buttons = self._action_buttons_(context=context, defaults=kw) or ""
+            action_buttons = f"""<tr style="background: transparent">
+                                    <td style="padding: 0; padding-top: 2px">{action_buttons}</td>
+                                 </tr>"""
+        else:
+            action_buttons = ""
+
+        thumb_content = self._render_thumb_impl(context=context, **kw)
+
+        return f"""
+            <div style="width: 100%">
+            <table style="border: 0px; text-align: left; width: 100%">
+                {title}
                 {action_buttons}
                 <tr style="border: 0px; text-align: left; background: transparent">
-                    <td style="border: 0px; text-align: center; width: 100%; padding-right: 0; padding-left: 0">
+                    <td title="{path}" style="border: 0px; text-align: center; width: 100%; padding-right: 0; padding-left: 0">
                     <div style="position: relative">
                         <div>
                             {thumb_content}
@@ -438,9 +448,11 @@ class FileBase(ItemBase):
 
         # make name from components
         filename = ".".join([self.basename] + ["{}-{}".format(*item) for item in keydict.items()] + [ext])
-
         filepath = "{}/{}".format(path, filename)
-        update = not os.path.exists(filepath) or self.mtime > os.path.getmtime(filepath)
+
+        cache_mtime = os.path.getmtime(filepath) if os.path.exists(filepath) else 0
+        update = self.mtime > cache_mtime
+        #debug(f"cache file {filepath} older by {self.mtime-cache_mtime}, update is {update}")
 
         # check hashes
         if not update:
@@ -453,6 +465,7 @@ class FileBase(ItemBase):
             hashfile = filepath + ".md5"
             # print(hashfile, digest)
             if not os.path.exists(hashfile) or open(hashfile, 'rb').read() != digest:
+                #debug(f"cache file {filepath}: hash doesn't match, will update")
                 update = True
                 open(hashfile, 'wb').write(digest)
 

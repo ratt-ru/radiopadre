@@ -280,6 +280,7 @@ class FITSFile(radiopadre.file.FileBase):
              ncol=None,
              mincol=None,
              maxcol=None,
+             maxplots=10,            # max number of plots to show
              fs='medium',
              fs_title='large',
              fs_axis=None,
@@ -428,13 +429,14 @@ class FITSFile(radiopadre.file.FileBase):
                 name_image_url.append((self.short_summary, image, url))
             else:
                 status += ", unrolling " + axis_type[unroll]
-                nrow, ncol, width = radiopadre.file.compute_thumb_geometry(dims[unroll],
+                nplots = min(dims[unroll], maxplots) if maxplots else dims[unroll]
+                nrow, ncol, width = radiopadre.file.compute_thumb_geometry(nplots,
                                                                            ncol, mincol,
                                                                            maxcol, width,
                                                                            maxwidth)
                 plt.figure(figsize=(width * ncol, width * nrow), dpi=settings.plot.screen_dpi)
                 # plt.suptitle(self.basename)
-                for iplot in range(dims[unroll]):
+                for iplot in range(nplots):
                     image, url, update = self._get_png_file(vmin=vmin, vmax=vmax, cmap=cmap, scale=scale, zoom=zoom,
                                                             keydict={axis_type[unroll]: iplot})
                     if update or refresh:
