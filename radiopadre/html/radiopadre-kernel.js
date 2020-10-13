@@ -177,10 +177,13 @@ if (appname === 'NotebookApp')
 //        console.log("container is", container, 'offsetWidth:', container.offsetWidth, 'style.width:', container.style.width, ';')
         if( document.radiopadre._full_width ) {
             document.radiopadre._default_width_px = container.style.width;
+            document.radiopadre._default_left_margin = container.style.marginLeft;
             container.style.width = "100%";
+            container.style.marginLeft = "0px";
 //            console.log("set 100% width");
         } else {
             container.style.width = document.radiopadre._default_width_px;
+            container.style.marginLeft = document.radiopadre._default_left_margin;
 //            console.log("set default width", document.radiopadre._default_width_px);
         }
         document.radiopadre.controls.update();
