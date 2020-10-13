@@ -71,11 +71,11 @@ class HTMLFile(FileBase):
     def __init__(self, *args, **kw):
         FileBase.__init__(self, *args, **kw)
 
-    def render_html(self, width="99%", context=None, height=None):
+    def render_html(self, width="99%", context=None, height=None, title=None, **kw):
         width = width or settings.display.cell_width
         height = height or settings.display.window_height
         url = render_url(self.fullpath)
-        html = render_preamble() + render_title(self.title)
+        html = render_preamble() + self._header_html(title=title)
         html += """<IFRAME width={width} height={height} src={url}></IFRAME>""".format(**locals())
         return html
 
@@ -102,10 +102,10 @@ class URL(ItemBase):
         self.url = url
         self.fullpath = self.path = url
 
-    def render_html(self, width="99%", context=None, height=None):
+    def render_html(self, width="99%", context=None, height=None, title=None, **kw):
         width = width or settings.display.cell_width
         height = height or settings.display.window_height
-        html = render_preamble() + render_title(self.title)
+        html = render_preamble() + self._header_html(title=title)
         html += f"""<IFRAME width={width} height={height} src={self.url}></IFRAME>"""
         return html
 

@@ -91,24 +91,27 @@ class RenderingProxy(RenderableElement):
         else:
             return html
 
-
-
-
 class RichString(RenderableElement):
     """
     A rich_string object contains a plain string and an HTML version of itself, and will render itself
     in a notebook front-end appropriately
     """
-    def __init__(self, text, html=None, bold=False):
+    def __init__(self, text, html=None, bold=False, element=None, styles={}):
         self._text = text ## python2: text.encode("utf-8"), in 3 it's already unicode
         if html:
             self._html = html
         else:
-#            if type(text) is unicode:
             text = text.encode("ascii", "xmlcharrefreplace").decode()  # python3 adds decode
- #           else:
-#              text = cgi.escape(text)
-            self._html = "<B>{}</B>".format(text) if bold else text
+            if bold:
+                element = "B"
+            if styles and not element:
+                element = "DIV"
+            if element:
+                styles = "; ".join([f"{key}:{value}" for key, value in styles.items()])
+                styles = f'style="{styles}"' if styles else '' 
+                self._html = f"<{element} {styles}>{text}</{element}>"
+            else:
+                self._html = text
 
     def copy(self):
         return RichString(self._text, self._html)
@@ -189,6 +192,23 @@ def rich_string(text, html=None, bold=False):
         return text
     return RichString(text, html, bold=bold)
 
+
+def Text(text, **styles):
+    """Returns text rendered in HTML"""
+    return RichString(text, styles=styles)
+
+def Bold(text, **styles):
+    """Returns text rendered in boldface in HTML"""
+    return RichString(text, element="B", styles=styles)
+
+def Italic(text, **styles):
+    """Returns text rendered in italic in HTML"""
+    return RichString(text, element="I", styles=styles)
+
+def ColText(text, color="red", **styles):
+    """Returns text rendered in italic in HTML"""
+    styles['color'] = color
+    return RichString(text, styles=styles)
 
 def render_preamble():
     """Renders HTML preamble.

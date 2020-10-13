@@ -424,7 +424,7 @@ class FITSFile(radiopadre.file.FileBase):
                     plt.xlim(*xlim)
                     plt.ylim(*ylim)
                     fig.savefig(image, dpi=settings.plot.screen_dpi, bbox_inches='tight')
-#                    print "rendered", image
+                    # print("rendered", image)
                     plt.close(fig)
                 name_image_url.append((self.short_summary, image, url))
             else:
@@ -434,7 +434,7 @@ class FITSFile(radiopadre.file.FileBase):
                                                                            ncol, mincol,
                                                                            maxcol, width,
                                                                            maxwidth)
-                plt.figure(figsize=(width * ncol, width * nrow), dpi=settings.plot.screen_dpi)
+                # plt.figure(figsize=(width * ncol, width * nrow), dpi=settings.plot.screen_dpi)
                 # plt.suptitle(self.basename)
                 for iplot in range(nplots):
                     image, url, update = self._get_png_file(vmin=vmin, vmax=vmax, cmap=cmap, scale=scale, zoom=zoom,

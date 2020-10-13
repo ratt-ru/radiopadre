@@ -130,35 +130,38 @@ class ItemBase(RenderableElement):
 
     # These methods are meant to be reimplemented by subclasses
 
-    def render_text(self, *args, **kw):
+    def render_text(self, title=None, **kw):
         """
         Method to be implemented by subclasses. Default version falls back to summary().
         :return: plain-text rendering of file content
         """
-        return rich_string(self.summary).text
+        return self._header_text(title=title)
 
-    def render_html(self, *args, **kw):
+    def render_html(self, title=None, **kw):
         """
         Method to be implemented by subclasses. Default version falls back to summary().
         :return: HTML rendering of file content
         """
-        return rich_string(self.summary).html
+        return self._header_html(title=title)
 
-    def _header_text(self, subtitle=None):
+    def _header_text(self, title=None, subtitle=None):
         """Helper method, returns standard header line based on title, subtitle and description"""
-        if self.title or self.description:
-            if self.title:
-                return "{}{}: {}\n".format(str(self.title), subtitle or '',self.description)
-            else:
-                return "{}\n".format(self.description)
+        if title is not False:
+            if title is not None:
+                return str(title)
+            subtitle = subtitle if subtitle is not None else self.description
+            return f"{self.title}: {subtitle}\n" if self.title else f"{subtitle}\n"
         return ""
 
-    def _header_html(self, subtitle=None):
-        if self.title or self.description:
-            if self.title:
-                return "{}{}: {}\n".format(self.title.html, rich_string(subtitle).html, self.description.html)
-            else:
-                return "{}\n".format(self.description.html)
+    def _header_html(self, title=None, subtitle=None):
+        """Helper method, returns standard header line based on title, subtitle and description.
+        title=False to omit title, else != None to override title
+        """
+        if title is not False:
+            if title is not None:
+                return rich_string(title).html
+            subtitle = rich_string(subtitle if subtitle is not None else self.description)
+            return f"{self.title.html}: {subtitle.html}\n" if self.title else f"{subtitle.html}\n"
         return ""
 
     def message(self, msg, timeout=3, color='blue'):
@@ -180,13 +183,14 @@ class ItemBase(RenderableElement):
         finally:
             self.clear_message()
 
-    def render_thumb(self, context=None, prefix="", title=True, buttons=True, **kw):
+    def render_thumb(self, context=None, prefix="", title=None, buttons=True, **kw):
         """
         Renders a "thumbnail view" of the file, using _render_thumb_impl() for the content
+        The title argument will override the title, or disable titlebar if False.
         """
         path = getattr(self, 'path', self.title)
-        if title:
-            title = self._render_title_link(context=context, **kw)
+        if title is not False:
+            title = self._render_title_link(context=context, title=title, **kw)
             title = f"""
                 <tr style="border: 0px; text-align: left">
                     <td style="padding: 0">
@@ -231,9 +235,9 @@ class ItemBase(RenderableElement):
             </div>
             """
 
-    def _render_title_link(self, **kw):
+    def _render_title_link(self, title=None, **kw):
         """Renders the name of the item and/or link"""
-        return self.title
+        return self.title if title is None else rich_string(title).html
 
     def _render_thumb_impl(self, **kw):
         return self.description

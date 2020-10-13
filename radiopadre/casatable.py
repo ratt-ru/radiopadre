@@ -370,7 +370,7 @@ class CasaTable(radiopadre.file.FileBase):
             desc = ""
         return slicer, desc, colformat
 
-    def render_html(self, firstrow=0, nrows=100, native=False, allcols=False, _=None, context=None, **columns):
+    def render_html(self, firstrow=0, nrows=100, native=False, allcols=False, _=None, context=None, title=None, **columns):
         with self.transient_message("Rendering {}, please wait...".format(self.fullpath)):
             html = self._header_html() + "\n\n"
             #       render_refresh_button(full=self._parent and self._parent.is_updated())

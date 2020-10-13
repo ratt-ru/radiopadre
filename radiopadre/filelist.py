@@ -13,8 +13,8 @@ from radiopadre import settings
 
 class FileList(FileBase, list):
     @staticmethod
-    def list_to_string(filelist):
-        return "{}:\n{}".format(filelist._header_text(), "\n".join(
+    def list_to_string(filelist, title=None):
+        return "{}:\n{}".format(filelist._header_text(title=title), "\n".join(
                             ["{}: {}".format(i, d.path) for i, d in enumerate(filelist)]))
 
     def __init__(self, content=None, path=".", extcol=False, showpath=False,
@@ -71,9 +71,9 @@ class FileList(FileBase, list):
         return getattr(object_classes.pop(), method, None)
 
 
-    def render_html(self, ncol=None, context=None, **kw):
+    def render_html(self, ncol=None, context=None, title=None, **kw):
         self._load()
-        html = render_preamble() + self._header_html()
+        html = render_preamble() + self._header_html(title=title)
                # + render_refresh_button(full=self._parent and self._parent.is_updated())
 
         arrow = "&uarr;" if "r" in self._sort else "&darr;"
@@ -127,9 +127,9 @@ class FileList(FileBase, list):
                              context=context)
         return html
 
-    def render_text(self):
+    def render_text(self, title=None, **kw):
         self._load()
-        return FileList.list_to_string(self)
+        return FileList.list_to_string(self, title=title)
 
     @property
     def downloadable_url(self):
@@ -144,18 +144,18 @@ class FileList(FileBase, list):
     #     display(HTML(render_refresh_button()))
     #     self.show_all(*args,**kw)
 
-    def render_thumbnail_catalog(self, ncol=None, mincol=None, maxcol=None, context=None, title=True, buttons=True, **kw):
+    def render_thumbnail_catalog(self, ncol=None, mincol=None, maxcol=None, context=None, title=None, titles=True, buttons=True, **kw):
         self._load()
         with self.transient_message("Rendering {} thumbnail(s)".format(len(self))):
             def _make_thumb(num_item):
-                return num_item[1].thumb(prefix=num_item[0], title=title, buttons=buttons, **kw)
+                return num_item[1].thumb(prefix=num_item[0], title=None if titles else False, buttons=buttons, **kw)
 
             if executor.ncpu() < 2:
                 thumbs = list(map(_make_thumb, enumerate(self)))
             else:
                 thumbs = list(executor.executor().map(_make_thumb, enumerate(self)))
 
-            html = render_preamble() + self._header_html()
+            html = render_preamble() + self._header_html(title=title)
 
             action_buttons = self._get_collective_method('_collective_action_buttons_')
             if action_buttons:

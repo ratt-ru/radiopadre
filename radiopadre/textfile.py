@@ -98,19 +98,33 @@ class NumberedLineList(ItemBase):
         tail = lines[-tail:] if tail else []
         return head, tail
 
-    def render_text(self, head=None, tail=None, full=None, grep=None, slicer=None, subtitle=None):
-        self.rescan(load=False)
-        txt = self._header_text(subtitle)
-        # read file, unless head and tail is already passed in
+    def _get_render_subset(self, head, tail, full, grep, slicer):
+        """helper method for render_text() and render_html(). Returns head, tail and subtitles corresponding 
+        to input arguments""" 
+        subtitle = []
+        if type(head) is int and head:
+            subtitle.append(f"head {head}")
+        if type(tail) is int and tail:
+            subtitle.append(f"tail {tail}")
         if type(head) is not list or type(tail) is not list:
             self.rescan(load=True)
             head = settings.text.get(head=head)
             tail = settings.text.get(tail=tail)
             head, tail = self._get_lines(head, tail, full, grep, slicer)
+        if grep:
+            subtitle.append(f"grep '{grep}': {len(head)} matching lines")
+        subtitle=", ".join(subtitle) if subtitle else None
+        return subtitle, head, tail
+
+    def render_text(self, head=None, tail=None, full=None, grep=None, slicer=None, title=None, number=None, **kw):
+        self.rescan(load=False)
+        subtitle, head, tail = self._get_render_subset(head, tail, full, grep, slicer)
+        txt = self._header_text(title=title, subtitle=subtitle)
         # empty head and tail: return just the title
         if not head and not tail:
             return txt
-        format = "{0}: {1}\n" if self._show_numbers else "{1}\n"
+        show_numbers = self._show_numbers if number is None else number
+        format = "{0}: {1}\n" if show_numbers else "{1}\n"
         for line_num, line in head:
             txt += format.format(line_num+1, line.strip())
             # txt += "{}: {}\n".format(line_num + 1, line.encode("utf-8").strip())
@@ -121,24 +135,17 @@ class NumberedLineList(ItemBase):
                 # txt += "{}: {}\n".format(line_num + 1, line.encode("utf-8").strip())
         return txt
 
-    def render_html(self, head=None, tail=None, full=None, grep=None, fs=None, slicer=None, subtitle=None, **kw):
+    def render_html(self, head=None, tail=None, full=None, grep=None, fs=None, slicer=None, title=None, number=None, **kw):
         self.rescan(load=False)
         txt = render_preamble()
         fs = settings.text.get(fs=fs)
-        # read file, unless head and tail is already passed in
-        if type(head) is not list or type(tail) is not list:
-            self.rescan(load=True)
-            head = settings.text.get(head=head)
-            tail = settings.text.get(tail=tail)
-            head, tail = self._get_lines(head, tail, full, grep, slicer)
-        # for up title
-        if grep:
-            txt += "grep '{}' {}: {} matching lines".format(grep, self.title.html, len(head))
-        else:
-            txt += self._header_html()
+        subtitle, head, tail = self._get_render_subset(head, tail, full, grep, slicer)
+        # form up title
+        txt += self._header_html(title=title, subtitle=subtitle)
         # empty head and tail: return just the title
         if not head and not tail:
             return txt
+        show_numbers = self._show_numbers if number is None else number
 
         # render as table
         border_style = "1px solid black"
@@ -149,7 +156,7 @@ class NumberedLineList(ItemBase):
             border_rl = border_style if line_num != "..." else "none"
             background = "#f2f2f2" if line_num != "..." else "none"
             line_num_html = ""
-            if self._show_numbers:
+            if show_numbers:
                 line_num_html = \
                     """<DIV style="display: table-cell; border-top: {border_top}; border-bottom: {border_bottom};
                                     border-left: {border_rl}; padding-left: 4px; padding-right: 4px;
@@ -219,7 +226,7 @@ class NumberedLineList(ItemBase):
         return """<A HREF='{url}' target='_blank' style="text-decoration: none">{text}</A>""".format(**locals())
 
     def grep(self, regex, fs=None):
-        return self._rendering_proxy('render_html', 'grep', grep=regex, fs=fs, subtitle=" (grep: {})".format(regex))
+        return self._rendering_proxy('render_html', 'grep', grep=regex, fs=fs)
 
     @property
     def head(self):
