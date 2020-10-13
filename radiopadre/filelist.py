@@ -280,10 +280,8 @@ class FileList(FileBase, list):
                         title=title, parent=self._parent)
 
     def _typed_subset(self, filetype, title):
-        if os.path.samefile(self.fullpath, radiopadre.ROOTDIR):
-            title = self.title + " [{}]".format(title)
-        else:
-            title = " [{}]".format(title)
+        title = rich_string("{} [{}]".format(self.title.text, title),
+                            "{} [{}]".format(self.title.html, title))
         return FileList([f for f in self if type(f) is filetype], path=self.fullpath, title=title,
                         parent=self, sort=self._sort)
 
