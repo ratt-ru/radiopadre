@@ -56,8 +56,9 @@ def _render_html(url, dest, width, height, timeout):
     message(f"running {' '.join(cmd)}")
     try:
         result = subprocess.run(cmd, check=True, env=env, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-    except subprocess.CalledProcessError as result:
-        error = f"{cmd[0]}: exit code {result.returncode}"
+    except subprocess.CalledProcessError as exc:
+        result = exc
+        error = f"{cmd[0]}: exit code {exc.returncode}"
         debug(error)
     stdout = result.stdout.decode() if result.stdout is not None else None
     stderr = result.stderr.decode() if result.stderr is not None else None
