@@ -107,11 +107,22 @@ class RichString(RenderableElement):
             if styles and not element:
                 element = "DIV"
             if element:
-                styles = "; ".join([f"{key}:{value}" for key, value in styles.items()])
-                styles = f'style="{styles}"' if styles else '' 
-                self._html = f"<{element} {styles}>{text}</{element}>"
+                style_str = ""
+                # process style directives
+                for key, value in styles.items():
+                    # "fs" gets special treatment
+                    if key == "fs" and type(value) in {int, float}:
+                        value = f"{int(value*100)}%"
+                    key = self._style_aliases.get(key, key.replace('_', '-'))
+                    style_str += f"{key}:{value}; "
+                # form up HTML
+                style_str = style_str and f'style="{style_str}"'
+                self._html = f"<{element} {style_str}>{text}</{element}>"
             else:
                 self._html = text
+
+    # this dictionary maps elements of the styles dict above to CSS styles
+    _style_aliases = dict(fs="font-size")
 
     def copy(self):
         return RichString(self._text, self._html)
