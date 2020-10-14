@@ -2,6 +2,7 @@ from IPython.display import display, HTML, Javascript
 import os
 import fnmatch
 import itertools
+import uuid
 
 from .file import FileBase
 from .render import render_table, render_preamble, render_refresh_button, render_url, rich_string
@@ -144,7 +145,8 @@ class FileList(FileBase, list):
     #     display(HTML(render_refresh_button()))
     #     self.show_all(*args,**kw)
 
-    def render_thumbnail_catalog(self, ncol=None, mincol=None, maxcol=None, context=None, title=None, titles=True, buttons=True, **kw):
+    def render_thumbnail_catalog(self, ncol=None, mincol=None, maxcol=None, context=None, title=None, titles=True, buttons=True, 
+                                 collapsed=None, **kw):
         self._load()
         with self.transient_message("Rendering {} thumbnail(s)".format(len(self))):
             def _make_thumb(num_item):
@@ -155,15 +157,50 @@ class FileList(FileBase, list):
             else:
                 thumbs = list(executor.executor().map(_make_thumb, enumerate(self)))
 
-            html = render_preamble() + self._header_html(title=title)
+            html = render_preamble()
+
+            uid = uuid.uuid4().hex
+            btn_symbol = {False: "&#xFF0D;", True: "&#xFF0B;"}  # unicode symbols for collapse button 
+            btn_title  = {False: "Click to collapse thumbnail display", True: "Click to expand thumbnail display"}
+
+            if collapsed is not None:
+                html += f"""<button id="btn-{uid}" type="button" class="rp-thumbnail-collapsible"
+                             style="border: 1px solid grey; outline: none; background-color: inherit; font-size: 0.8em"
+                             title="{btn_title[bool(collapsed)]}"
+                         >
+                         {btn_symbol[bool(collapsed)]}
+                         </button>&nbsp;"""
+            
+            html += self._header_html(title=title)
 
             action_buttons = self._get_collective_method('_collective_action_buttons_')
             if action_buttons:
                 html += action_buttons(self, context=context)
 
-            html += radiopadre.tabulate(thumbs, ncol=ncol, cw="equal",
+            html += f"""<div id="thumbs-{uid}" style="display:{'none' if collapsed else 'block'}">""" + \
+                    radiopadre.tabulate(thumbs, ncol=ncol, cw="equal",
                                 mincol=mincol or settings.thumb.mincol, maxcol=maxcol or settings.thumb.maxcol,
-                                zebra=False, align="center").render_html(context=context, **kw)
+                                zebra=False, align="center").render_html(context=context, **kw) + \
+                    "</div>"
+            if collapsed is not None:
+                html += f"""<script>
+                    btn = document.getElementById("btn-{uid}");
+                    btn.addEventListener("click", function() {{
+                        var content = document.getElementById("thumbs-{uid}");
+                        this.classList.toggle("active");
+                        if (content.style.display === "block") {{
+                            content.style.display = "none";
+                            this.innerHTML = "{btn_symbol[True]}"
+                            this.title = "{btn_symbol[True]}"
+                        }} else {{
+                            content.style.display = "block";
+                            this.innerHTML = "{btn_symbol[False]}"
+                            this.title = "{btn_title[False]}"
+                        }}
+                    }});
+                </script>
+                """
+
         return html
 
     @property
