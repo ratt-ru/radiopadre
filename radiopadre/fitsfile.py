@@ -594,7 +594,7 @@ class FITSFile(radiopadre.file.FileBase):
 
     @staticmethod
     def _collective_action_buttons_(fits_files, context, defaults=None):
-        """Renders JS9 buttons for a collection of images"""
+        """Renders JS9 buttons for a collection of images."""
         subs = globals().copy()
         subs.update(display_id=context.div_id, **locals())
 
@@ -617,10 +617,12 @@ class FITSFile(radiopadre.file.FileBase):
         </script>""".format(**subs)
 
         code = """
-            <button title="display all images using an inline JS9 window" style="font-size: 0.8em; height=0.8em;"
-                    onclick="JS9p._pd_{display_id}_load_all()">&#8595;JS9 all</button>
-            <button title="display all images using JS9 in a new browser tab" style="font-size: 0.8em;  height=0.8em;"
-                    onclick="window.open('{newtab_html}', '_blank')">&#8663;JS9 all</button>
+            <div class="rp-collective-buttons">
+            <div><button title="display all images using an inline JS9 window" 
+                        onclick="JS9p._pd_{display_id}_load_all()">&#8595;JS9 all</button></div>
+            <div><button title="display all images using JS9 in a new browser tab"  
+                    onclick="window.open('{newtab_html}', '_blank')">&#8663;JS9 all</button></div>
+            </div>
         """.format(**subs)
         return code
 

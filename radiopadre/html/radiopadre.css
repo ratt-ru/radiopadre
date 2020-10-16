@@ -1,8 +1,93 @@
+.rp-content-block { 
+  display: table;
+  width: 100%;
+}
+
+.rp-content-block .title-bar { 
+  display: table-row;
+  width: 100%;
+}
+
+.rp-content-block .title-bar-spacer { 
+  display: table-row;
+  height: 0.5em;
+}
+
+.rp-content-block .rp-content { 
+  display: table-row;
+  width: 100%;
+}
+
+.rp-content-block .title-bar .actions-container { 
+  display: table-cell;
+  float: right; 
+  vertical-align: top;
+}
+
+.rp-content-block .title-bar .button-container {
+  display: table-cell;
+  width: 100%;
+  vertical-align: top;
+}
+
+.rp-title-button {
+  overflow: hidden;
+  width: 100%;
+  border: 1px solid grey; 
+  outline: none; 
+  background-color: inherit; 
+  padding-left: 10px; padding-right: 1px; 
+  border-right-width: 1px; border-left-width: 1px; 
+  border-top-width: 1px; border-bottom-width: 1px; 
+  text-align: left;
+  cursor: default;
+}
+
+.rp-collapsible {
+  padding-left: 1px;  
+  cursor: zoom-out;
+}
+
+.rp-collapsed {
+  cursor: zoom-in;
+}
+
+.rp-collapsible:before {
+  content: '\25BC'; /* '\02796'; */
+  float: left;
+  width: 3ex;
+  text-align: center;
+/*  padding-left: 1ex; 
+  padding-right: 1ex; */
+}
+
+.rp-collapsed:before {
+  content: '\25B8'; /* '\02795'; */
+}
+
+
+.rp-collective-buttons {
+  display: table-row;
+}
+
+.rp-collective-buttons div {
+  display: table-cell;
+}
+
+.rp-collective-buttons button {
+  white-space: nowrap;
+  border: 1px solid grey; 
+  font-size: 0.8em;  
+  /* background-color: inherit; */
+}
+
+
+
 /* Tooltip container */
 .tooltip {
-  # position: relative;
-  # display: inline-block;
-  # border-bottom: 1px dotted black; /* If you want dots under the hoverable text */
+  position: relative;
+  display: inline-block;
+  border-bottom: 1px dotted black; 
 }
 
 /* Tooltip text */

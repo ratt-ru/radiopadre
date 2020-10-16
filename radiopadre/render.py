@@ -196,7 +196,7 @@ def htmlize(text):
 
 def rich_string(text, html=None, bold=False):
     if text is None:
-        return RichString('')
+        return RichString('', html, bold=bold)
     elif type(text) is RichString:
         if html is not None:
             raise TypeError("can't call rich_string(RichString,html): this is a bug")
@@ -245,7 +245,7 @@ def render_url(fullpath, notebook=False): # , prefix="files"):
 
 def render_title(title):
     if title:
-        return title.html if type(title) is RichString else "<b>{}</b>".format(htmlize(title))
+        return title.html if type(title) is RichString else Bold(title).html
     return ''
 
 def render_error(message):
@@ -418,4 +418,77 @@ def render_refresh_button(full=False, style="position: absolute; right: 0; top: 
         """
     return txt
 
+_collapsible_title  = {None:"", False: "Click to collapse display", True: "Click to expand display"}
 
+
+def render_titled_content(title_html, content_html, buttons_html=None, collapsed=None):
+    """
+    Renders a block of content with a title bar, and optional action buttons.
+    If collapsed is True or False, content is collapsible.
+    """
+    uid = uuid.uuid4().hex
+
+    html = f"""<div class="rp-content-block">"""
+    # strip trailing whitespace (such as \n) from title
+    title_html = title_html and title_html.rstrip()
+
+    if title_html or buttons_html:
+        if buttons_html:
+            buttons_html = f"""<div class="actions-container">
+                                        {buttons_html}
+                            </div>"""
+        else:
+            buttons_html = ""
+        # open title bar div and button container        
+        html += f"""<div class="title-bar"><div class="button-container">"""
+
+        # insert title button, if provided
+        if title_html:
+            title_classes = "rp-title-button"
+            if collapsed is not None:
+                title_classes += " rp-collapsible"
+                collapsed = bool(collapsed)
+                if collapsed:  # collapsed buttons have both classes. The script below toggles "rp-collapsed" in and out
+                    title_classes += " rp-collapsed"
+
+
+            html += f"""<button id="btn-{uid}" type="button" 
+                                        class="{title_classes}"
+                                        title="{_collapsible_title[collapsed]}">
+                            {title_html}
+                        </button>"""
+
+        # close title button DIV, insert action buttons, close the titlebar DIV, and add spacer
+        html += f"""</div>
+                    {buttons_html}
+                </div>
+                <div class="title-bar-spacer"></div>
+                """
+
+    # add content block, and closing DIV
+    html += f"""<div id="content-{uid}" class="rp-content" style="display:{'none' if collapsed else 'table-row'}">
+                        {content_html}
+                </div>
+            </div>"""
+
+    # add collapsible scripts
+    if title_html:
+        html += f"""<script>
+                    btn = document.getElementById("btn-{uid}");
+                    console.log("button classes", btn.classList)
+                    if (btn.classList.contains("rp-collapsible")) {{
+                        btn.addEventListener("click", function() {{
+                            var content = document.getElementById("content-{uid}");
+                            if (this.classList.toggle("rp-collapsed")) {{
+                                content.style.display = "none";
+                                this.title = "{_collapsible_title[True]}"
+                            }} else {{
+                                content.style.display = "table-row";
+                                this.title = "{_collapsible_title[False]}"
+                            }}
+                        }});
+                    }}
+                </script>
+                """
+
+    return html

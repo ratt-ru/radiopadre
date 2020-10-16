@@ -5,7 +5,7 @@ import itertools
 import uuid
 
 from .file import FileBase
-from .render import render_table, render_preamble, render_refresh_button, render_url, rich_string
+from .render import render_table, render_preamble, rich_string, render_titled_content
 
 from . import executor
 
@@ -72,10 +72,13 @@ class FileList(FileBase, list):
         return getattr(object_classes.pop(), method, None)
 
 
-    def render_html(self, ncol=None, context=None, title=None, **kw):
+    def render_html(self, ncol=None, context=None, title=None, collapsed=None, **kw):
         self._load()
-        html = render_preamble() + self._header_html(title=title)
-               # + render_refresh_button(full=self._parent and self._parent.is_updated())
+        title_html = self._header_html(title=title)
+        buttons_html = content_html = ""
+
+        if collapsed is None and settings.gen.collapsible:
+            collapsed = False
 
         arrow = "&uarr;" if "r" in self._sort else "&darr;"
         # find primary sort key ("d" and "r" excepted)
@@ -83,50 +86,60 @@ class FileList(FileBase, list):
         primary_sort = sort and sort[0]
         tooltips = {}
 
+        # get collective action buttons, if available
+        action_buttons = self._get_collective_method('_collective_action_buttons_')
+        if action_buttons:
+            buttons_html = action_buttons(self, context=context)
+
         # if class object has a summary function, use that
         html_summary = self._get_collective_method('_html_summary')
 
         if html_summary:
-            return html + html_summary(self, context=context, primary_sort=primary_sort, sort_arrow=arrow)
-        if not self:
-            return html
-
-        # else fall back to normal filelist
-        # auto-set 1 or 2 columns based on filename length
-        if ncol is None:
-            max_ = max([len(df.basename) for df in self])
-            ncol = 2 if max_ <= settings.gen.twocolumn_list_width else 1
-
-        def ext(df):
-            return df.ext+"/" if os.path.isdir(df.path) else df.ext
-
-        def link(df):
-            return df.downloadable_url
-
-        if self._extcol:
-            labels = ("{}name".format(arrow if primary_sort == "n" else ""),
-                      "{}ext".format(arrow  if primary_sort == "x" else ""),
-                      "{}size".format(arrow if primary_sort == "s" else ""),
-                      "{}modified".format(arrow if primary_sort == "t" else ""))
-            data = [((df.basepath if self._showpath else df.basename), ext(df),
-                     df.size, df.mtime_str)
-                    for df in self]
-            links = [(link(df), link(df), None, None) for df in self]
+            content_html = html_summary(self, context=context, primary_sort=primary_sort, sort_arrow=arrow)
+        elif not self:
+            collapsed = None
         else:
-            labels = (arrow+"name" if primary_sort == "n" else
-                          ("name {}ext".format(arrow) if primary_sort == "x" else "name"),
-                      "{}size".format(arrow if primary_sort == "s" else ""),
-                      "{}modified".format(arrow if primary_sort == "t" else ""))
-            data = [((df.basepath if self._showpath else df.basename) + ext(df),
-                     df.size, df.mtime_str) for df in self]
-            links = [(link(df), None, None) for df in self]
-        tooltips = { (irow,labels[0]): df.path for irow, df in enumerate(self) }
-        # get "action buttons" associated with each file
-        actions = [ df._action_buttons_(context) for df in self ]
-        html += render_table(data, labels, links=links, ncol=ncol, actions=actions,
-                             tooltips=tooltips,
-                             context=context)
-        return html
+            # else fall back to normal filelist
+            # auto-set 1 or 2 columns based on filename length
+            if ncol is None:
+                max_ = max([len(df.basename) for df in self])
+                ncol = 2 if max_ <= settings.gen.twocolumn_list_width else 1
+
+            def ext(df):
+                return df.ext+"/" if os.path.isdir(df.path) else df.ext
+
+            def link(df):
+                return df.downloadable_url
+
+            if self._extcol:
+                labels = ("{}name".format(arrow if primary_sort == "n" else ""),
+                        "{}ext".format(arrow  if primary_sort == "x" else ""),
+                        "{}size".format(arrow if primary_sort == "s" else ""),
+                        "{}modified".format(arrow if primary_sort == "t" else ""))
+                data = [((df.basepath if self._showpath else df.basename), ext(df),
+                        df.size, df.mtime_str)
+                        for df in self]
+                links = [(link(df), link(df), None, None) for df in self]
+            else:
+                labels = (arrow+"name" if primary_sort == "n" else
+                            ("name {}ext".format(arrow) if primary_sort == "x" else "name"),
+                        "{}size".format(arrow if primary_sort == "s" else ""),
+                        "{}modified".format(arrow if primary_sort == "t" else ""))
+                data = [((df.basepath if self._showpath else df.basename) + ext(df),
+                        df.size, df.mtime_str) for df in self]
+                links = [(link(df), None, None) for df in self]
+            tooltips = { (irow,labels[0]): df.path for irow, df in enumerate(self) }
+            # get "action buttons" associated with each file
+            actions = [ df._action_buttons_(context) for df in self ]
+            content_html = render_table(data, labels, links=links, ncol=ncol, actions=actions,
+                                tooltips=tooltips,
+                                context=context)
+
+        return render_preamble() + \
+                render_titled_content(title_html=title_html,
+                                        buttons_html=buttons_html,
+                                        content_html=content_html,
+                                        collapsed=collapsed)
 
     def render_text(self, title=None, **kw):
         self._load()
@@ -157,51 +170,31 @@ class FileList(FileBase, list):
             else:
                 thumbs = list(executor.executor().map(_make_thumb, enumerate(self)))
 
-            html = render_preamble()
+            if collapsed is None:
+                collapsed = settings.thumb.collapsed
+                if collapsed is None and settings.gen.collapsible:
+                    collapsed = False
 
-            uid = uuid.uuid4().hex
-            btn_symbol = {False: "&#xFF0D;", True: "&#xFF0B;"}  # unicode symbols for collapse button 
-            btn_title  = {False: "Click to collapse thumbnail display", True: "Click to expand thumbnail display"}
-
-            if collapsed is not None:
-                html += f"""<button id="btn-{uid}" type="button" class="rp-thumbnail-collapsible"
-                             style="border: 1px solid grey; outline: none; background-color: inherit; font-size: 0.8em"
-                             title="{btn_title[bool(collapsed)]}"
-                         >
-                         {btn_symbol[bool(collapsed)]}
-                         </button>&nbsp;"""
+            title_html = self._header_html(title=title)
+            buttons_html = content_html = ""
             
-            html += self._header_html(title=title)
-
             action_buttons = self._get_collective_method('_collective_action_buttons_')
             if action_buttons:
-                html += action_buttons(self, context=context)
+                buttons_html = action_buttons(self, context=context)
+   
+            if thumbs:
+                content_html = radiopadre.tabulate(thumbs, ncol=ncol, cw="equal",
+                                    mincol=mincol or settings.thumb.mincol, maxcol=maxcol or settings.thumb.maxcol,
+                                    zebra=False, align="center").render_html(context=context, **kw)
+            else:
+                collapsed = None                                    
 
-            html += f"""<div id="thumbs-{uid}" style="display:{'none' if collapsed else 'block'}">""" + \
-                    radiopadre.tabulate(thumbs, ncol=ncol, cw="equal",
-                                mincol=mincol or settings.thumb.mincol, maxcol=maxcol or settings.thumb.maxcol,
-                                zebra=False, align="center").render_html(context=context, **kw) + \
-                    "</div>"
-            if collapsed is not None:
-                html += f"""<script>
-                    btn = document.getElementById("btn-{uid}");
-                    btn.addEventListener("click", function() {{
-                        var content = document.getElementById("thumbs-{uid}");
-                        this.classList.toggle("active");
-                        if (content.style.display === "block") {{
-                            content.style.display = "none";
-                            this.innerHTML = "{btn_symbol[True]}"
-                            this.title = "{btn_symbol[True]}"
-                        }} else {{
-                            content.style.display = "block";
-                            this.innerHTML = "{btn_symbol[False]}"
-                            this.title = "{btn_title[False]}"
-                        }}
-                    }});
-                </script>
-                """
+            return render_preamble() + \
+                   render_titled_content(title_html=title_html,
+                                          buttons_html=buttons_html,
+                                          content_html=content_html,
+                                          collapsed=collapsed)
 
-        return html
 
     @property
     def thumbs(self):

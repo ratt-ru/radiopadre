@@ -7,8 +7,10 @@ from contextlib import contextmanager
 
 import radiopadre
 from radiopadre import casacore_tables
+from radiopadre import settings
 from .filelist import FileList
-from .render import render_table, rich_string, render_status_message, render_error, TransientMessage
+from .render import render_table, rich_string, render_status_message, \
+    render_error, TransientMessage, render_preamble, render_titled_content
 
 
 
@@ -201,7 +203,7 @@ class CasaTable(radiopadre.file.FileBase):
                 while hasattr(self, name):
                     name = name + "_"
                 self._subtables_dict[name] = path
-                self._dynamic_attributes.add(attrname)
+                self._dynamic_attributes.add(name)
                 setattr(self, name, path)
 
     def putcol(self, colname, coldata, start=0, nrow=-1, rowincr=1, blc=None, trc=None, incr=None):
@@ -370,23 +372,28 @@ class CasaTable(radiopadre.file.FileBase):
             desc = ""
         return slicer, desc, colformat
 
-    def render_html(self, firstrow=0, nrows=100, native=False, allcols=False, _=None, context=None, title=None, **columns):
-        with self.transient_message("Rendering {}, please wait...".format(self.fullpath)):
-            html = self._header_html() + "\n\n"
-            #       render_refresh_button(full=self._parent and self._parent.is_updated())
-            with self.table as tab:
-                if isinstance(tab, Exception):
-                    return html + rich_string("Error accessing table {}: {}".format(self.basename, tab))
-                # if first row is not specified, and columns not specified, fall back on casacore's own HTML renderer
-                if native:
-                    return html + tab._repr_html_()
+    def render_html(self, firstrow=0, nrows=100, native=False, allcols=False, _=None, context=None, title=None, collapsed=None, **columns):
+        with self.transient_message("Rendering {}, please wait...".format(self.fullpath)), \
+                self.table as tab:
+            title_html = self._header_html(title=title) + "\n\n"
+            content_html = ""
+            if collapsed is None and settings.gen.collapsible:
+                collapsed = False
+            firstrow = firstrow or 0
 
-                # empty? return
-                if not self.nrows:
-                    return html
-
-                firstrow = firstrow or 0
-
+            if isinstance(tab, Exception):
+                content_html = render_error("Error accessing table {}: {}".format(self.basename, tab))
+                collapsed = None
+            # empty? return
+            elif not self.nrows:
+                collapsed = None
+            elif firstrow > self.nrows-1:
+                content_html = render_error("Starting row {} out of range".format(firstrow))
+                collapsed = None
+            # if first row is not specified, and columns not specified, fall back on casacore's own HTML renderer
+            elif native:
+                content_html = tab._repr_html_()
+            else:
                 # get subset of columns to use, and slicer objects
                 column_slicers = {}
                 column_formats = {}
@@ -411,15 +418,13 @@ class CasaTable(radiopadre.file.FileBase):
                                 column_slicers[col] = slicer, desc
                                 column_selection.append(col)
                             else:
-                                html += render_error("No such column: {}".format(col))
+                                content_html += render_error("No such column: {}".format(col))
 
                 # if no columns at all were selected,
                 if allcols or not have_explicit_columns:
                     column_selection = [col for col in self.columns if col not in skip_columns]
 
                 # else use ours
-                if firstrow > self.nrows-1:
-                    return html + render_error("Starting row {} out of range".format(firstrow))
                 nrows = min(self.nrows-firstrow, nrows)
                 labels = ["row"] + list(column_selection)
                 colvalues = {}
@@ -499,15 +504,18 @@ class CasaTable(radiopadre.file.FileBase):
                     # on any error, fill column with "(error)"
                     if error:
                         colvalues[icol] = ["(error)"]*nrows
-                        html += render_error("Column {}: {}: {}".format(colname, error.__class__.__name__, str(error)))
+                        content_html += render_error("Column {}: {}: {}".format(colname, error.__class__.__name__, str(error)))
                         style = "color: red"
                     if style:
                         styles[labels[icol+1]] = style
 
                 data = [[self.rownumbers[firstrow+i]] + [colvalues[icol][i] for icol,col in enumerate(column_selection)] for i in range(nrows)]
 
-                html += render_table(data, labels, styles=styles, numbering=False)
-                return html
+                content_html += render_table(data, labels, styles=styles, numbering=False)
+            return render_preamble() + \
+                    render_titled_content(title_html=title_html,
+                                          content_html=content_html,
+                                          collapsed=collapsed)
 
     def _select_rows_columns(self, rows, columns, desc):
         with self.table as tab:
