@@ -160,7 +160,7 @@ class ItemBase(RenderableElement):
         if title is not False:
             title = rich_string(title if title is not None else self.title)
             subtitle = rich_string(subtitle if subtitle is not None else self.description)
-            return ": ".join([x.html for x in title, subtitle if x])
+            return ": ".join([x.html for x in (title, subtitle) if x]) + "\n"
         return ""
 
     def message(self, msg, timeout=3, color='blue'):
