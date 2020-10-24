@@ -168,7 +168,7 @@ class DataDir(FileList):
             dirs[:] = subdirs
 
         if self._include_self:
-            list.append(self, (DataDir, self))
+            list.append(self, (DataDir, self.fullpath))
         # call base class scan
         FileList._scan_impl(self)
 
