@@ -158,10 +158,9 @@ class ItemBase(RenderableElement):
         title=False to omit title, else != None to override title
         """
         if title is not False:
-            if title is not None:
-                return rich_string(title).html
+            title = rich_string(title if title is not None else self.title)
             subtitle = rich_string(subtitle if subtitle is not None else self.description)
-            return f"{self.title.html}: {subtitle.html}\n" if self.title else f"{subtitle.html}\n"
+            return ": ".join([x.html for x in title, subtitle if x])
         return ""
 
     def message(self, msg, timeout=3, color='blue'):
