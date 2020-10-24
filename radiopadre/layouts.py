@@ -10,28 +10,72 @@ _ALL_SECTIONS = OrderedDict()
 logo_image = ''
 icon_image = ''
 
+init_html = """
+    <script>
+    document.radiopadre.section_labels = [];
+    document.radiopadre.section_names = {};
+
+    document.radiopadre.add_section = function(label, name) {
+        if(!document.radiopadre.section_labels.includes(label)) {
+            document.radiopadre.section_labels.push(label);
+            document.radiopadre.section_names[label] = name;
+
+            /* update other sections */
+            var bar0;
+            for(bar0 of document.getElementsByClassName("rp-section-bookmarks")) {
+                var bar = bar0.cloneNode(false);  /* kills children */
+                bar0.parentNode.replaceChild(bar, bar0);
+                var label0 = bar.getAttribute('section_label');
+                var label;
+                for(label of document.radiopadre.section_labels) {
+                    var name = document.radiopadre.section_names[label];
+                    var element;
+                    if( label == label0 ) {
+                        element = document.createElement('div');
+                        element.className = "rp-active-section";
+                    } else {
+                        element = document.createElement('a');
+                        element.className = "rp-section-link";
+                        element.href = "#" + label;
+                    }
+                    element.innerHTML = name;
+                    bar.appendChild(element);
+                }
+            }
+        }
+
+    }
+    </script>
+"""
+
 def add_section(name):
     """Adds a know section to the TOC"""
     _ALL_SECTIONS[name] = name.lower().replace(" ", "_")
 
 
-def render_bookmarks_bar(current_name=None):
-    bookmarks = []
-    for name1, label1 in _ALL_SECTIONS.items():
-        if current_name == name1:
-            bookmarks.append('<b>{}<b>'.format(name1))
-        else:
-            bookmarks.append('<a href=#{}>{}</a>'.format(label1, name1))
-    return " ".join(bookmarks)
-
+def render_bookmarks_bar(label, name):
+    """Renders a bookmarks bar with all available sections"""
+    elem_id = f"rp-section-bookmarks-{label}"
+    ## note that this relies on document.radiopadre.add_section() above to populate each bookmark bar
+    return f"""
+        <div class="rp-section-bookmarks" id="{elem_id}"></div>
+        <script>
+            document.getElementById('{elem_id}').setAttribute("section_label", "{label}");
+            document.radiopadre.add_section('{label}', '{name}');
+        </script>
+    """
+    
 
 def Title(title, sections=[], logo=None, logo_width=0, logo_padding=8, icon=None, icon_width=None):
-    """Renders a title, and registers section names for a bookmark bar"""
-    if type(sections) is str:
-        sections = [x.strip() for x in sections.split("|")]
-
-    for name in sections:
-        add_section(name)
+    """Renders a title.
+    
+    sections: depcrecated, used to be used for pre-registering section names for the bookmark bars, but this is now built
+    automatically.
+    """
+    # if type(sections) is str:
+    #     sections = [x.strip() for x in sections.split("|")]
+    # for name in sections:
+    #     add_section(name)
 
     rootdir = radiopadre.ABSROOTDIR
     homedir = os.path.expanduser("~")
@@ -107,12 +151,9 @@ def Section(name):
         add_section(name)
     label = _ALL_SECTIONS[name]
 
-    bookmarks = render_bookmarks_bar(name) if not radiopadre.NBCONVERT else ""
+    code = render_bookmarks_bar(label, name) if not radiopadre.NBCONVERT else ""
 
-    code = f"""
-        <div style="display: table-cell; font-size: 0.8em; vertical-align: top; text-align: right; float: right"> 
-            {bookmarks} 
-        </div>
+    code += f"""
         <div style="display: table">
             <div style="display: table-row">
                 <div style="display: table-cell; vertical-align: middle; padding-right: 4px">
@@ -127,17 +168,6 @@ def Section(name):
         </div>
         """
 
-    # code = """{refresh}
-    #           <div style="float: left; font-size: 1.5em; font-weight: bold; {title_style};
-    #                       margin-top: 0em; margin-left: 0.5em;
-    #                       ">
-    #             <A name="{label}" />
-    #             {name}
-    #           </div>
-    #           <div style="float: right;">
-    #             {bookmarks}
-    #           </div>
-    #        """.format(**locals())
 
     display(HTML(code))
 

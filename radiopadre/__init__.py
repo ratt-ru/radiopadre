@@ -144,17 +144,13 @@ def _init_js_side():
         print("get_ipython not found")
         return None
     get_ipython().magic("matplotlib inline")
-    # load radiopadre/js/init.js and init controls
-    #initjs = os.path.join(os.path.dirname(__file__), "html", "init-radiopadre-components.js")
-    #display(Javascript(open(initjs).read()))
 
     settings.display.reset = _display_reset, settings_manager.DocString("call this to reset sizes explicitly")
-
-    #warns = "\n".join([render_status_message(msg, bgcolor='yellow') for msg in radiopadre_kernel._startup_warnings])
 
     html = """<script type='text/javascript'>
             document.radiopadre.register_user('{}');
             document.radiopadre.reset_display_settings();
+            document.radiopadre.section_labels = [];
             </script>
          """.format(os.environ['USER'])
 
@@ -165,6 +161,9 @@ def _init_js_side():
     </style>""".format(open(styles_file).read())
 
     html += """<DIV onload=radiopadre.document.reset_display_settings></DIV>"""
+
+    from radiopadre import layouts
+    html += layouts.init_html
 
     from radiopadre_kernel import js9
     if not js9.JS9_ERROR:
