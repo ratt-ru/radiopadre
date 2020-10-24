@@ -1,4 +1,4 @@
-FROM kernsuite/base:5
+FROM kernsuite/base:6
 
 ################################
 # install latest masters
@@ -56,7 +56,7 @@ RUN pip3 install --no-cache-dir -U pip setuptools
 
 ADD . /radiopadre
 
-ARG CLIENT_BRANCH=b1.0.x
+ARG CLIENT_BRANCH=b1.1
 
 #ARG CARTA_VERSION=1.3.1
 #ENV RADIOPADRE_CARTA_VERSION=$CARTA_VERSION
