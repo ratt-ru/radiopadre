@@ -72,9 +72,9 @@ class FileList(FileBase, list):
         return getattr(object_classes.pop(), method, None)
 
 
-    def render_html(self, ncol=None, context=None, title=None, collapsed=None, **kw):
+    def render_html(self, ncol=None, context=None, title=None, subtitle=None, collapsed=None, **kw):
         self._load()
-        title_html = self._header_html(title=title)
+        title_html = self._header_html(title=title, subtitle=self.description if subtitle is None else subtitle)
         buttons_html = content_html = ""
 
         if collapsed is None and settings.gen.collapsible:
@@ -289,6 +289,7 @@ class FileList(FileBase, list):
         other._load()
         content = list.__add__(self, other)
         showpath = self._showpath or other._showpath or self.fullpath != other.fullpath
+        
         return FileList(content=content, path=self.path, sort=None, showpath=showpath, title="")
 
     def filter(self, conditional, title=None):
