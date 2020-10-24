@@ -1,0 +1,13 @@
+{
+    "files.exclude": {
+        "build": true,
+        "build/*": true,
+        "carta": true,
+        "CARTA-v*": true,
+        "dist": true,
+        "js9": true,
+        "js9-2.5": true,
+        "js9-3.0": true
+    },
+    "python.pythonPath": "/home/oms/.radiopadre/venv/bin/python3.6"
+}

@@ -150,15 +150,15 @@ def _init_js_side():
     html = """<script type='text/javascript'>
             document.radiopadre.register_user('{}');
             document.radiopadre.reset_display_settings();
-            document.radiopadre.section_labels = [];
             </script>
          """.format(os.environ['USER'])
 
-    styles_file = os.path.join(os.path.dirname(__file__), "html/radiopadre.css")
 
-    html += """<style>
-        {}
-    </style>""".format(open(styles_file).read())
+    # reload styles -- loaded from radiopadre-kernel.js already, but reloading is useful for debugging
+    styles_file = os.path.join(os.path.dirname(__file__), "html/radiopadre.css")
+    html += f"""<style>
+        {open(styles_file).read()}
+    </style>"""
 
     html += """<DIV onload=radiopadre.document.reset_display_settings></DIV>"""
 

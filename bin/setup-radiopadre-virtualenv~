@@ -1,0 +1,325 @@
+#!/usr/bin/env python3
+import os
+import subprocess
+import sys
+import shutil
+import traceback
+
+# get radiopadre install source directory
+# This is where we're installing from. If called with --editable, stuff in this
+# directory needs to be symlinked to. Otherwise, assume the directory is temporary, and copy from it
+PADRE_PATH = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+JS9_VERSION = "3.0"
+CARTA_VERSION = os.environ.get("RADIOPADRE_CARTA_VERSION", "1.4")
+
+JS9_TGZ  = "js9-{}.tar.gz"   # will be passed to format(JS9_VERSION)
+JS9_LINK = "https://github.com/ericmandel/js9/archive/v{0}.tar.gz" # will be passed to format(JS9_VERSION)
+JS9_REPO = "https://github.com/ericmandel/js9.git"
+
+CARTA_URL = "https://github.com/CARTAvis/carta-releases/releases/download/v{0}/CARTA-v{0}-remote.tgz"
+SOCKET_IO_LINK = "https://cdnjs.cloudflare.com/ajax/libs/socket.io/2.3.0/socket.io.js"
+
+import argparse
+parser = argparse.ArgumentParser(description="Installs radiopadre components inside an existing virtual environment")
+
+parser.add_argument("-e", "--editable", action="store_true",
+                    help="install in editable mode (use with pip install -e)")
+
+parser.add_argument("--carta-release", metavar="VERSION", type=str, default=CARTA_VERSION,
+                    help=f"Installs specific JS9 release. Default is {CARTA_VERSION}.")
+
+parser.add_argument("--js9-release", metavar="VERSION", type=str, default=JS9_VERSION,
+                    help=f"Installs specific JS9 release. Default is {JS9_VERSION}.")
+
+parser.add_argument("--js9-branch", metavar="BRANCH", type=str,
+                    help=f"If set, installs JS9 from branch of {JS9_REPO}.")
+
+parser.add_argument("--js9-dir", metavar="DIR", type=str,
+                    help=f"If set, installs JS9 from directory. If not absolute, taken relative to radiopadre source.")
+
+parser.add_argument("--no-js9", action="store_true",
+                    help="skips the JS9 installation. FITS functionality will be reduced.")
+
+parser.add_argument("--cfitsio-path", metavar="DIR", type=str, default="/usr",
+                    help="path to cfitsio installation. Default is %(default)s")
+
+parser.add_argument("--inside-container", action="store_true",
+                    help=argparse.SUPPRESS)
+parser.add_argument("--skip-git-pull", action="store_true",
+                    help=argparse.SUPPRESS)
+
+options = parser.parse_args()
+
+if not options.inside_container:
+    PADRE_WORKDIR = os.path.expanduser("~/.radiopadre")
+else:
+    PADRE_WORKDIR = "/.radiopadre"
+
+def message(x, prefix='setup-radiopadre-virtualenv: '):
+    print(prefix + x.format(**globals()))
+
+def bye(x, code=1):
+    message(x)
+    sys.exit(code)
+
+def shell(cmd):
+    return subprocess.check_call(cmd.format(**globals()), shell=True)
+
+def which(cmd):
+    return subprocess.check_output("which {}".format(cmd), shell=True).strip()
+
+def which_opt(cmd):
+    try:
+        return subprocess.check_output("which {}".format(cmd), shell=True).strip()
+    except subprocess.CalledProcessError as exc:
+        return None
+
+def remove_installation(path):
+    if os.path.lexists(path):
+        if os.path.islink(path) or os.path.isfile(path):
+            message(f"Removing existing symlink or file {path}")
+            os.unlink(path)
+        elif os.path.isdir(path):
+            message(f"Removing existing directory {path}")
+            shutil.rmtree(path, ignore_errors=True)
+        else:
+            bye(f"{path} is neither a dir nor a symlink nor a file, don't know how to proceed")
+
+
+# See https://stackoverflow.com/questions/1871549/determine-if-python-is-running-inside-virtualenv
+if hasattr(sys, 'real_prefix') or (hasattr(sys, 'base_prefix') and sys.base_prefix != sys.prefix):
+    message("Setting up radiopadre inside virtualenv {sys.prefix}")
+    PADRE_VENV = sys.prefix
+else:
+    bye("Not running in a virtualenv")
+
+# check for JS9 requirements
+if not options.no_js9:
+    try:
+        nodejs = subprocess.check_output("which nodejs || which node", shell=True)
+    except subprocess.CalledProcessError:
+        if os.path.exists(PADRE_VENV):
+            open(PADRE_VENV + "/js9status", "w").write("nodejs missing")
+        bye("Unable to find nodejs or node -- can't install JS9. Try apt-get install nodejs perhaps, or run with --no-js9")
+
+# Look for virtualenv. Burn it down if it needs a refresh.
+complete_cookie = os.path.join(PADRE_VENV, ".radiopadre.install.complete")
+
+# Create workdir if needed
+if not os.path.exists(PADRE_WORKDIR):
+    message("Creating {PADRE_WORKDIR}")
+    os.mkdir(PADRE_WORKDIR)
+
+# get jupyter base path
+notebook_dir = f"{PADRE_VENV}/lib/python3.6/site-packages"
+
+# init radiopadre kernel etc.
+message("Creating radiopadre jupyter kernel")
+# if options.inside_container:
+#     python, jupyter, user = "python", "jupyter", ""
+# else:
+#python, jupyter, user = f"{PADRE_VENV}/bin/python3", f"{PADRE_VENV}/bin/jupyter"
+cmd = f"{PADRE_VENV}/bin/python3 -m ipykernel install --sys-prefix --name radiopadre"
+message(f"  {cmd}")
+if shell(cmd):
+    bye("jupyter kernel failed to install, see log above")
+
+kerneldir = f"{PADRE_VENV}/share/jupyter/kernels/radiopadre"
+message("Copying kernel.js and logos to {kerneldir}")
+shutil.copy2(f"{PADRE_PATH}/radiopadre/html/radiopadre-kernel.js", f"{kerneldir}/kernel.js")
+shutil.copy2(f"{PADRE_PATH}/icons/radiopadre-logo-32x32.png", f"{kerneldir}/logo-32x32.png")
+shutil.copy2(f"{PADRE_PATH}/icons/radiopadre-logo-64x64.png", f"{kerneldir}/logo-64x64.png")
+
+notebook_static = f"{notebook_dir}/notebook/static"
+notebook_socket_io = f"{notebook_static}/socket.io.js"
+
+# add link to radiopadre web components in notebook static dir
+notebook_padre_www = f"{notebook_static}/radiopadre-www"
+padre_www = f"{PADRE_PATH}/radiopadre/html"
+remove_installation(notebook_padre_www)
+if options.editable:
+    message("making link from {notebook_padre_www} to {padre_www}")
+    os.symlink(padre_www, notebook_padre_www)
+else:
+    message("copying {notebook_padre_www} to {padre_www}")
+    shutil.copytree(padre_www, notebook_padre_www)
+
+# overwrite icons
+shutil.copy2(f"{PADRE_PATH}/icons/radiopadre-logo.ico", f"{notebook_static}/favicon.ico")
+shutil.copy2(f"{PADRE_PATH}/icons/radiopadre-logo.ico", f"{notebook_static}/base/images/favicon-notebook.ico")
+
+# add link to CARTA
+carta_url = CARTA_URL.format(options.carta_release)
+carta_tarball = os.path.basename(carta_url)
+carta_base    = os.path.splitext(carta_tarball)[0]
+carta_dir     = os.path.join(PADRE_VENV, carta_base)
+carta_link    = os.path.join(PADRE_VENV, "carta")
+
+remove_installation(carta_dir)
+remove_installation(carta_link)
+
+# download tarball
+carta_tarball_path = os.path.join(PADRE_WORKDIR, carta_tarball)
+for retry in True, False:
+    # try to download if not present
+    if os.path.exists(carta_tarball_path):
+        message(f"CARTA tarball {carta_tarball_path} is already here")
+    else:
+        message(f"Trying to download CARTA via {carta_url}")
+        subprocess.check_call(f"wget -c {carta_url} -O {carta_tarball_path}", shell=True)
+        if not os.path.exists(carta_tarball_path):
+            bye(f"{carta_tarball} failed to download")
+        # download successfull, will not retry
+        retry = False
+
+    try:
+        message(f"Unpacking {carta_tarball} in {PADRE_VENV}")
+        subprocess.check_call(f"cd {PADRE_VENV}; tar zxf {carta_tarball_path}", shell=True)
+    # on error, see if we can retry the download
+    except Exception as exc:
+        if retry and os.path.exists(carta_tarball_path):
+            message("Will retry the download")
+            os.unlink(carta_tarball_path)
+        else:
+            raise
+    finally:
+        if sys.prefix == "/.radiopadre/venv":
+            os.unlink(carta_tarball_path)
+
+if os.path.exists(carta_dir):
+    message(f"Linking {carta_link} to {carta_dir}")
+    os.symlink(os.path.basename(carta_dir), carta_link)
+    message(f"Adjusting permissions on {carta_dir}")
+    subprocess.check_call(f"chmod -R a+rX {carta_dir}", shell=True)
+else:
+    message(f"WARNING: No CARTA installation ({carta_dir}) found")
+
+# install JS9
+if not options.no_js9:
+    js9status = open(PADRE_VENV + "/js9status", "w")
+    js9_www = None
+    try:
+        # install JS9 inside venv
+        # determine whether to use existing directory or repo
+        js9_dir = js9_temp = None
+        if options.js9_dir:
+            js9_dir = options.js9_dir
+            if not os.path.isabs(js9_dir):
+                js9_dir = os.path.join(PADRE_PATH, js9_dir)
+                message(f"Will try to install JS9 from existing directory {js9_dir}")
+            if not os.path.isdir(js9_dir):
+                bye(f"no such directory: {js9_dir}")
+        elif options.js9_branch:
+            js9_dir = f"{PADRE_PATH}/js9"
+            if os.path.isdir(js9_dir) and os.path.isdir(f"{js9_dir}/.git"):
+                message(f"Pulling {options.js9_branch} in {js9_dir}")
+                shell("cd {js9_dir} && git fetch origin && git checkout {options.js9_branch} && git pull")
+            else:
+                import tempfile
+                js9_dir = js9_temp = tempfile.mkdtemp(prefix="js9")
+                message(f"Cloning {JS9_REPO} branch {options.js9_branch} into {js9_dir}")
+                shell("git clone -b {options.js9_branch} {JS9_REPO} {js9_dir}")
+        elif options.js9_release:
+            JS9_TGZ = JS9_TGZ.format(options.js9_release)
+            JS9_LINK = JS9_LINK.format(options.js9_release)
+            js9_tarball_path = f"{PADRE_WORKDIR}/{JS9_TGZ}"
+            for retry in True, False:
+                if os.path.exists(js9_tarball_path):
+                    message(f"{js9_tarball_path} is already here, will try to unpack")
+                else:
+                    message(f"Will try to download JS9 from {JS9_LINK}")
+                    shell(f"wget -c {JS9_LINK} -O {js9_tarball_path}")
+                # try to unpack
+                try:
+                    shell(f"cd {PADRE_PATH} && tar zxf {js9_tarball_path}")
+                    break
+                except Exception as exc:
+                    if retry and os.path.exists(js9_tarball_path):
+                        message("Will retry the download")
+                        os.unlink(js9_tarball_path)
+                    else:
+                        raise
+                finally:
+                    if sys.prefix == "/.radiopadre/venv":
+                        os.unlink(js9_tarball_path)
+
+            js9_dir = f"{PADRE_PATH}/js9-{options.js9_release}"
+            if not os.path.isdir(js9_dir):
+                bye("{js9_dir} does not exist. Did the tarball download and unpack?")
+        else:
+            bye("unknown JS9 install method. Specify one of --js9-release, --js9-branch, --js9-dir")
+
+        # Configure and install
+        js9_www = PADRE_VENV + "/js9-www"
+        if subprocess.call("""cd {js9_dir} && \
+                ./configure --prefix={PADRE_VENV} --with-webdir={js9_www} --with-helper=nodejs --with-cfitsio={options.cfitsio_path} && \
+                make && make install""".format(**globals()), shell=True):
+            js9status.write("build failed")
+            bye("Failed to configure and/or build JS9 in {js9_dir}, see log above. Fix it, or run with --no-js9.")
+
+        # check for cfitsio
+        try:
+            output = subprocess.check_output("grep FITSLIB {js9_dir}/config.log".format(**globals()), shell=True)
+            if output.strip() != b"FITSLIB='cfitsio'":
+                raise subprocess.CalledProcessError("cfitsio",-1,"no cfitsio")
+        except subprocess.CalledProcessError:
+            js9status.write("cfitsio missing")
+            bye("JS9 did not find the cfitsio library. Try installing it (apt install libcfitsio-dev), and/or specifying"
+                " the path to it with --cfitsio-path, and/or running with --no-js9 if you're really stuck.")
+
+        # add colormap definitions from matplotlib
+        message("copying extra colormap definitions to {js9_www}")
+        shutil.copy2(f"{PADRE_PATH}/radiopadre/html/js9colormaps.js", js9_www)
+
+        # Make symlink to js9 install dir in notebook dir
+        notebook_js9_www = notebook_dir + "/notebook/static/js9-www"
+
+        remove_installation(notebook_js9_www)
+        message("making link from {notebook_js9_www} to {js9_www}")
+        os.symlink(js9_www, notebook_js9_www)
+
+        notebook_socket_io = notebook_dir + "/notebook/static/socket.io.js"
+        js9_socket_io = js9_www + "/node_modules/socket.io-client/dist/socket.io.js"
+
+        remove_installation(notebook_socket_io)
+        message("making link from {notebook_socket_io} to {js9_socket_io}")
+        os.symlink(js9_socket_io, notebook_socket_io)
+
+        # copy config
+        message("copying js9prefs.js to {js9_www}")
+        shutil.copy2(f"{PADRE_PATH}/js9-config/js9prefs.js", js9_www)
+        message("copying js9Prefs.json to {js9_www}")
+        shutil.copy2(f"{PADRE_PATH}/js9-config/js9Prefs.json", js9_www)
+
+        if js9_temp:
+            message("Removing JS9 source directory {js9_temp}")
+            shutil.rmtree(js9_temp)
+
+    except Exception as exc:
+        traceback.print_exc()
+        js9status.write(str(exc))
+        bye(f"Error installing JS9: {exc}")
+
+    finally:
+        js9status.write(os.path.abspath(js9_www))
+else:
+    # no JS9, still need to download socket.io.js
+    remove_installation(notebook_socket_io)
+    message("Downloading socket.io.js into {notebook_socket_io}")
+    shell(f"wget {SOCKET_IO_LINK} -O {notebook_socket_io}")
+
+# install puppeteer
+
+npm = which_opt('npm')
+node = which_opt('node') or which_opt('nodejs')
+if not npm:
+    message("WARNING: npm command not found. Puppeteer HTML rendering will not be available. Will try phantomjs instead.")
+elif not node:
+    message("WARNING: node/nodejs command not found. Puppeteer HTML rendering will not be available. Will try phantomjs instead.")
+else:
+    shell(f"cd {PADRE_VENV}; npm install utf-8-validate bufferutil puppeteer@2.1.0")
+
+open(complete_cookie, "w").write("installed by {__file__}".format(**globals()))
+
+message("Installation successful!")

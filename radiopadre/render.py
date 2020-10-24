@@ -475,7 +475,7 @@ def render_titled_content(title_html, content_html, buttons_html=None, collapsed
     if title_html:
         html += f"""<script>
                     btn = document.getElementById("btn-{uid}");
-                    console.log("button classes", btn.classList)
+                    // console.log("button classes", btn.classList)
                     if (btn.classList.contains("rp-collapsible")) {{
                         btn.addEventListener("click", function() {{
                             var content = document.getElementById("content-{uid}");

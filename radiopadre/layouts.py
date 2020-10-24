@@ -11,41 +11,6 @@ logo_image = ''
 icon_image = ''
 
 init_html = """
-    <script>
-    document.radiopadre.section_labels = [];
-    document.radiopadre.section_names = {};
-
-    document.radiopadre.add_section = function(label, name) {
-        if(!document.radiopadre.section_labels.includes(label)) {
-            document.radiopadre.section_labels.push(label);
-            document.radiopadre.section_names[label] = name;
-
-            /* update other sections */
-            var bar0;
-            for(bar0 of document.getElementsByClassName("rp-section-bookmarks")) {
-                var bar = bar0.cloneNode(false);  /* kills children */
-                bar0.parentNode.replaceChild(bar, bar0);
-                var label0 = bar.getAttribute('section_label');
-                var label;
-                for(label of document.radiopadre.section_labels) {
-                    var name = document.radiopadre.section_names[label];
-                    var element;
-                    if( label == label0 ) {
-                        element = document.createElement('div');
-                        element.className = "rp-active-section";
-                    } else {
-                        element = document.createElement('a');
-                        element.className = "rp-section-link";
-                        element.href = "#" + label;
-                    }
-                    element.innerHTML = name;
-                    bar.appendChild(element);
-                }
-            }
-        }
-
-    }
-    </script>
 """
 
 def add_section(name):
@@ -55,13 +20,14 @@ def add_section(name):
 
 def render_bookmarks_bar(label, name):
     """Renders a bookmarks bar with all available sections"""
-    elem_id = f"rp-section-bookmarks-{label}"
     ## note that this relies on document.radiopadre.add_section() above to populate each bookmark bar
     return f"""
-        <div class="rp-section-bookmarks" id="{elem_id}"></div>
-        <script>
-            document.getElementById('{elem_id}').setAttribute("section_label", "{label}");
-            document.radiopadre.add_section('{label}', '{name}');
+        <div>
+            <a name="{label}" /> 
+            <div class="rp-section-bookmarks" data-name="{name}" data-label="{label}"></div>
+        </div>
+        <script type="text/javascript">
+            document.radiopadre.add_section();
         </script>
     """
     
@@ -69,7 +35,7 @@ def render_bookmarks_bar(label, name):
 def Title(title, sections=[], logo=None, logo_width=0, logo_padding=8, icon=None, icon_width=None):
     """Renders a title.
     
-    sections: depcrecated, used to be used for pre-registering section names for the bookmark bars, but this is now built
+    sections: deprecated, used to be used for pre-registering section names for the bookmark bars, but this is now built
     automatically.
     """
     # if type(sections) is str:
@@ -160,7 +126,7 @@ def Section(name):
                     {refresh}  
                 </div>
                 <div style="display: table-cell; vertical-align: middle; font-size: 1.5em; font-weight: bold; {title_style};">
-                    <A name="{label}" /> {name}
+                    {name}
                 </div>
                 <div style="display: table-cell;">
                 </div>
