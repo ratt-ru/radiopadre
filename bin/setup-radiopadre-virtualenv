@@ -10,7 +10,7 @@ import traceback
 # directory needs to be symlinked to. Otherwise, assume the directory is temporary, and copy from it
 PADRE_PATH = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
-JS9_VERSION = "3.1"
+JS9_VERSION = "3.0"
 CARTA_VERSION = os.environ.get("RADIOPADRE_CARTA_VERSION", "1.4")
 
 JS9_TGZ  = "js9-{}.tar.gz"   # will be passed to format(JS9_VERSION)
