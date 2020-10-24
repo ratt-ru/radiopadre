@@ -428,6 +428,10 @@ def render_titled_content(title_html, content_html, buttons_html=None, collapsed
     """
     uid = uuid.uuid4().hex
 
+    # uncollapse everything if converting notebook
+    if radiopadre.NBCONVERT:
+        collapsed = None
+
     html = f"""<div class="rp-content-block">"""
     # strip trailing whitespace (such as \n) from title
     title_html = title_html and title_html.rstrip()
