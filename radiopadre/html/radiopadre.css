@@ -1,3 +1,19 @@
+.rp-title-block .rp-notebook-title {
+  float:left; 
+  line-height: 1.2em; 
+  font-size: 1.5em; 
+  font-weight: bold; 
+  margin-top: 0px;
+}
+
+.rp-title-block .rp-notebook-path {
+  float: right; 
+  font-size: 0.8em; 
+  font-family: monospace; 
+  padding-top: 0em;
+  font-weight: bold;
+}
+
 .rp-content-block { 
   display: table;
   width: 100%;
@@ -81,33 +97,33 @@
   /* background-color: inherit; */
 }
 
-td .rp-thumb-prefix { 
-  border: 0px; 
+td.rp-thumb-prefix { 
+  border: 0px  !important;
   background: #D0D0D0; 
   text-align: left;
   min-width: 1em;
   max-width: 3em; 
 }
 
-td .rp-thumb-title {
-  border: 0px; 
+td.rp-thumb-title {
+  border: 0px  !important;
   background: #D0D0D0; 
   text-align: center; 
   text-overflow: clip;
   /* white-space: nowrap; */
-  overflow: hidden;
+  overflow: hidden;  
   width: 100%
 }
 
-td .rp-thumb-content {
-  border: 0px; 
+td.rp-thumb-content {
+  border: 0px;
   text-align: center; 
   width: 100%; 
   padding: 0;
   padding-right: 0; 
   padding-left: 0;
   text-overflow: clip;
-  overflow: hidden;
+  overflow: hidden !important;
 }
 
 .rp-item-header {

@@ -66,18 +66,18 @@ def Title(title, sections=[], logo=None, logo_width=0, logo_padding=8, icon=None
         icon_image = f"""<img src="{icon}" alt="" {icon_width}></img>"""
 
     display(HTML(f"""
-        <div style="display: table-row; margin-top: 0.5em; width: 100%">
+        <div class="rp-title-block" style="display: table-row; margin-top: 0.5em; width: 100%">
             <div style="display: table-cell; {logo_style}">{logo_image}</div>
-            <div style="display: table-cell; vertical-align: middle; width: 90%">
+            <div style="display: table-cell; vertical-align: middle; width: 100%">
                 <div style="display: table; width: 100%">
                     <div style="display: table-row">
                         <div style="display: table-cell">
-                            <div style="float:left; line-height: 1.2em; font-size: 1.5em; font-weight: bold; margin-top: 0px;">{title}</div>
+                            <div class="rp-notebook-title">{title}</div>
                         </div>
                     </div>
                     <div style="display: table-row;">
                         <div style="display: table-cell; width: 100%; padding-top: .2em">
-                            <div style="float: right; font-size: 0.8em; font-family: 'Courier New'; padding-top: 0em">[{rootdir}]</div>
+                            <div class="rp-notebook-path">[{rootdir}]</div>
                         </div>
                     </div>
                 </div>

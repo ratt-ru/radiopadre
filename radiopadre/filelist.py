@@ -178,7 +178,6 @@ class FileList(FileBase, list):
             content_html = render_table(data, labels, links=links, ncol=ncol, actions=actions,
                                 tooltips=tooltips,
                                 context=context)
-
         return render_preamble() + \
                 render_titled_content(title_html=title_html,
                                         buttons_html=buttons_html,
