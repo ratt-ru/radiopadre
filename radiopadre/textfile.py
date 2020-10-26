@@ -226,8 +226,8 @@ class NumberedLineList(ItemBase):
 
         text = """
                 <DIV style="display: table-cell; font-size: {fs}em; text-align: left; 
-                        overflow: auto; text-decoration: none !important">
-                    <PRE style="white-space: pre-wrap; overflow: auto; width=100%">{text}</PRE>
+                        overflow: hidden; text-decoration: none !important">
+                    <PRE style="white-space: pre-wrap; overflow: hidden; width=100%">{text}</PRE>
                 </DIV>
             """.format(**locals())
         url = render_url(getattr(self, 'fullpath', self.path))
