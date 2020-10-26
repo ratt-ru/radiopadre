@@ -99,6 +99,16 @@ td .rp-thumb-title {
   width: 100%
 }
 
+td .rp-thumb-content {
+  border: 0px; 
+  text-align: center; 
+  width: 100%; 
+  padding-right: 0; 
+  padding-left: 0;
+  text-overflow: clip;
+  overflow: hidden;
+}
+
 .rp-item-header {
   white-space: nowrap;
   display: inline-block;

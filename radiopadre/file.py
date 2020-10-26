@@ -224,7 +224,7 @@ class ItemBase(RenderableElement):
                 {title}
                 {action_buttons}
                 <tr style="border: 0px; text-align: left; background: transparent">
-                    <td title="{path}" style="border: 0px; text-align: center; width: 100%; padding-right: 0; padding-left: 0">
+                    <td title="{path}" class="rp-thumb-content">
                     <div style="position: relative">
                         {thumb_content}
                     </div>
