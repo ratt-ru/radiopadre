@@ -96,7 +96,7 @@ class RichString(RenderableElement):
     A rich_string object contains a plain string and an HTML version of itself, and will render itself
     in a notebook front-end appropriately
     """
-    def __init__(self, text, html=None, bold=False, element=None, styles={}):
+    def __init__(self, text, html=None, bold=False, element=None, element_class=None, styles={}):
         self._text = text ## python2: text.encode("utf-8"), in 3 it's already unicode
         if html:
             self._html = html
@@ -104,9 +104,10 @@ class RichString(RenderableElement):
             text = text.encode("ascii", "xmlcharrefreplace").decode()  # python3 adds decode
             if bold:
                 element = "B"
-            if styles and not element:
+            if (styles or element_class) and not element:
                 element = "DIV"
             if element:
+                class_str = "" if not element_class else f"class='{element_class}'"
                 style_str = ""
                 # process style directives
                 for key, value in styles.items():
@@ -117,7 +118,7 @@ class RichString(RenderableElement):
                     style_str += f"{key}:{value}; "
                 # form up HTML
                 style_str = style_str and f'style="{style_str}"'
-                self._html = f"<{element} {style_str}>{text}</{element}>"
+                self._html = f"<{element} {class_str} {style_str}>{text}</{element}>"
             else:
                 self._html = text
 
@@ -194,14 +195,14 @@ def htmlize(text):
     # else:
     #     return unicode(str(text), "utf-8").encode("ascii", "xmlcharrefreplace")
 
-def rich_string(text, html=None, bold=False):
+def rich_string(text, html=None, div_class=None, bold=False):
     if text is None:
         return RichString('', html, bold=bold)
     elif type(text) is RichString:
         if html is not None:
             raise TypeError("can't call rich_string(RichString,html): this is a bug")
         return text
-    return RichString(text, html, bold=bold)
+    return RichString(text, html, bold=bold, element_class=div_class)
 
 
 def Text(text, **styles):

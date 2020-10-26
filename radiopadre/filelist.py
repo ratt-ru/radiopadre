@@ -1,3 +1,5 @@
+from build.lib.radiopadre.render import RichString
+from sys import setprofile
 from IPython.display import display, HTML, Javascript
 import os
 import fnmatch
@@ -18,9 +20,47 @@ class FileList(FileBase, list):
         return "{}:\n{}".format(filelist._header_text(title=title), "\n".join(
                             ["{}: {}".format(i, d.path) for i, d in enumerate(filelist)]))
 
+    class Title(object):
+        """Class to manage FileList titles"""
+        def __init__(self, provenance, *subset, is_path=True):
+            """
+            A title is formed as "provenance [subset, ....]
+            """
+            if type(provenance) is RichString:
+                self.provenance = provenance
+            else:
+                tclass = 'rp-filelist-path' if is_path else 'rp-filelist-title'
+                self.provenance = rich_string(provenance, div_class=tclass)
+            self.subset = subset or []
+            if subset:
+                subset_str = rich_string("[" + ", ".join(self.subset) + "]", div_class='rp-filelist-subset')
+                self.title = self.provenance + " " + subset_str
+            else:
+                self.title = self.provenance
+
+        def __call__(self, *subsets):
+            """
+            title(subsets,...) returns a title with additional subsets
+            """
+            return FileList.Title(self.provenance, *(list(self.subset)+list(subsets)))
+
+        def __add__(self, other):
+            """
+            Adding two titles of same provenance keeps provenance and adds subsets
+            Otherwise, starts a new provenance (by adding the full titles together), and clears the subset.
+            """
+            if self.provenance == other.provenance:
+                return FileList.Title(self.provenance, *(list(self.subset)+list(other.subset)))
+            else:
+                return FileList.Title(self.title + ", " + other.title)
+
+
     def __init__(self, content=None, path=".", extcol=False, showpath=False,
-                 title=None, parent=None,
-                 sort="xnt"):
+                 title=None,
+                 parent=None, sort="xnt"):
+        """
+
+        """
         self._extcol = extcol
         self._showpath = showpath
         self._parent = parent
@@ -28,7 +68,12 @@ class FileList(FileBase, list):
         self.nfiles = self.ndirs = 0
         self._fits = self._images = self._dirs = self._tables = self._html_files = None
 
-        FileBase.__init__(self, path or '.', title=title)
+        if type(title) is FileList.Title:
+            self._list_title = title
+        else:
+            self._list_title = FileList.Title(provenance=title)
+
+        FileBase.__init__(self, path or '.', title=self._list_title.title)
 
         if content is not None:
             self._set_list(content, sort)
@@ -208,46 +253,31 @@ class FileList(FileBase, list):
             f.show(*args, **kw)
 
     def __call__(self, *patterns):
-        """Returns a FileList os files from this list that match a pattern. Use !pattern to invert the meaning.
+        """Returns a FileList of files from this list that match a pattern. Use !pattern to invert the meaning.
         Use -flags to apply a sort order (where flags is one or more of xntr, to sort by extension, name, time, and reverse)"""
         self.rescan()
         sort = None
         files = []
-        accepted_patterns = []
+        subsets = []
         for patt in itertools.chain(*[x.split() for x in patterns]):
             if patt[0] == '!':
                 files += [f for f in self if not fnmatch.fnmatch((f.path if self._showpath else f.name), patt[1:])]
-                accepted_patterns.append(patt)
+                subsets.append(patt)
             elif patt[0] == '-':
                 sort = patt[1:]
             else:
                 files += [f for f in self if fnmatch.fnmatch((f.path if self._showpath else f.name), patt)]
-                accepted_patterns.append(patt)
-        title = self.title.copy()
-        if accepted_patterns:
-            if os.path.samefile(self.fullpath, radiopadre.ROOTDIR):
-                title = ",".join(accepted_patterns)
-            else:
-                title += "/{}".format(",".join(accepted_patterns))
-            self.message(title + ": {} match{}".format(len(files), "es" if len(files) !=1 else ""))
+                subsets.append(patt)
+        if subsets:
+            self.message(f"{','.join(subsets)}: {len(files)} match{'es' if len(files) !=1 else ''}")
+        else:
+            files = list(self)
         if sort is not None:
-            title += " [sort: {}]".format(sort)
+            subsets.append(f"sort: {sort}")
 
-        return FileList(files if accepted_patterns else list(self),
+        return FileList(files,
                         path=self.fullpath, extcol=self._extcol, showpath=self._showpath, sort=sort or self._sort,
-                        title=title, parent=self._parent)
-
-    # def thumbs(self, max=100, **kw):
-    #     display(HTML(render_refresh_button(full=self._parent and self._parent.is_updated())))
-    #     if not self:
-    #         display(HTML("<p>0 files</p>"))
-    #         return None
-    #     kw.setdefault('title', self._title + " (%d file%s)" % (len(self), "s" if len(self) > 1 else ""))
-    #     kw.setdefault('showpath', self._showpath)
-    #     thumbs = getattr(self._classobj, "_show_thumbs", None)
-    #     if thumbs:
-    #         return thumbs(self[:max], **kw)
-    #     display(HTML("<p>%d files. Don't know how to make thumbnails for this collection.</p>" % len(self)))
+                        title=self._list_title(*subsets), parent=self._parent)
 
     def __getitem__(self, item):
         self._load()
@@ -256,12 +286,10 @@ class FileList(FileBase, list):
                                        item.stop if item.stop is not None and item.stop < 2**31 else "")
             if item.step:
                 slice_str += ":{}".format(item.step)
-            title = rich_string("{}[{}]".format(self.title.text, slice_str),
-                                "{}[{}]".format(self.title.html, slice_str))
             return FileList(list.__getitem__(self, item),
                             path=self.fullpath, extcol=self._extcol, showpath=self._showpath,
-                            sort=self._sort,
-                            title=title, parent=self._parent)
+                            sort=self._sort, title=self._list_title(slice_str),
+                            parent=self._parent)
         elif type(item) is str:
             newlist = self.__call__(item)
             if not newlist:
@@ -290,7 +318,8 @@ class FileList(FileBase, list):
         content = list.__add__(self, other)
         showpath = self._showpath or other._showpath or self.fullpath != other.fullpath
         
-        return FileList(content=content, path=self.path, sort=None, showpath=showpath, title="")
+        return FileList(content=content, path=self.path, sort=None, showpath=showpath, 
+                        title=self._list_title+other._list_title, parent=self._parent)
 
     def filter(self, conditional, title=None):
         self._load()
@@ -298,29 +327,27 @@ class FileList(FileBase, list):
         title = "{}, [filter: {}]".format(self._title, name)
         return FileList([f for f in self if conditional(f)],
                         path=self.fullpath, extcol=self._extcol, showpath=self._showpath,
-                        sort=None,
-                        title=title, parent=self._parent)
+                        sort=None, title=self._list_title(f"filter: {name}"), 
+                        parent=self._parent)
 
 
     def sort(self, opt="dxnt"):
         self._load()
-        title = "{}, [sort: {}]".format(self._title, opt)
         return FileList(FileBase.sort_list(self, opt),
                         path=self.fullpath, extcol=self._extcol, showpath=self._showpath,
-                        sort=opt,
-                        title=title, parent=self._parent)
+                        sort=opt, title=self._list_title(f"sort: {opt}"),
+                        parent=self._parent)
 
-    def _typed_subset(self, filetype, title):
-        title = rich_string("{} [{}]".format(self.title.text, title),
-                            "{} [{}]".format(self.title.html, title))
-        return FileList([f for f in self if type(f) is filetype], path=self.fullpath, title=title,
+    def _typed_subset(self, filetype, name):
+        return FileList([f for f in self if type(f) is filetype], path=self.fullpath, 
+                        title=self._list_title(name),
                         parent=self, sort=self._sort)
 
     @property
     def dirs(self):
         from .datadir import DataDir
         if self._dirs is None:
-            self._dirs = self._typed_subset(DataDir, title="Subdirectories")
+            self._dirs = self._typed_subset(DataDir, name="Subdirs")
         return self._dirs
 
     @property
@@ -328,28 +355,28 @@ class FileList(FileBase, list):
         from .fitsfile import FITSFile
         if self._fits is None:
             # make separate lists of fits files and image files
-            self._fits = self._typed_subset(FITSFile, title="FITS files")
+            self._fits = self._typed_subset(FITSFile, name="FITS files")
         return self._fits
 
     @property
     def images(self):
         from .imagefile import ImageFile
         if self._images is None:
-            self._images = self._typed_subset(ImageFile, title="Images")
+            self._images = self._typed_subset(ImageFile, name="Images")
         return self._images
 
     @property
     def tables(self):
         from .casatable import CasaTable
         if self._tables is None:
-            self._tables = self._typed_subset(CasaTable, title="Tables")
+            self._tables = self._typed_subset(CasaTable, name="Tables")
         return self._tables
 
     @property
     def html(self):
         from .htmlfile import HTMLFile
         if self._html_files is None:
-            self._html_files = self._typed_subset(HTMLFile, title="HTML files")
+            self._html_files = self._typed_subset(HTMLFile, name="HTML files")
         return self._html_files
 
 

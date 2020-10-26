@@ -160,7 +160,9 @@ class ItemBase(RenderableElement):
         if title is not False:
             title = rich_string(title if title is not None else self.title)
             subtitle = rich_string(subtitle if subtitle is not None else self.description)
-            return ": ".join([x.html for x in (title, subtitle) if x]) + "\n"
+            return f"""<div class='rp-item-header'>
+                            {": ".join([x.html for x in (title, subtitle) if x])}
+                       </div>"""
         return ""
 
     def message(self, msg, timeout=3, color='blue'):
@@ -195,8 +197,8 @@ class ItemBase(RenderableElement):
                     <td style="padding: 0">
                         <table style="border: 0px; text-align: left; width: 100%">
                             <tr>
-                                <td style="border: 0px; background: #D0D0D0; text-align: left; width: 3em">{prefix}</td>
-                                <td title="{path}" style="border: 0px; background: #D0D0D0; text-align: center; max-width: 99%">
+                                <td class="rp-thumb-prefix">{prefix}</td>
+                                <td title="{path}" class="rp-thumb-title">
                                     {title}
                                 </td>
                             </tr>
@@ -224,9 +226,7 @@ class ItemBase(RenderableElement):
                 <tr style="border: 0px; text-align: left; background: transparent">
                     <td title="{path}" style="border: 0px; text-align: center; width: 100%; padding-right: 0; padding-left: 0">
                     <div style="position: relative">
-                        <div>
-                            {thumb_content}
-                        </div>
+                        {thumb_content}
                     </div>
                     </td>
                 </tr>

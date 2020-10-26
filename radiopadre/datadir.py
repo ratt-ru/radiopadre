@@ -88,11 +88,10 @@ class DataDir(FileList):
             self._exclude.append(".*")
             self._exclude_dir.append(".*")
 
-        FileList.__init__(self, content=None, path=name, sort=sort, title=title, showpath=recursive or showpath)
+        # make title
+        title = FileList.Title(name[2:] if name.startswith("./") else name, *(include or []))
 
-        if include:
-            self.title += "/{}".format(','.join(include))
-            self._reset_summary()
+        FileList.__init__(self, content=None, path=name, sort=sort, title=title, showpath=recursive or showpath)
 
         # any list manipulations will cause a call to self._load()
         for method in 'append', 'extend', 'insert', 'pop', 'remove','reverse':
