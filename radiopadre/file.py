@@ -42,7 +42,7 @@ class ItemBase(RenderableElement):
 
     @title.setter
     def title(self, value):
-        self._title = rich_string(value, bold=True)
+        self._title = rich_string(value, div_class="rp-item-title")
         self._auto_update_summary()
 
     @property
@@ -158,8 +158,8 @@ class ItemBase(RenderableElement):
         title=False to omit title, else != None to override title
         """
         if title is not False:
-            title = rich_string(title if title is not None else self.title)
-            subtitle = rich_string(subtitle if subtitle is not None else self.description)
+            title = rich_string(title if title is not None else self.title, div_class="rp-item-title")
+            subtitle = rich_string(subtitle if subtitle is not None else self.description, div_class="rp-item-subtitle")
             return f"""<div class='rp-item-header'>
                             {": ".join([x.html for x in (title, subtitle) if x])}
                        </div>"""

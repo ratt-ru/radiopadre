@@ -103,11 +103,20 @@ td .rp-thumb-title {
   white-space: nowrap;
   display: inline-block;
 }
+.rp-item-title {
+  font-weight: bold; 
+  white-space: nowrap;
+  display: inline-block;
+}
+.rp-item-subtitle {
+  white-space: nowrap;
+  display: inline-block;
+}
 .rp-filelist-path {
   white-space: nowrap;
   display: inline-block;
   font-family: monospace;
-  font-weight: normal; 
+  font-weight: bold; 
 }
 .rp-filelist-title {
   white-space: nowrap;
