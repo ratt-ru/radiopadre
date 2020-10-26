@@ -1,4 +1,3 @@
-from build.lib.radiopadre.render import RichString
 from sys import setprofile
 from IPython.display import display, HTML, Javascript
 import os
@@ -7,7 +6,7 @@ import itertools
 import uuid
 
 from .file import FileBase
-from .render import render_table, render_preamble, rich_string, render_titled_content
+from .render import render_table, render_preamble, rich_string, render_titled_content, RichString
 
 from . import executor
 
