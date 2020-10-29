@@ -8,8 +8,8 @@ on:
       - b*
 
     # # Publish `v1.2.3` tags as releases.
-    # tags:
-    #   - v*
+    tags:
+      - v*
     
 #   release:
 #     types: [published]
@@ -53,11 +53,11 @@ jobs:
       - name: Build image
         run: docker build . --file Dockerfile --tag $IMAGE_NAME
 
-      - name: Log into GitHub Container Registry
+      - name: Log into dockerhub
       # TODO: Create a PAT with `read:packages` and `write:packages` scopes and save it as an Actions secret `CR_PAT`
         run: echo "${{ secrets.DOCKERHUB_PASSWORD }}" | docker login -u osmirnov --password-stdin
 
-      - name: Push image to GitHub Container Registry
+      - name: Push image to dockerhub
         run: |
           IMAGE_ID=osmirnov/$IMAGE_NAME
 
