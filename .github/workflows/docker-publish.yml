@@ -76,8 +76,9 @@ jobs:
           # Use Docker `latest` tag convention
           [ "$VERSION" == "master" ] && VERSION=latest
 
+          echo github.ref="${{ github.ref }}"
           echo IMAGE_ID=$IMAGE_ID
           echo VERSION=$VERSION
 
-          docker tag $IMAGE_NAME $IMAGE_ID:$VERSION
-          docker push $IMAGE_ID:$VERSION
+          # docker tag $IMAGE_NAME $IMAGE_ID:$VERSION
+          # docker push $IMAGE_ID:$VERSION
