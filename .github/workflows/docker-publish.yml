@@ -51,7 +51,7 @@ jobs:
       - uses: actions/checkout@v2
 
       - name: Build image
-        run: 
+        run: |
           echo github.ref="${{ github.ref }}"
           echo IMAGE_NAME=$IMAGE_NAME
           docker build . --file Dockerfile --tag $IMAGE_NAME
