@@ -1,8 +1,6 @@
 from __future__ import division
 
 import os
-import traceback
-import hashlib
 import PIL.Image
 from IPython.display import HTML, Image, display
 
@@ -10,6 +8,7 @@ import radiopadre
 import radiopadre.file
 from radiopadre.render import render_title, render_url, render_preamble, rich_string, RichString
 from radiopadre import settings
+from iglesia import message, debug
 
 PIL.Image.MAX_IMAGE_PIXELS = 30000**2
 
@@ -37,7 +36,10 @@ def _make_thumbnail(image, width):
     thumb_url = os.path.join(thumbdir_url, name)
 
     # does thumb need to be updated?
-    if not os.path.exists(thumb) or os.path.getmtime(thumb) < os.path.getmtime(image):
+    img_mtime = os.path.getmtime(image)
+    thumb_mtime = os.path.getmtime(thumb) if os.path.exists(thumb) else 0
+    if thumb_mtime < img_mtime:
+        #debug(f"updating thumbnail {thumb} (out of date by {img_mtime-thumb_mtime}s)")
         # can't write? That's ok too
         if not os.access(thumbdir, os.W_OK) or os.path.exists(thumb) and not os.access(thumb, os.W_OK):
             return None, None

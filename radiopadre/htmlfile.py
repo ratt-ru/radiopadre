@@ -5,7 +5,7 @@ import re
 import radiopadre
 
 from radiopadre.file import FileBase, ItemBase
-from radiopadre.render import render_title, render_url, render_preamble, render_error
+from radiopadre.render import render_titled_content, render_url, render_preamble, render_error
 from radiopadre import settings
 from radiopadre import imagefile
 from radiopadre.settings_manager import DocString
@@ -56,8 +56,9 @@ def _render_html(url, dest, width, height, timeout):
     message(f"running {' '.join(cmd)}")
     try:
         result = subprocess.run(cmd, check=True, env=env, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-    except subprocess.CalledProcessError as result:
-        error = f"{cmd[0]}: exit code {result.returncode}"
+    except subprocess.CalledProcessError as exc:
+        result = exc
+        error = f"{cmd[0]}: exit code {exc.returncode}"
         debug(error)
     stdout = result.stdout.decode() if result.stdout is not None else None
     stderr = result.stderr.decode() if result.stderr is not None else None
@@ -71,13 +72,19 @@ class HTMLFile(FileBase):
     def __init__(self, *args, **kw):
         FileBase.__init__(self, *args, **kw)
 
-    def render_html(self, width="99%", context=None, height=None):
+    def render_html(self, width="99%", context=None, height=None, title=None, collapsed=None, **kw):
+        title_html = self._header_html(title=title)
+        if collapsed is None and settings.gen.collapsible:
+            collapsed = False
+
         width = width or settings.display.cell_width
         height = height or settings.display.window_height
         url = render_url(self.fullpath)
-        html = render_preamble() + render_title(self.title)
-        html += """<IFRAME width={width} height={height} src={url}></IFRAME>""".format(**locals())
-        return html
+        content_html = f"""<IFRAME width={width} height={height} src={url}></IFRAME>"""
+        return render_preamble() + \
+                render_titled_content(title_html=title_html,
+                                      content_html=content_html,
+                                      collapsed=collapsed)
 
     def _render_thumb_impl(self, width=None, height=None, refresh=False, **kw):
         width  = settings.html.get(width=width)
@@ -102,12 +109,17 @@ class URL(ItemBase):
         self.url = url
         self.fullpath = self.path = url
 
-    def render_html(self, width="99%", context=None, height=None):
+    def render_html(self, width="99%", context=None, height=None, title=None, collapsed=None, **kw):
+        title_html = self._header_html(title=title)
+        if collapsed is None and settings.gen.collapsible:
+            collapsed = False
         width = width or settings.display.cell_width
         height = height or settings.display.window_height
-        html = render_preamble() + render_title(self.title)
-        html += f"""<IFRAME width={width} height={height} src={self.url}></IFRAME>"""
-        return html
+        content_html = f"""<IFRAME width={width} height={height} src={self.url}></IFRAME>"""
+        return render_preamble() + \
+                render_titled_content(title_html=title_html,
+                                      content_html=content_html,
+                                      collapsed=collapsed)
 
     def _render_thumb_impl(self, width=None, height=None, **kw):
         width  = settings.html.get(width=width)

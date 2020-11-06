@@ -10,28 +10,38 @@ _ALL_SECTIONS = OrderedDict()
 logo_image = ''
 icon_image = ''
 
+init_html = """
+"""
+
 def add_section(name):
     """Adds a know section to the TOC"""
     _ALL_SECTIONS[name] = name.lower().replace(" ", "_")
 
 
-def render_bookmarks_bar(current_name=None):
-    bookmarks = []
-    for name1, label1 in _ALL_SECTIONS.items():
-        if current_name == name1:
-            bookmarks.append('<b>{}<b>'.format(name1))
-        else:
-            bookmarks.append('<a href=#{}>{}</a>'.format(label1, name1))
-    return " ".join(bookmarks)
-
+def render_bookmarks_bar(label, name):
+    """Renders a bookmarks bar with all available sections"""
+    ## note that this relies on document.radiopadre.add_section() above to populate each bookmark bar
+    return f"""
+        <div>
+            <a name="{label}" /> 
+            <div class="rp-section-bookmarks" data-name="{name}" data-label="{label}"></div>
+        </div>
+        <script type="text/javascript">
+            document.radiopadre.add_section();
+        </script>
+    """
+    
 
 def Title(title, sections=[], logo=None, logo_width=0, logo_padding=8, icon=None, icon_width=None):
-    """Renders a title, and registers section names for a bookmark bar"""
-    if type(sections) is str:
-        sections = [x.strip() for x in sections.split("|")]
-
-    for name in sections:
-        add_section(name)
+    """Renders a title.
+    
+    sections: deprecated, used to be used for pre-registering section names for the bookmark bars, but this is now built
+    automatically.
+    """
+    # if type(sections) is str:
+    #     sections = [x.strip() for x in sections.split("|")]
+    # for name in sections:
+    #     add_section(name)
 
     rootdir = radiopadre.ABSROOTDIR
     homedir = os.path.expanduser("~")
@@ -56,18 +66,18 @@ def Title(title, sections=[], logo=None, logo_width=0, logo_padding=8, icon=None
         icon_image = f"""<img src="{icon}" alt="" {icon_width}></img>"""
 
     display(HTML(f"""
-        <div style="display: table-row; margin-top: 0.5em; width: 100%">
+        <div class="rp-title-block" style="display: table-row; margin-top: 0.5em; width: 100%">
             <div style="display: table-cell; {logo_style}">{logo_image}</div>
-            <div style="display: table-cell; vertical-align: middle; width: 90%">
+            <div style="display: table-cell; vertical-align: middle; width: 100%">
                 <div style="display: table; width: 100%">
                     <div style="display: table-row">
                         <div style="display: table-cell">
-                            <div style="float:left; line-height: 1.2em; font-size: 1.5em; font-weight: bold; margin-top: 0px;">{title}</div>
+                            <div class="rp-notebook-title">{title}</div>
                         </div>
                     </div>
                     <div style="display: table-row;">
                         <div style="display: table-cell; width: 100%; padding-top: .2em">
-                            <div style="float: right; font-size: 0.8em; font-family: 'Courier New'; padding-top: 0em">[{rootdir}]</div>
+                            <div class="rp-notebook-path">[{rootdir}]</div>
                         </div>
                     </div>
                 </div>
@@ -107,19 +117,16 @@ def Section(name):
         add_section(name)
     label = _ALL_SECTIONS[name]
 
-    bookmarks = render_bookmarks_bar(name) if not radiopadre.NBCONVERT else ""
+    code = render_bookmarks_bar(label, name) if not radiopadre.NBCONVERT else ""
 
-    code = f"""
-        <div style="display: table-cell; font-size: 0.8em; vertical-align: top; text-align: right; float: right"> 
-            {bookmarks} 
-        </div>
+    code += f"""
         <div style="display: table">
             <div style="display: table-row">
                 <div style="display: table-cell; vertical-align: middle; padding-right: 4px">
                     {refresh}  
                 </div>
                 <div style="display: table-cell; vertical-align: middle; font-size: 1.5em; font-weight: bold; {title_style};">
-                    <A name="{label}" /> {name}
+                    {name}
                 </div>
                 <div style="display: table-cell;">
                 </div>
@@ -127,17 +134,6 @@ def Section(name):
         </div>
         """
 
-    # code = """{refresh}
-    #           <div style="float: left; font-size: 1.5em; font-weight: bold; {title_style};
-    #                       margin-top: 0em; margin-left: 0.5em;
-    #                       ">
-    #             <A name="{label}" />
-    #             {name}
-    #           </div>
-    #           <div style="float: right;">
-    #             {bookmarks}
-    #           </div>
-    #        """.format(**locals())
 
     display(HTML(code))
 

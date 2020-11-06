@@ -214,14 +214,10 @@ class FITSFile(radiopadre.file.FileBase):
                                          header=False, numbering=False))
 
     @staticmethod
-    def _html_summary(fits_files, context=None, title=None, primary_sort="", sort_arrow="", **kw):
+    def _html_summary(fits_files, context=None, primary_sort="", sort_arrow="", **kw):
         if not fits_files:
             return ""
-        html = render_title(title) if title else ""
         data = [ ff._get_summary_items() for ff in fits_files ]
-        html += """<span style="display:inline-block; width: 32px;"></span>""" + \
-                FITSFile._collective_action_buttons_(fits_files, context=context,
-                                                     defaults=FITSFile.make_js9_defaults(**kw))
         actions = [ df._action_buttons_(context) for df in fits_files ]
         labels = ("{}name".format(sort_arrow if primary_sort == "n" else ""),
                   "{}size".format(sort_arrow if primary_sort == "s" else ""),
@@ -229,12 +225,10 @@ class FITSFile(radiopadre.file.FileBase):
                   "axes",
                   "{}modified".format(sort_arrow if primary_sort == "t" else ""))
         tooltips = { (irow,labels[0]): df.path for irow, df in enumerate(fits_files) }
-        html += render_table(data, html=("size", "axes", "res"),
+        return render_table(data, html=("size", "axes", "res"),
                              labels=labels, tooltips=tooltips,
                              actions=actions,
                              context=context)
-        return html
-
 
     def _return_exception(self, title):
         etype, eval, etb = sys.exc_info()
@@ -280,6 +274,7 @@ class FITSFile(radiopadre.file.FileBase):
              ncol=None,
              mincol=None,
              maxcol=None,
+             maxplots=10,            # max number of plots to show
              fs='medium',
              fs_title='large',
              fs_axis=None,
@@ -423,18 +418,19 @@ class FITSFile(radiopadre.file.FileBase):
                     plt.xlim(*xlim)
                     plt.ylim(*ylim)
                     fig.savefig(image, dpi=settings.plot.screen_dpi, bbox_inches='tight')
-#                    print "rendered", image
+                    # print("rendered", image)
                     plt.close(fig)
                 name_image_url.append((self.short_summary, image, url))
             else:
                 status += ", unrolling " + axis_type[unroll]
-                nrow, ncol, width = radiopadre.file.compute_thumb_geometry(dims[unroll],
+                nplots = min(dims[unroll], maxplots) if maxplots else dims[unroll]
+                nrow, ncol, width = radiopadre.file.compute_thumb_geometry(nplots,
                                                                            ncol, mincol,
                                                                            maxcol, width,
                                                                            maxwidth)
-                plt.figure(figsize=(width * ncol, width * nrow), dpi=settings.plot.screen_dpi)
+                # plt.figure(figsize=(width * ncol, width * nrow), dpi=settings.plot.screen_dpi)
                 # plt.suptitle(self.basename)
-                for iplot in range(dims[unroll]):
+                for iplot in range(nplots):
                     image, url, update = self._get_png_file(vmin=vmin, vmax=vmax, cmap=cmap, scale=scale, zoom=zoom,
                                                             keydict={axis_type[unroll]: iplot})
                     if update or refresh:
@@ -592,7 +588,7 @@ class FITSFile(radiopadre.file.FileBase):
 
     @staticmethod
     def _collective_action_buttons_(fits_files, context, defaults=None):
-        """Renders JS9 buttons for a collection of images"""
+        """Renders JS9 buttons for a collection of images."""
         subs = globals().copy()
         subs.update(display_id=context.div_id, **locals())
 
@@ -615,10 +611,12 @@ class FITSFile(radiopadre.file.FileBase):
         </script>""".format(**subs)
 
         code = """
-            <button title="display all images using an inline JS9 window" style="font-size: 0.8em; height=0.8em;"
-                    onclick="JS9p._pd_{display_id}_load_all()">&#8595;JS9 all</button>
-            <button title="display all images using JS9 in a new browser tab" style="font-size: 0.8em;  height=0.8em;"
-                    onclick="window.open('{newtab_html}', '_blank')">&#8663;JS9 all</button>
+            <div class="rp-collective-buttons">
+            <div><button title="display all images using an inline JS9 window" 
+                        onclick="JS9p._pd_{display_id}_load_all()">&#8595;JS9 all</button></div>
+            <div><button title="display all images using JS9 in a new browser tab"  
+                    onclick="window.open('{newtab_html}', '_blank')">&#8663;JS9 all</button></div>
+            </div>
         """.format(**subs)
         return code
 

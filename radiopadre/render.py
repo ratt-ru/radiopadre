@@ -91,24 +91,39 @@ class RenderingProxy(RenderableElement):
         else:
             return html
 
-
-
-
 class RichString(RenderableElement):
     """
     A rich_string object contains a plain string and an HTML version of itself, and will render itself
     in a notebook front-end appropriately
     """
-    def __init__(self, text, html=None, bold=False):
+    def __init__(self, text, html=None, bold=False, element=None, element_class=None, styles={}):
         self._text = text ## python2: text.encode("utf-8"), in 3 it's already unicode
         if html:
             self._html = html
         else:
-#            if type(text) is unicode:
             text = text.encode("ascii", "xmlcharrefreplace").decode()  # python3 adds decode
- #           else:
-#              text = cgi.escape(text)
-            self._html = "<B>{}</B>".format(text) if bold else text
+            if bold:
+                element = "B"
+            if (styles or element_class) and not element:
+                element = "DIV"
+            if element:
+                class_str = "" if not element_class else f"class='{element_class}'"
+                style_str = ""
+                # process style directives
+                for key, value in styles.items():
+                    # "fs" gets special treatment
+                    if key == "fs" and type(value) in {int, float}:
+                        value = f"{int(value*100)}%"
+                    key = self._style_aliases.get(key, key.replace('_', '-'))
+                    style_str += f"{key}:{value}; "
+                # form up HTML
+                style_str = style_str and f'style="{style_str}"'
+                self._html = f"<{element} {class_str} {style_str}>{text}</{element}>"
+            else:
+                self._html = text
+
+    # this dictionary maps elements of the styles dict above to CSS styles
+    _style_aliases = dict(fs="font-size")
 
     def copy(self):
         return RichString(self._text, self._html)
@@ -180,15 +195,32 @@ def htmlize(text):
     # else:
     #     return unicode(str(text), "utf-8").encode("ascii", "xmlcharrefreplace")
 
-def rich_string(text, html=None, bold=False):
+def rich_string(text, html=None, div_class=None, bold=False):
     if text is None:
-        return RichString('')
+        return RichString('', html, bold=bold)
     elif type(text) is RichString:
         if html is not None:
             raise TypeError("can't call rich_string(RichString,html): this is a bug")
         return text
-    return RichString(text, html, bold=bold)
+    return RichString(text, html, bold=bold, element_class=div_class)
 
+
+def Text(text, **styles):
+    """Returns text rendered in HTML"""
+    return RichString(text, styles=styles)
+
+def Bold(text, **styles):
+    """Returns text rendered in boldface in HTML"""
+    return RichString(text, element="B", styles=styles)
+
+def Italic(text, **styles):
+    """Returns text rendered in italic in HTML"""
+    return RichString(text, element="I", styles=styles)
+
+def ColText(text, color="red", **styles):
+    """Returns text rendered in italic in HTML"""
+    styles['color'] = color
+    return RichString(text, styles=styles)
 
 def render_preamble():
     """Renders HTML preamble.
@@ -214,7 +246,7 @@ def render_url(fullpath, notebook=False): # , prefix="files"):
 
 def render_title(title):
     if title:
-        return title.html if type(title) is RichString else "<b>{}</b>".format(htmlize(title))
+        return title.html if type(title) is RichString else Bold(title).html
     return ''
 
 def render_error(message):
@@ -387,4 +419,81 @@ def render_refresh_button(full=False, style="position: absolute; right: 0; top: 
         """
     return txt
 
+_collapsible_title  = {None:"", False: "Click to collapse display", True: "Click to expand display"}
 
+
+def render_titled_content(title_html, content_html, buttons_html=None, collapsed=None):
+    """
+    Renders a block of content with a title bar, and optional action buttons.
+    If collapsed is True or False, content is collapsible.
+    """
+    uid = uuid.uuid4().hex
+
+    # uncollapse everything if converting notebook
+    if radiopadre.NBCONVERT:
+        collapsed = None
+
+    html = f"""<div class="rp-content-block">"""
+    # strip trailing whitespace (such as \n) from title
+    title_html = title_html and title_html.rstrip()
+
+    if title_html or buttons_html:
+        if buttons_html:
+            buttons_html = f"""<div class="actions-container">
+                                        {buttons_html}
+                            </div>"""
+        else:
+            buttons_html = ""
+        # open title bar div and button container        
+        html += f"""<div class="title-bar"><div class="button-container">"""
+
+        # insert title button, if provided
+        if title_html:
+            title_classes = "rp-title-button"
+            if collapsed is not None:
+                title_classes += " rp-collapsible"
+                collapsed = bool(collapsed)
+                if collapsed:  # collapsed buttons have both classes. The script below toggles "rp-collapsed" in and out
+                    title_classes += " rp-collapsed"
+
+
+            html += f"""<button id="btn-{uid}" type="button" 
+                                        class="{title_classes}"
+                                        title="{_collapsible_title[collapsed]}">
+                            {title_html}
+                        </button>"""
+
+        # close title button DIV, insert action buttons, close the titlebar DIV, and add spacer
+        html += f"""</div>
+                    {buttons_html}
+                </div>
+                <div class="title-bar-spacer"></div>
+                """
+
+    # add content block, and closing DIV
+    html += f"""<div id="content-{uid}" class="rp-content" style="display:{'none' if collapsed else 'table-row'}">
+                        {content_html}
+                </div>
+            </div>"""
+
+    # add collapsible scripts
+    if title_html:
+        html += f"""<script>
+                    btn = document.getElementById("btn-{uid}");
+                    // console.log("button classes", btn.classList)
+                    if (btn.classList.contains("rp-collapsible")) {{
+                        btn.addEventListener("click", function() {{
+                            var content = document.getElementById("content-{uid}");
+                            if (this.classList.toggle("rp-collapsed")) {{
+                                content.style.display = "none";
+                                this.title = "{_collapsible_title[True]}"
+                            }} else {{
+                                content.style.display = "table-row";
+                                this.title = "{_collapsible_title[False]}"
+                            }}
+                        }});
+                    }}
+                </script>
+                """
+
+    return html

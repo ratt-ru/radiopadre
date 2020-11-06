@@ -3,7 +3,7 @@ import io
 import os.path
 
 from radiopadre.file import ItemBase, FileBase
-from radiopadre.render import render_title, render_url, render_preamble, rich_string, htmlize
+from radiopadre.render import render_titled_content, render_url, render_preamble, rich_string, htmlize
 from radiopadre import settings
 from radiopadre.table import tabulate
 
@@ -98,19 +98,33 @@ class NumberedLineList(ItemBase):
         tail = lines[-tail:] if tail else []
         return head, tail
 
-    def render_text(self, head=None, tail=None, full=None, grep=None, slicer=None, subtitle=None):
-        self.rescan(load=False)
-        txt = self._header_text(subtitle)
-        # read file, unless head and tail is already passed in
+    def _get_render_subset(self, head, tail, full, grep, slicer):
+        """helper method for render_text() and render_html(). Returns head, tail and subtitles corresponding 
+        to input arguments""" 
+        subtitle = []
+        if type(head) is int and head:
+            subtitle.append(f"head {head}")
+        if type(tail) is int and tail:
+            subtitle.append(f"tail {tail}")
         if type(head) is not list or type(tail) is not list:
             self.rescan(load=True)
             head = settings.text.get(head=head)
             tail = settings.text.get(tail=tail)
             head, tail = self._get_lines(head, tail, full, grep, slicer)
+        if grep:
+            subtitle.append(f"grep '{grep}': {len(head)} matching lines")
+        subtitle=", ".join(subtitle) if subtitle else None
+        return subtitle, head, tail
+
+    def render_text(self, head=None, tail=None, full=None, grep=None, slicer=None, title=None, number=None, **kw):
+        self.rescan(load=False)
+        subtitle, head, tail = self._get_render_subset(head, tail, full, grep, slicer)
+        txt = self._header_text(title=title, subtitle=subtitle)
         # empty head and tail: return just the title
         if not head and not tail:
             return txt
-        format = "{0}: {1}\n" if self._show_numbers else "{1}\n"
+        show_numbers = self._show_numbers if number is None else number
+        format = "{0}: {1}\n" if show_numbers else "{1}\n"
         for line_num, line in head:
             txt += format.format(line_num+1, line.strip())
             # txt += "{}: {}\n".format(line_num + 1, line.encode("utf-8").strip())
@@ -121,60 +135,62 @@ class NumberedLineList(ItemBase):
                 # txt += "{}: {}\n".format(line_num + 1, line.encode("utf-8").strip())
         return txt
 
-    def render_html(self, head=None, tail=None, full=None, grep=None, fs=None, slicer=None, subtitle=None, **kw):
+    def render_html(self, head=None, tail=None, full=None, grep=None, fs=None, slicer=None, 
+                    title=None, number=None, collapsed=None, **kw):
         self.rescan(load=False)
-        txt = render_preamble()
         fs = settings.text.get(fs=fs)
-        # read file, unless head and tail is already passed in
-        if type(head) is not list or type(tail) is not list:
-            self.rescan(load=True)
-            head = settings.text.get(head=head)
-            tail = settings.text.get(tail=tail)
-            head, tail = self._get_lines(head, tail, full, grep, slicer)
-        # for up title
-        if grep:
-            txt += "grep '{}' {}: {} matching lines".format(grep, self.title.html, len(head))
-        else:
-            txt += self._header_html()
+        subtitle, head, tail = self._get_render_subset(head, tail, full, grep, slicer)
+        if collapsed is None and settings.gen.collapsible:
+            collapsed = False
+
+        title_html = self._header_html(title=title, subtitle=subtitle)
+        content_html = ""
+
         # empty head and tail: return just the title
         if not head and not tail:
-            return txt
+            collapsed = None
+        else:
+            show_numbers = self._show_numbers if number is None else number
 
-        # render as table
-        border_style = "1px solid black"
+            # render as table
+            border_style = "1px solid black"
 
-        def render_line(line_num, line, firstlast, fs):
-            border_top = border_style if line_num == firstlast[0] else "none"
-            border_bottom = border_style if line_num == firstlast[1] else "none"
-            border_rl = border_style if line_num != "..." else "none"
-            background = "#f2f2f2" if line_num != "..." else "none"
-            line_num_html = ""
-            if self._show_numbers:
-                line_num_html = \
-                    """<DIV style="display: table-cell; border-top: {border_top}; border-bottom: {border_bottom};
-                                    border-left: {border_rl}; padding-left: 4px; padding-right: 4px;
-                                    height=1em; background-color: {background}">{line_num}
-                     </DIV>""".format(**locals())
+            def render_line(line_num, line, firstlast, fs):
+                border_top = border_style if line_num == firstlast[0] else "none"
+                border_bottom = border_style if line_num == firstlast[1] else "none"
+                border_rl = border_style if line_num != "..." else "none"
+                background = "#f2f2f2" if line_num != "..." else "none"
+                line_num_html = ""
+                if show_numbers:
+                    line_num_html = \
+                        """<DIV style="display: table-cell; border-top: {border_top}; border-bottom: {border_bottom};
+                                        border-left: {border_rl}; padding-left: 4px; padding-right: 4px;
+                                        height=1em; background-color: {background}">{line_num}
+                        </DIV>""".format(**locals())
 
-            return """
-                <DIV style="display: table-row; height=1em">
-                    {line_num_html}
-                    <DIV style="display: table-cell; border-top: {border_top}; border-bottom: {border_bottom};
-                                height=1em; border-right: {border_rl}; padding-left: 4px; padding-right: 4px"><PRE>{line}</PRE>
-                    </DIV>
-                </DIV>\n""".format(**locals())
+                return """
+                    <DIV style="display: table-row; height=1em">
+                        {line_num_html}
+                        <DIV style="display: table-cell; border-top: {border_top}; border-bottom: {border_bottom};
+                                    height=1em; border-right: {border_rl}; padding-left: 4px; padding-right: 4px"><PRE>{line}</PRE>
+                        </DIV>
+                    </DIV>\n""".format(**locals())
 
-        lh = fs*1.5
-        txt += """<DIV style="display: table; width: 100%; font-size: {fs}em; line-height: {lh}em">""".format(**locals())
-        firstlast = self._lines[0][0], self._lines[-1][0]
-        for line_num, line in head:
-            txt += render_line(line_num, htmlize(line), firstlast, fs=fs)
-        if tail:
-            txt += render_line("&#8943;", "", firstlast, fs=fs)
-            for line_num, line in tail:
-                txt += render_line(line_num, htmlize(line), firstlast, fs=fs)
-        txt += "\n</DIV>\n"
-        return txt
+            lh = fs*1.5
+            content_html += """<DIV style="display: table; width: 100%; font-size: {fs}em; line-height: {lh}em">""".format(**locals())
+            firstlast = self._lines[0][0], self._lines[-1][0]
+            for line_num, line in head:
+                content_html += render_line(line_num, htmlize(line), firstlast, fs=fs)
+            if tail:
+                content_html += render_line("&#8943;", "", firstlast, fs=fs)
+                for line_num, line in tail:
+                    content_html += render_line(line_num, htmlize(line), firstlast, fs=fs)
+            content_html += "\n</DIV>\n"
+
+        return render_preamble() + \
+                render_titled_content(title_html=title_html,
+                                        content_html=content_html,
+                                        collapsed=collapsed)
 
     def _render_thumb_impl(self, fs=0.5, head=None, tail=None, **kw):
         self.rescan(load=True)
@@ -210,8 +226,8 @@ class NumberedLineList(ItemBase):
 
         text = """
                 <DIV style="display: table-cell; font-size: {fs}em; text-align: left; 
-                        overflow: auto; text-decoration: none !important">
-                    <PRE style="white-space: pre-wrap; overflow: auto; width=100%">{text}</PRE>
+                        overflow: hidden; text-decoration: none !important">
+                    <PRE style="white-space: pre-wrap; overflow: hidden; width=100%">{text}</PRE>
                 </DIV>
             """.format(**locals())
         url = render_url(getattr(self, 'fullpath', self.path))
@@ -219,7 +235,7 @@ class NumberedLineList(ItemBase):
         return """<A HREF='{url}' target='_blank' style="text-decoration: none">{text}</A>""".format(**locals())
 
     def grep(self, regex, fs=None):
-        return self._rendering_proxy('render_html', 'grep', grep=regex, fs=fs, subtitle=" (grep: {})".format(regex))
+        return self._rendering_proxy('render_html', 'grep', grep=regex, fs=fs)
 
     @property
     def head(self):

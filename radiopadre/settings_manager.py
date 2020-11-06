@@ -125,6 +125,7 @@ class RadiopadreSettingsManager(SettingsManager):
         gen.twocolumn_list_width = 40, D("file lists will default to dual-column if all names are within this length")
 
         gen.timeformat = "%H:%M:%S %b %d", D("time format")
+        gen.collapsible = True, D("enable collapsible displays by default")
 
         gen.ncpu = 0, D("number of CPU cores to use, 0 to detect automatically ")
         gen.max_ncpu = 32, D("max number of CPU cores to use (when detecting automatically)")
@@ -159,6 +160,7 @@ class RadiopadreSettingsManager(SettingsManager):
         thumb.mincol = 2, D("minimum number of columns to display in thumbnail view")
         thumb.maxcol = 4, D("maximum number of columns to display in thumbnail view")
         thumb.width  = 0, D("default thumbnail width, 0 to set automatically")
+        thumb.collapsed = None, D("if not None, makes thumbnail display collapsible")
 
         fits = self.add_section("fits", "settings for rendering of FITS files")
 

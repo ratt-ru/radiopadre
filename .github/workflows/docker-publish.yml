@@ -2,12 +2,12 @@ name: Docker
 
 on:
   push:
-    # Publish `master` as Docker `latest` image.
+    # Publish `master` as Docker `latest` image and `bX.Y` as X.Y.
     branches:
       - master
       - b*
 
-    # Publish `v1.2.3` tags as releases.
+    # # Publish `v1.2.3` tags as releases.
     tags:
       - v*
     
@@ -51,13 +51,16 @@ jobs:
       - uses: actions/checkout@v2
 
       - name: Build image
-        run: docker build . --file Dockerfile --tag $IMAGE_NAME
+        run: |
+          echo github.ref="${{ github.ref }}"
+          echo IMAGE_NAME=$IMAGE_NAME
+          docker build . --file Dockerfile --tag $IMAGE_NAME
 
-      - name: Log into GitHub Container Registry
+      - name: Log into dockerhub
       # TODO: Create a PAT with `read:packages` and `write:packages` scopes and save it as an Actions secret `CR_PAT`
         run: echo "${{ secrets.DOCKERHUB_PASSWORD }}" | docker login -u osmirnov --password-stdin
 
-      - name: Push image to GitHub Container Registry
+      - name: Push image to dockerhub
         run: |
           IMAGE_ID=osmirnov/$IMAGE_NAME
 
@@ -71,11 +74,12 @@ jobs:
           [[ "${{ github.ref }}" == "refs/tags/"* ]] && VERSION=$(echo $VERSION | sed -e 's/^v//')
 
           # Strip "b" prefix from branch name
-          [[ "${{ github.ref }}" == "refs/head/b"* ]] && VERSION=$(echo $VERSION | sed -e 's/^b//')
+          [[ "${{ github.ref }}" == "refs/heads/b"* ]] && VERSION=$(echo $VERSION | sed -e 's/^b//')
 
           # Use Docker `latest` tag convention
           [ "$VERSION" == "master" ] && VERSION=latest
 
+          echo github.ref="${{ github.ref }}"
           echo IMAGE_ID=$IMAGE_ID
           echo VERSION=$VERSION
 

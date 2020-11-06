@@ -177,10 +177,13 @@ if (appname === 'NotebookApp')
 //        console.log("container is", container, 'offsetWidth:', container.offsetWidth, 'style.width:', container.style.width, ';')
         if( document.radiopadre._full_width ) {
             document.radiopadre._default_width_px = container.style.width;
+            document.radiopadre._default_left_margin = container.style.marginLeft;
             container.style.width = "100%";
+            container.style.marginLeft = "0px";
 //            console.log("set 100% width");
         } else {
             container.style.width = document.radiopadre._default_width_px;
+            container.style.marginLeft = document.radiopadre._default_left_margin;
 //            console.log("set default width", document.radiopadre._default_width_px);
         }
         document.radiopadre.controls.update();
@@ -294,10 +297,48 @@ if (appname === 'NotebookApp')
         document.radiopadre.controls.update();
     }
 
-
+    // adds a section to the list and repopulate all bookmark bars
+    document.radiopadre.add_section = function() {
+        document.radiopadre.section_labels = [];
+        document.radiopadre.section_names = {};
+        var bookmark_bars = document.getElementsByClassName("rp-section-bookmarks");
+        // console.log("bookmarks are ", bookmark_bars)
+        var bar0;
+        for(bar0 of bookmark_bars) {
+            var label = bar0.getAttribute("data-label");
+            if( !document.radiopadre.section_labels.includes(label) ) {
+                document.radiopadre.section_labels.push(label);
+                document.radiopadre.section_names[label] = bar0.getAttribute("data-name");
+            }
+        }
+        // loop over all bookmark bars in document
+        for(bar0 of bookmark_bars) {
+            var label0 = bar0.getAttribute("data-label");
+            // clear content
+            var bar = bar0.cloneNode(false);  /* kills children */
+            bar0.parentNode.replaceChild(bar, bar0);
+            var label;
+            // reinsert content
+            for(label of document.radiopadre.section_labels) {
+                var element;
+                // content is a link or a simple text element
+                if( label == label0 ) {
+                    element = document.createElement('div');
+                    element.className = "rp-active-section";
+                } else {
+                    element = document.createElement('a');
+                    element.className = "rp-section-link";
+                    element.href = "#" + label;
+                }
+                element.innerHTML = document.radiopadre.section_names[label];
+                bar.appendChild(element);
+            }
+        }
+        return document.radiopadre.section_labels;
+    }
 
     // init controls for null user
-    document.radiopadre.init_controls('')
+    document.radiopadre.init_controls('');
 
 //    // set icon
 //    $("link[rel*='icon']").attr("href", "/static/radiopadre-www/radiopadre-logo.ico")
@@ -328,6 +369,13 @@ if (appname === 'NotebookApp')
         }
     }
 
+    document.getElementsByTagName("head")[0].insertAdjacentHTML(
+        "beforeend",
+        "<link rel=\"stylesheet\" href=\"/static/radiopadre-www/radiopadre.css\" />");
+    // var padre_css_element = document.createElement("style");
+    // padre_css_element.src = "/static/radiopadre-www/radiopadre.css"
+    // Jupyter.toolbar.element.append(padre_css_element);
+
     var js9init_element = document.createElement("div");
     js9init_element.innerHTML = "\
       <link type='image/x-icon' rel='shortcut icon' href='/static/js9-www/favicon.ico'>\
@@ -337,39 +385,6 @@ if (appname === 'NotebookApp')
     "
     Jupyter.toolbar.element.append(js9init_element);
 
-//      <link rel='apple-touch-icon' href='/static/js9-www/images/js9-apple-touch-icon.png'>\
-
-//    var js9init_element = document.createElement("div");
-//
-//    js9init_element.innerHTML = "\
-//      <link type='image/x-icon' rel='shortcut icon' href='/static/js9-www/favicon.ico'>
-//      <link type='text/css' rel='stylesheet' href='/static/js9-www/js9support.css'>\
-//      <link type='text/css' rel='stylesheet' href='/static/js9-www/js9.css'>\
-//      <link rel='apple-touch-icon' href='/static/js9-www/images/js9-apple-touch-icon.png'>\
-//      <script type='text/javascript'> js9init_script_sequencer(); </script>\
-//    ";
-//    Jupyter.toolbar.element.append(js9init_element);
-
-//    // load JS9 components
-//    var wrapper = document.createElement("div");
-//    wrapper.innerHTML = "\
-//      <link type='image/x-icon' rel='shortcut icon' href='/static/js9-www/favicon.ico'>\
-//      <link type='text/css' rel='stylesheet' href='/static/js9-www/js9support.css'>\
-//      <link type='text/css' rel='stylesheet' href='/static/js9-www/js9.css'>\
-//      <link rel='apple-touch-icon' href='/static/js9-www/images/js9-apple-touch-icon.png'>\
-//      <script type='text/javascript' src='/static/js9-www/js9prefs.js'></script>\
-//      <script type='text/javascript'> console.log('loaded JS9 prefs 1') </script>\
-//      <script type='text/javascript' src='/files/.radiopadre-session/js9prefs.js'></script>\
-//      <script type='text/javascript'> console.log('loaded JS9 prefs 2')</script>\
-//      <script type='text/javascript' src='/static/js9-www/js9support.min.js'></script>\
-//      <script type='text/javascript' src='/static/js9-www/js9.min.js'></script>\
-//      <script type='text/javascript' src='/static/js9-www/js9plugins.js'></script>\
-//      <script type='text/javascript'> console.log('loaded JS9 components') </script>\
-//      <script type='text/javascript' src='/static/radiopadre-www/js9partners.js'></script>\
-//      <script type='text/javascript'> console.log('loaded JS9 partner plugin') </script>\
-//      <script type='text/javascript' src='/static/js9colormaps.js'></script>\
-//    "
-//    Jupyter.toolbar.element.append(wrapper);
 
 
 

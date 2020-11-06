@@ -111,3 +111,6 @@ radiopadre.egg-info/
 CARTA*
 carta*
 js9*
+
+# VS code
+.vscode/

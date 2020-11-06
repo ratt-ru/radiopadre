@@ -51,7 +51,7 @@ class DataDir(FileList):
                  include=None, exclude=None,
                  include_dir=None, exclude_dir=None,
                  include_empty=None, show_hidden=None,
-                 recursive=False, showpath=False,
+                 recursive=False, showpath=False, include_self=False,
                  title=None,
                  sort="dxnt"):
         """
@@ -60,6 +60,7 @@ class DataDir(FileList):
         self._sort = sort
         self._recursive = recursive
         self._browse_mode = include is None
+        self._include_self = include_self
 
         # use global settings for some parameters that are not specified
         self._default_include_empty, self._default_show_hidden = include_empty, show_hidden
@@ -87,11 +88,10 @@ class DataDir(FileList):
             self._exclude.append(".*")
             self._exclude_dir.append(".*")
 
-        FileList.__init__(self, content=None, path=name, sort=sort, title=title, showpath=recursive or showpath)
+        # make title
+        title = FileList.Title(name[2:] if name.startswith("./") else name, *(include or []))
 
-        if include:
-            self.title += "/{}".format(','.join(include))
-            self._reset_summary()
+        FileList.__init__(self, content=None, path=name, sort=sort, title=title, showpath=recursive or showpath)
 
         # any list manipulations will cause a call to self._load()
         for method in 'append', 'extend', 'insert', 'pop', 'remove','reverse':
@@ -166,6 +166,8 @@ class DataDir(FileList):
             # Descend into specified subdirs
             dirs[:] = subdirs
 
+        if self._include_self:
+            list.append(self, (DataDir, self.fullpath))
         # call base class scan
         FileList._scan_impl(self)
 
@@ -173,15 +175,16 @@ class DataDir(FileList):
         """Finally scan the directory and make a filelist object"""
         content = []
         for filetype, path in self:
-            if filetype is DataDir:
-                object = DataDir(path, include=self._default_include, exclude=self._default_exclude,
+            if path is self:
+                obj = self
+            elif filetype is DataDir:
+                obj = DataDir(path, include=self._default_include, exclude=self._default_exclude,
                                  include_dir=self._default_include_dir, exclude_dir=self._default_exclude_dir,
                                  include_empty=self._default_include_empty, show_hidden=self._default_show_hidden,
                                  sort=self._sort)
-#                                 _skip_js_init=self._skip_js_init)
             else:
-                object = filetype(path)
-            content.append(object)
+                obj = filetype(path)
+            content.append(obj)
         self._set_list(content, self._sort)
 
     def __getitem__(self, *args, **kw):
@@ -235,7 +238,7 @@ def _ls_impl(recursive, sort, arguments, kw):
         if os.path.isdir(arg):
             filetype = autodetect_file_type(arg)
             if arg[-1] == '/' or filetype is DataDir:
-                dd = DataDir(arg, recursive=recursive, title=arg, sort=sort, showpath=True)
+                dd = DataDir(arg, recursive=recursive, include_self=recursive, title=arg, sort=sort, showpath=True)
                 if len(dd):
                     content.append(dd)
                     messages.append("{}: {} files".format(arg, len(dd)))
@@ -276,19 +279,19 @@ def _ls(recursive, default_sort, unsplit_arguments, kw):
 
     # check for sort order and recursivity
     sort = ""
-    if arguments:
-        for arg in arguments:
-            # arguments starting with "-" are sort keys. 'R' forces recursive mode
-            if arg[0] == '-':
-                for char in arg[1:]:
-                    if char == 'R':
-                        recursive = True
-                    else:
-                        sort += char
-    else:
-        arguments = ["."]
-
-    return _ls_impl(sort=sort or default_sort, recursive=recursive, arguments=[arg for arg in arguments if arg[0] != '-'], kw=kw)
+    paths = []
+    for arg in arguments:
+        # arguments starting with "-" are sort keys. 'R' forces recursive mode
+        if arg[0] == '-':
+            for char in arg[1:]:
+                if char == 'R':
+                    recursive = True
+                else:
+                    sort += char
+        else:
+            paths.append(arg)
+    
+    return _ls_impl(sort=sort or default_sort, recursive=recursive, arguments=paths or ["."], kw=kw)
 
 
 
