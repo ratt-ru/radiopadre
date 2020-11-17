@@ -41,8 +41,8 @@ parser.add_argument("--js9-dir", metavar="DIR", type=str,
 parser.add_argument("--no-js9", action="store_true",
                     help="skips the JS9 installation. FITS functionality will be reduced.")
 
-parser.add_argument("--cfitsio-path", metavar="DIR", type=str,
-                    help="path to cfitsio installation. Default is to auto-detect.")
+parser.add_argument("--cfitsio-path", metavar="DIR", type=str, default="/usr",
+                    help="path to cfitsio installation. Default is /usr.")
 
 parser.add_argument("--inside-container", action="store_true",
                     help=argparse.SUPPRESS)
@@ -172,10 +172,10 @@ for retry in True, False:
             bye(f"{carta_tarball} failed to download")
         # download successfull, will not retry
         retry = False
-
     try:
         message(f"Unpacking {carta_tarball} in {PADRE_VENV}")
         subprocess.check_call(f"cd {PADRE_VENV}; tar zxf {carta_tarball_path}", shell=True)
+        break
     # on error, see if we can retry the download
     except Exception as exc:
         if retry and os.path.exists(carta_tarball_path):
