@@ -51,7 +51,7 @@ jobs:
     steps:
       - uses: actions/checkout@v2
 
-      - name: Log into dockerhub
+      - name: Log into docker registry
       # TODO: Create a PAT with `read:packages` and `write:packages` scopes and save it as an Actions secret `CR_PAT`
         run: echo "${{ secrets.QUAYIO_TOKEN }}" | docker login -u="osmirnov+radiopadre_github_ci" --password-stdin $REGISTRY
 
@@ -61,7 +61,7 @@ jobs:
           echo IMAGE_NAME=$IMAGE_NAME
           docker build . --file Dockerfile --tag $IMAGE_NAME
 
-      - name: Push image to dockerhub
+      - name: Push image to docker registry
         run: |
           IMAGE_ID=$IMAGE_NAME
 
