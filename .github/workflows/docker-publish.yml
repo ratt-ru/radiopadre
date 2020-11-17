@@ -58,8 +58,7 @@ jobs:
 
       - name: Log into dockerhub
       # TODO: Create a PAT with `read:packages` and `write:packages` scopes and save it as an Actions secret `CR_PAT`
-        run: echo "${{ secrets.DOCKERHUB_PASSWORD }}" | docker login -u osmirnov --password-stdin
-
+        run: echo "${{ secrets.QUAYIO_TOKEN }}" | docker login -u="osmirnov+radiopadre_github_ci" --password-stdin quay.io
       - name: Push image to dockerhub
         run: |
           IMAGE_ID=osmirnov/$IMAGE_NAME
