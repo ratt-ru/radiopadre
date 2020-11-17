@@ -11,7 +11,7 @@ import traceback
 PADRE_PATH = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 JS9_VERSION = "3.2"
-CARTA_VERSION = os.environ.get("RADIOPADRE_CARTA_VERSION", "1.3.1")
+CARTA_VERSION = os.environ.get("RADIOPADRE_CARTA_VERSION", "1.4")
 
 JS9_TGZ  = "js9-{}.tar.gz"   # will be passed to format(JS9_VERSION)
 JS9_LINK = "https://github.com/ericmandel/js9/archive/v{0}.tar.gz" # will be passed to format(JS9_VERSION)
@@ -190,7 +190,8 @@ for retry in True, False:
 if os.path.exists(carta_dir):
     message(f"Linking {carta_link} to {carta_dir}")
     os.symlink(os.path.basename(carta_dir), carta_link)
-    message(f"Adjusting permissions on {carta_dir}")
+    message(f"Adjusting ownership and permissions on {carta_dir}")
+    subprocess.check_call(f"chown -R 1000.1000 {carta_dir}", shell=True)
     subprocess.check_call(f"chmod -R a+rX {carta_dir}", shell=True)
 else:
     message(f"WARNING: No CARTA installation ({carta_dir}) found")
