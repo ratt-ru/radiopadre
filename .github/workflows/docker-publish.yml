@@ -78,7 +78,7 @@ jobs:
           fi
 
           # Strip "b" prefix from branch name
-          if [ "${{ github.ref }}" == "refs/heads/b"* ]; then
+          if [ "${{ github.ref }}" == "refs/head/b"* ]; then
             VERSION=$(echo $VERSION | sed -e 's/^b//')
             RELEASE=""
           fi
