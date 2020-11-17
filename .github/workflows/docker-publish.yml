@@ -18,7 +18,7 @@ on:
   pull_request:
 
 env:
-  IMAGE_NAME: radiopadre
+  IMAGE_NAME: osmirnov/radiopadre
 
 jobs:
   # Run tests.
@@ -62,7 +62,7 @@ jobs:
 
       - name: Push image to dockerhub
         run: |
-          IMAGE_ID=osmirnov/$IMAGE_NAME
+          IMAGE_ID=$IMAGE_NAME
 
           # Change all uppercase to lowercase
           IMAGE_ID=$(echo $IMAGE_ID | tr '[A-Z]' '[a-z]')
