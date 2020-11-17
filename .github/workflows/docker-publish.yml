@@ -75,12 +75,13 @@ jobs:
           if [ "${{ github.ref }}" == "refs/tags/"* ]; then
             VERSION=$(echo $VERSION | sed -e 's/^v//') 
             RELEASE=$(echo $VERSION | sed -e 's/\.[0-9]+$/.latest/')
-          fi
-
-          # Strip "b" prefix from branch name
-          if [ "${{ github.ref }}" == "refs/head/b"* ]; then
+            echo "Release $RELEASE"
+          elif [ "${{ github.ref }}" == "refs/head/b"* ]; then
             VERSION=$(echo $VERSION | sed -e 's/^b//')
             RELEASE=""
+            echo "Branch $VERSION: not release"
+          else
+            echo "Branch ${{ github.ref }} is neither branch nor release"
           fi
 
           # Use Docker `latest` tag convention

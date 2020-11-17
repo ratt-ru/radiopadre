@@ -41,8 +41,8 @@ parser.add_argument("--js9-dir", metavar="DIR", type=str,
 parser.add_argument("--no-js9", action="store_true",
                     help="skips the JS9 installation. FITS functionality will be reduced.")
 
-parser.add_argument("--cfitsio-path", metavar="DIR", type=str, default="/usr",
-                    help="path to cfitsio installation. Default is %(default)s")
+parser.add_argument("--cfitsio-path", metavar="DIR", type=str,
+                    help="path to cfitsio installation. Default is to auto-detect.")
 
 parser.add_argument("--inside-container", action="store_true",
                     help=argparse.SUPPRESS)
@@ -252,8 +252,9 @@ if not options.no_js9:
 
         # Configure and install
         js9_www = PADRE_VENV + "/js9-www"
+        with_cfitsio = f"--with-cfitsio={options.cfitsio_path}" if options.cfitsio_path else ""
         if subprocess.call("""cd {js9_dir} && \
-                ./configure --prefix={PADRE_VENV} --with-webdir={js9_www} --with-helper=nodejs --with-cfitsio={options.cfitsio_path} && \
+                ./configure --prefix={PADRE_VENV} --with-webdir={js9_www} --with-helper=nodejs {with_cfitsio} && \
                 make && make install""".format(**globals()), shell=True):
             js9status.write("build failed")
             bye("Failed to configure and/or build JS9 in {js9_dir}, see log above. Fix it, or run with --no-js9.")
