@@ -50,15 +50,16 @@ jobs:
     steps:
       - uses: actions/checkout@v2
 
+      - name: Log into dockerhub
+      # TODO: Create a PAT with `read:packages` and `write:packages` scopes and save it as an Actions secret `CR_PAT`
+        run: echo "${{ secrets.QUAYIO_TOKEN }}" | docker login -u="osmirnov+radiopadre_github_ci" --password-stdin quay.io
+
       - name: Build image
         run: |
           echo github.ref="${{ github.ref }}"
           echo IMAGE_NAME=$IMAGE_NAME
           docker build . --file Dockerfile --tag $IMAGE_NAME
 
-      - name: Log into dockerhub
-      # TODO: Create a PAT with `read:packages` and `write:packages` scopes and save it as an Actions secret `CR_PAT`
-        run: echo "${{ secrets.QUAYIO_TOKEN }}" | docker login -u="osmirnov+radiopadre_github_ci" --password-stdin quay.io
       - name: Push image to dockerhub
         run: |
           IMAGE_ID=osmirnov/$IMAGE_NAME
@@ -69,6 +70,8 @@ jobs:
           # Strip git ref prefix from version
           VERSION=$(echo "${{ github.ref }}" | sed -e 's,.*/\(.*\),\1,')
           RELEASE=""
+
+          echo github.ref="github ref is '${{ github.ref }}'"
 
           # Strip "v" prefix from tag name
           if [ "${{ github.ref }}" == "refs/tags/"* ]; then
@@ -86,13 +89,12 @@ jobs:
           # Use Docker `latest` tag convention
           [ "$VERSION" == "master" ] && VERSION=latest
 
-          echo github.ref="${{ github.ref }}"
           echo IMAGE_ID=$IMAGE_ID
           echo VERSION=$VERSION
 
-          docker tag $IMAGE_NAME $IMAGE_ID:$VERSION
+          docker tag $IMAGE_NAME quay.io/$IMAGE_ID:$VERSION
           docker push $IMAGE_ID:$VERSION
           if [ "$RELEASE" != "" ]; then
-            docker tag $IMAGE_NAME $IMAGE_ID:$RELEASE
+            docker tag $IMAGE_NAME quay.io/$IMAGE_ID:$RELEASE
             docker push $IMAGE_ID:$RELEASE
           fi
