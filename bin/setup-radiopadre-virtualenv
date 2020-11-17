@@ -191,7 +191,7 @@ if os.path.exists(carta_dir):
     message(f"Linking {carta_link} to {carta_dir}")
     os.symlink(os.path.basename(carta_dir), carta_link)
     message(f"Adjusting ownership and permissions on {carta_dir}")
-    subprocess.check_call(f"chown -R 1000.1000 {carta_dir}", shell=True)
+    # subprocess.check_call(f"chown -R 1000.1000 {carta_dir}", shell=True)
     subprocess.check_call(f"chmod -R a+rX {carta_dir}", shell=True)
 else:
     message(f"WARNING: No CARTA installation ({carta_dir}) found")
