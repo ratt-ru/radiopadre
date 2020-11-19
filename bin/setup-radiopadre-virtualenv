@@ -10,7 +10,7 @@ import traceback
 # directory needs to be symlinked to. Otherwise, assume the directory is temporary, and copy from it
 PADRE_PATH = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
-JS9_VERSION = "3.0"
+JS9_VERSION = "3.2"
 CARTA_VERSION = os.environ.get("RADIOPADRE_CARTA_VERSION", "1.4")
 
 JS9_TGZ  = "js9-{}.tar.gz"   # will be passed to format(JS9_VERSION)
@@ -41,8 +41,8 @@ parser.add_argument("--js9-dir", metavar="DIR", type=str,
 parser.add_argument("--no-js9", action="store_true",
                     help="skips the JS9 installation. FITS functionality will be reduced.")
 
-parser.add_argument("--cfitsio-path", metavar="DIR", type=str, default="/usr",
-                    help="path to cfitsio installation. Default is %(default)s")
+parser.add_argument("--cfitsio-path", metavar="DIR", type=str, default="",
+                    help="path to cfitsio installation. Default is auto-detect.")
 
 parser.add_argument("--inside-container", action="store_true",
                     help=argparse.SUPPRESS)
@@ -172,10 +172,10 @@ for retry in True, False:
             bye(f"{carta_tarball} failed to download")
         # download successfull, will not retry
         retry = False
-
     try:
         message(f"Unpacking {carta_tarball} in {PADRE_VENV}")
         subprocess.check_call(f"cd {PADRE_VENV}; tar zxf {carta_tarball_path}", shell=True)
+        break
     # on error, see if we can retry the download
     except Exception as exc:
         if retry and os.path.exists(carta_tarball_path):
@@ -190,7 +190,8 @@ for retry in True, False:
 if os.path.exists(carta_dir):
     message(f"Linking {carta_link} to {carta_dir}")
     os.symlink(os.path.basename(carta_dir), carta_link)
-    message(f"Adjusting permissions on {carta_dir}")
+    message(f"Adjusting ownership and permissions on {carta_dir}")
+    # subprocess.check_call(f"chown -R 1000.1000 {carta_dir}", shell=True)
     subprocess.check_call(f"chmod -R a+rX {carta_dir}", shell=True)
 else:
     message(f"WARNING: No CARTA installation ({carta_dir}) found")
@@ -252,8 +253,9 @@ if not options.no_js9:
 
         # Configure and install
         js9_www = PADRE_VENV + "/js9-www"
+        with_cfitsio = f"--with-cfitsio={options.cfitsio_path}" if options.cfitsio_path else "--with-cfitsio"
         if subprocess.call("""cd {js9_dir} && \
-                ./configure --prefix={PADRE_VENV} --with-webdir={js9_www} --with-helper=nodejs --with-cfitsio={options.cfitsio_path} && \
+                ./configure --prefix={PADRE_VENV} --with-webdir={js9_www} --with-helper=nodejs {with_cfitsio} && \
                 make && make install""".format(**globals()), shell=True):
             js9status.write("build failed")
             bye("Failed to configure and/or build JS9 in {js9_dir}, see log above. Fix it, or run with --no-js9.")
