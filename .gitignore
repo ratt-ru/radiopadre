@@ -114,3 +114,4 @@ js9*
 
 # VS code
 .vscode/
+.persistent_history

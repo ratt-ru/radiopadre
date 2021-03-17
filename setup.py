@@ -5,7 +5,8 @@ from setuptools.command.install import install
 from setuptools.command.develop import develop
 from wheel.bdist_wheel import bdist_wheel
 
-__version__ = "1.1.1"
+__version__ = "1.2.pre1"
+
 build_root = os.path.dirname(__file__)
 
 with open("requirements.txt") as stdr:
