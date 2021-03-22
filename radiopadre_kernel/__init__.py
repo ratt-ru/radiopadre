@@ -16,6 +16,8 @@ CACHE_URL_ROOT = None       # URL for cache of root dir, e.g. http://localhost:p
 
 NBCONVERT = None            # set to True if running in notebook-convert mode (i.e. non-interactive)
 
+TERMINAL_URL = None         # URL to open a terminal
+
 casacore_tables = None
 
 class PadreLogHandler(logging.Handler):
@@ -57,7 +59,7 @@ def init():
     iglesia.init()
 
     global FILE_URL_ROOT, NOTEBOOK_URL_ROOT, CACHE_URL_BASE, CACHE_URL_ROOT, \
-        SHADOW_URL_PREFIX
+        SHADOW_URL_PREFIX, TERMINAL_URL
     global \
         ABSROOTDIR, ROOTDIR, DISPLAY_ROOTDIR, SHADOW_HOME, SERVER_BASEDIR, SHADOW_BASEDIR, \
         SHADOW_ROOTDIR, SESSION_DIR, SESSION_URL, SESSION_ID, \
@@ -109,7 +111,8 @@ def init():
 
     # now a port is available (set up in init_helpers()), form up URLs
 
-    SHADOW_URL_PREFIX = f"http://localhost:{iglesia.HTTPSERVER_PORT}/{SESSION_ID}"
+    TERMINAL_URL = f"{iglesia.LOCALHOST_URL}:{iglesia.WETTY_PORT}/{SESSION_ID}/wetty"
+    SHADOW_URL_PREFIX = f"{iglesia.LOCALHOST_URL}:{iglesia.HTTPSERVER_PORT}/{SESSION_ID}"
     CACHE_URL_ROOT = SHADOW_URL_PREFIX + ABSROOTDIR
     CACHE_URL_BASE = CACHE_URL_ROOT[:-len(subdir)] if subdir else CACHE_URL_ROOT
 

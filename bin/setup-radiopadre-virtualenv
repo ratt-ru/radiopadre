@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 import os
+import stat
 import subprocess
 import sys
 import shutil
@@ -15,7 +16,12 @@ CARTA_VERSION = os.environ.get("RADIOPADRE_CARTA_VERSION", "1.4")
 
 JS9_TGZ  = "js9-{}.tar.gz"   # will be passed to format(JS9_VERSION)
 JS9_LINK = "https://github.com/ericmandel/js9/archive/v{0}.tar.gz" # will be passed to format(JS9_VERSION)
+
+JS9_BRANCH = "master"  # or None to install release instead
 JS9_REPO = "https://github.com/ericmandel/js9.git"
+
+WETTY_VERSION = "2.0.2"
+PUPPETEER_VERSION = "2.1.0"
 
 CARTA_URL = "https://github.com/CARTAvis/carta-releases/releases/download/v{0}/CARTA-v{0}-remote.tgz"
 SOCKET_IO_LINK = "https://cdnjs.cloudflare.com/ajax/libs/socket.io/2.3.0/socket.io.js"
@@ -32,8 +38,8 @@ parser.add_argument("--carta-release", metavar="VERSION", type=str, default=CART
 parser.add_argument("--js9-release", metavar="VERSION", type=str, default=JS9_VERSION,
                     help=f"Installs specific JS9 release. Default is {JS9_VERSION}.")
 
-parser.add_argument("--js9-branch", metavar="BRANCH", type=str,
-                    help=f"If set, installs JS9 from branch of {JS9_REPO}.")
+parser.add_argument("--js9-branch", metavar="BRANCH", type=str, default=JS9_BRANCH,
+                    help=f"If set, installs JS9 from given branch of {JS9_REPO}.")
 
 parser.add_argument("--js9-dir", metavar="DIR", type=str,
                     help=f"If set, installs JS9 from directory. If not absolute, taken relative to radiopadre source.")
@@ -94,14 +100,14 @@ if hasattr(sys, 'real_prefix') or (hasattr(sys, 'base_prefix') and sys.base_pref
 else:
     bye("Not running in a virtualenv")
 
-# check for JS9 requirements
-if not options.no_js9:
-    try:
-        nodejs = subprocess.check_output("which nodejs || which node", shell=True)
-    except subprocess.CalledProcessError:
-        if os.path.exists(PADRE_VENV):
-            open(PADRE_VENV + "/js9status", "w").write("nodejs missing")
-        bye("Unable to find nodejs or node -- can't install JS9. Try apt-get install nodejs perhaps, or run with --no-js9")
+# # check for JS9 requirements
+# if not options.no_js9:
+#     try:
+#         nodejs = subprocess.check_output("which nodejs || which node", shell=True)
+#     except subprocess.CalledProcessError:
+#         if os.path.exists(PADRE_VENV):
+#             open(PADRE_VENV + "/js9status", "w").write("nodejs missing")
+#         bye("Unable to find nodejs or node -- can't install JS9. Try apt-get install nodejs perhaps, or run with --no-js9")
 
 # Look for virtualenv. Burn it down if it needs a refresh.
 complete_cookie = os.path.join(PADRE_VENV, ".radiopadre.install.complete")
@@ -195,6 +201,18 @@ if os.path.exists(carta_dir):
     subprocess.check_call(f"chmod -R a+rX {carta_dir}", shell=True)
 else:
     message(f"WARNING: No CARTA installation ({carta_dir}) found")
+
+# install nodeenv and node
+message(f"Initializing nodeenv")
+subprocess.check_call(f"nodeenv -p", shell=True)
+node_version = subprocess.check_output(f"node -v", shell=True)
+message(f"Node version is {node_version}")
+
+# install npm deps
+shell(f"npm install -g utf-8-validate bufferutil puppeteer@{PUPPETEER_VERSION} yarn")
+
+# install wetty
+shell(f"yarn global add wetty@{WETTY_VERSION}")
 
 # install JS9
 if not options.no_js9:
@@ -311,16 +329,6 @@ else:
     message("Downloading socket.io.js into {notebook_socket_io}")
     shell(f"wget {SOCKET_IO_LINK} -O {notebook_socket_io}")
 
-# install puppeteer
-
-npm = which_opt('npm')
-node = which_opt('node') or which_opt('nodejs')
-if not npm:
-    message("WARNING: npm command not found. Puppeteer HTML rendering will not be available. Will try phantomjs instead.")
-elif not node:
-    message("WARNING: node/nodejs command not found. Puppeteer HTML rendering will not be available. Will try phantomjs instead.")
-else:
-    shell(f"cd {PADRE_VENV}; npm install utf-8-validate bufferutil puppeteer@2.1.0")
 
 open(complete_cookie, "w").write("installed by {__file__}".format(**globals()))
 

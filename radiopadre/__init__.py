@@ -1,6 +1,7 @@
 import json
 import nbformat
 import os
+import getpass
 import pkg_resources
 
 import radiopadre_kernel
@@ -147,12 +148,14 @@ def _init_js_side():
 
     settings.display.reset = _display_reset, settings_manager.DocString("call this to reset sizes explicitly")
 
-    html = """<script type='text/javascript'>
-            document.radiopadre.register_user('{}');
-            document.radiopadre.reset_display_settings();
-            </script>
-         """.format(os.environ['USER'])
+    terminal_url = 
 
+    html = f"""<script type='text/javascript'>
+            document.radiopadre.register_user('{getpass.getuser()}');
+            document.radiopadre.reset_display_settings();
+            document.radiopadre.set_terminal_url({terminal_url});
+            </script>
+         """
 
     # reload styles -- loaded from radiopadre-kernel.js already, but reloading is useful for debugging
     styles_file = os.path.join(os.path.dirname(__file__), "html/radiopadre.css")

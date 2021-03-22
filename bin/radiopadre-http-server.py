@@ -1,7 +1,5 @@
 #!/usr/bin/env python3
-import sys
-import os
-
+import sys, os, re, ssl
 from http.server import HTTPServer, SimpleHTTPRequestHandler
 
 path_id = "{}/{}".format(os.getcwd(), os.environ['RADIOPADRE_SESSION_ID'])
@@ -26,19 +24,32 @@ class CORSRequestHandler (SimpleHTTPRequestHandler):
                 return newpath
         return path
 
+
 if __name__ == '__main__':
-    for arg in sys.argv[2:]:
-        if "=" in arg:
+    ssl_cert = None
+    
+    for arg in sys.argv[1:]:
+        if re.match("\d+$", arg):
+            port = int(arg)
+            print(f"HTTPServer: using port {port}")
+        elif arg.endswith(".pem"):
+            ssl_cert = arg
+            print(f"HTTPServer: using SSL certificate {ssl_cert}")
+        elif "=" in arg:
             src, dest = arg.split("=", 1)
             src = path_id + src
             path_rewrites.insert(0, (src, dest))
             print("HTTPServer: will rewrite {}->{}".format(src, dest))
-    port = int(sys.argv[1])
-    print("HTTPServer: starting on port {}".format(port))
-
-    server_address = ("0.0.0.0", port)
+    
+#    server_address = ("0.0.0.0", port)
 #    server_address = ('localhost', port)
+    server_address = ('127.0.0.1', port)
+
     httpd = HTTPServer(server_address, CORSRequestHandler)
+
+    if ssl_cert:
+        httpd.socket = ssl.wrap_socket(httpd.socket, certfile=ssl_cert, server_side=True)
+
     httpd.serve_forever()
 
 

@@ -9,3 +9,4 @@ pillow
 python-casacore
 radiopadre-client
 jupyter-contrib-nbextensions
+nodeenv

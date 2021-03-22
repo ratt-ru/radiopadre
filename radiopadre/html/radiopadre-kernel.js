@@ -206,6 +206,16 @@ if (appname === 'NotebookApp')
         document.radiopadre.controls.update();
     }
 
+    document.radiopadre.open_terminal = function() {
+        window.open(document.radiopadre.terminal_url, '_blank');
+    }
+
+    document.radiopadre.set_terminal_url = function(url) {
+        document.radiopadre.terminal_url = url
+        document.radiopadre.controls.button_terminal.show();
+    }
+
+
     document.radiopadre.reset_display_settings = function (user)
     {
         var width = $(".rendered_html")[0].clientWidth;
@@ -257,23 +267,30 @@ if (appname === 'NotebookApp')
 //                },
                 {   'id'      : 'radiopadre_btn_width',
                     'label'   : 'width',
-                    'icon'    : 'icon-play-circle',
-                    'callback':  function () { document.radiopadre.toggle_width() }
+                    'icon'    : '', // 'icon-play-circle',
+                    'callback':  document.radiopadre.toggle_width
                 },
                 {   'id'      : 'radiopadre_btn_code',
                     'label'   : 'hide code',
-                    'icon'    : 'icon-play-circle',
+                    'icon'    :  '', // 'icon-play-circle',
                     'callback':  function () { document.radiopadre.toggle_show_code() }
+                },
+                {   'id'      : 'radiopadre_btn_terminal',
+                    'label'   : 'Terminal',
+                    'icon'    : '', // 'icon-',
+                    'callback':  function () { document.radiopadre.open_terminal() }
                 }
                 ],'radiopadre_controls');
             var save = IPython.menubar.element.find("#save_checkpoint");
             save.enable = true;
         }
         document.getElementById("radiopadre_btn_exec_all").innerHTML = "Run all";
-        document.radiopadre.controls.button_scrub = document.getElementById("radiopadre_btn_scrub")
-        document.radiopadre.controls.button_protected = document.getElementById("radiopadre_btn_protected")
-        document.radiopadre.controls.button_width = document.getElementById("radiopadre_btn_width")
-        document.radiopadre.controls.button_code = document.getElementById("radiopadre_btn_code")
+        document.radiopadre.controls.button_scrub = document.getElementById("radiopadre_btn_scrub");
+        document.radiopadre.controls.button_protected = document.getElementById("radiopadre_btn_protected");
+        document.radiopadre.controls.button_width = document.getElementById("radiopadre_btn_width");
+        document.radiopadre.controls.button_code = document.getElementById("radiopadre_btn_code");
+        document.radiopadre.controls.button_terminal = document.getElementById("radiopadre_btn_terminal");
+        document.radiopadre.controls.button_terminal.hide();
         document.radiopadre.controls.update();
         var nbpath = Jupyter.notebook.notebook_path;
         if( nbpath.search('/') >=0 ) {
