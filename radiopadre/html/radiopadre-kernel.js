@@ -212,7 +212,7 @@ if (appname === 'NotebookApp')
 
     document.radiopadre.set_terminal_url = function(url) {
         document.radiopadre.terminal_url = url
-        document.radiopadre.controls.button_terminal.show();
+        document.radiopadre.controls.button_terminal.style.display = "block";
     }
 
 
@@ -251,14 +251,14 @@ if (appname === 'NotebookApp')
             IPython.toolbar.element.append(label);
             IPython.toolbar.add_buttons_group([
                 {   'id'      : 'radiopadre_btn_exec_all',
-                    'label'   : 'Click to rerun all cells in this radiopadre notebook.',
+                    'label'   : 'Run all',
                     'icon'    : 'icon-arrow-up',
-                    'callback': function () { Jupyter.notebook.execute_all_cells() }
+                    'callback': Jupyter.notebook.execute_all_cells
                 },
                 {   'id'      : 'radiopadre_btn_scrub',
-                    'label'   : 'Scrubs output from all cells in the notebook',
+                    'label'   : 'scrub: on',
                     'icon'    : 'icon-stop',
-                    'callback': function () { document.radiopadre.toggle_scrubbing() }
+                    'callback': document.radiopadre.toggle_scrubbing
                 },
 //                {   'id'      : 'radiopadre_btn_protected',
 //                    'label'   : 'This notebook is protected',
@@ -267,18 +267,18 @@ if (appname === 'NotebookApp')
 //                },
                 {   'id'      : 'radiopadre_btn_width',
                     'label'   : 'width',
-                    'icon'    : '', // 'icon-play-circle',
+                    'icon'    : 'icon-play-circle',
                     'callback':  document.radiopadre.toggle_width
                 },
                 {   'id'      : 'radiopadre_btn_code',
                     'label'   : 'hide code',
-                    'icon'    :  '', // 'icon-play-circle',
-                    'callback':  function () { document.radiopadre.toggle_show_code() }
+                    'icon'    :  'icon-play-circle',
+                    'callback':  document.radiopadre.toggle_show_code
                 },
                 {   'id'      : 'radiopadre_btn_terminal',
                     'label'   : 'Terminal',
-                    'icon'    : '', // 'icon-',
-                    'callback':  function () { document.radiopadre.open_terminal() }
+                    'icon'    :  'icon-play-circle',
+                    'callback':  document.radiopadre.open_terminal
                 }
                 ],'radiopadre_controls');
             var save = IPython.menubar.element.find("#save_checkpoint");
@@ -290,7 +290,8 @@ if (appname === 'NotebookApp')
         document.radiopadre.controls.button_width = document.getElementById("radiopadre_btn_width");
         document.radiopadre.controls.button_code = document.getElementById("radiopadre_btn_code");
         document.radiopadre.controls.button_terminal = document.getElementById("radiopadre_btn_terminal");
-        document.radiopadre.controls.button_terminal.hide();
+        document.radiopadre.controls.button_terminal.style.display = "none";
+        console.log("terminal button is", document.radiopadre.controls.button_terminal);
         document.radiopadre.controls.update();
         var nbpath = Jupyter.notebook.notebook_path;
         if( nbpath.search('/') >=0 ) {

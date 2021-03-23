@@ -203,8 +203,11 @@ else:
     message(f"WARNING: No CARTA installation ({carta_dir}) found")
 
 # install nodeenv and node
-message(f"Initializing nodeenv")
-subprocess.check_call(f"nodeenv -p", shell=True)
+if not os.path.exists(f"{PADRE_VENV}/bin/npm"):
+    message(f"Initializing nodeenv")
+    subprocess.check_call(f"nodeenv -p", shell=True)
+else:
+    message(f"Looks like nodeenv is already installed in {PADRE_VENV}")
 node_version = subprocess.check_output(f"node -v", shell=True)
 message(f"Node version is {node_version}")
 
@@ -212,7 +215,7 @@ message(f"Node version is {node_version}")
 shell(f"npm install -g utf-8-validate bufferutil puppeteer@{PUPPETEER_VERSION} yarn")
 
 # install wetty
-shell(f"yarn global add wetty@{WETTY_VERSION}")
+shell(f"bash -c 'source {PADRE_VENV}/bin/activate && yarn global add wetty@{WETTY_VERSION}'")
 
 # install JS9
 if not options.no_js9:

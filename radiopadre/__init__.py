@@ -19,7 +19,7 @@ from radiopadre_kernel import SESSION_ID, VERBOSE, HOSTNAME, \
     LOGFILE, ABSROOTDIR, ROOTDIR, DISPLAY_ROOTDIR, SHADOW_HOME, SERVER_BASEDIR, \
     SHADOW_BASEDIR, SHADOW_ROOTDIR, SHADOW_URL_PREFIX, \
     FILE_URL_ROOT, NOTEBOOK_URL_ROOT, CACHE_URL_BASE, CACHE_URL_ROOT, \
-    SESSION_DIR, SESSION_URL, NBCONVERT
+    SESSION_DIR, SESSION_URL, NBCONVERT, TERMINAL_URL
 
 # init settings
 settings = settings_manager.RadiopadreSettingsManager()
@@ -148,12 +148,12 @@ def _init_js_side():
 
     settings.display.reset = _display_reset, settings_manager.DocString("call this to reset sizes explicitly")
 
-    terminal_url = 
+    terminal_url = TERMINAL_URL
 
     html = f"""<script type='text/javascript'>
             document.radiopadre.register_user('{getpass.getuser()}');
             document.radiopadre.reset_display_settings();
-            document.radiopadre.set_terminal_url({terminal_url});
+            document.radiopadre.set_terminal_url('{terminal_url}');
             </script>
          """
 
