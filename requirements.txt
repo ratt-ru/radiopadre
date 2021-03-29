@@ -4,6 +4,8 @@ bokeh
 ipython
 jupyter
 notebook
+nbconvert<6
+ipykernel<5.5.2
 matplotlib
 pillow
 python-casacore

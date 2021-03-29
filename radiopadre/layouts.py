@@ -4,6 +4,7 @@ import os.path
 from collections import OrderedDict
 from IPython.display import HTML, Markdown, display
 from radiopadre import render
+from radiopadre_kernel import add_mirror_file
 
 _ALL_SECTIONS = OrderedDict()
 
@@ -53,6 +54,7 @@ def Title(title, sections=[], logo=None, logo_width=0, logo_padding=8, icon=None
     global logo_image, icon_image
 
     if logo and os.path.exists(logo):
+        add_mirror_file(logo)
         mw = logo_width + logo_padding
         logo_width = f" width={logo_width}" if logo_width else ""
         logo = render.render_url(logo)
@@ -62,6 +64,9 @@ def Title(title, sections=[], logo=None, logo_width=0, logo_padding=8, icon=None
         logo_style = ""
 
     if icon:
+        if os.path.exists(icon):
+            add_mirror_file(icon)
+        icon = render.render_url(icon)
         icon_width = f" width={icon_width}" if icon_width else ""
         icon_image = f"""<img src="{icon}" alt="" {icon_width}></img>"""
 

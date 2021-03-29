@@ -142,12 +142,20 @@ def init():
     from . import js9
     js9.preinit_js9()
 
+_mirror_manifest = set()
+
+
+def add_mirror_file(path):
+    _mirror_manifest.add(path)
+
 
 def _save_mirror_manifest():
     manifest = f"{NOTEBOOK_NAME}.manifest"
     try:
         from radiopadre.file import FileBase
-        files = FileBase.mirrorable_files()
+        if os.path.exists(NOTEBOOK_NAME):
+            add_mirror_file(NOTEBOOK_NAME)
+        files = list(_mirror_manifest) + list(FileBase.mirrorable_files())
         with open(manifest, "wt") as ff:
             ff.write(f"{NOTEBOOK_NAME}\n")
             if NBCONVERT:
