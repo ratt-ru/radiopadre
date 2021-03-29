@@ -4,6 +4,8 @@ bokeh
 ipython
 jupyter
 notebook
+# pinning nbconvert at <6, see https://github.com/ipython-contrib/jupyter_contrib_nbextensions/issues/1529
+nbconvert<6
 matplotlib
 pillow
 python-casacore
