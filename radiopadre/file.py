@@ -296,6 +296,11 @@ class FileBase(ItemBase):
         # which we strip
         return path[len(rootdir):]
 
+    # all file objects ever created end up here
+    _all_files = {}
+
+    # all file objects ever shown or thumbnailed end up here
+    _shown_files = {}
 
     def __init__(self, path, load=False, title=None):
         """Construct a datafile and set up standard attributes.
@@ -307,6 +312,7 @@ class FileBase(ItemBase):
                   __init__ is meant to be fast, while slower operations are deferred to _load().
 
         """
+        FileBase._all_files[path] = self
         self.fullpath = path
         self.path = FileBase.get_display_path(path)
         if title is None:
@@ -335,6 +341,20 @@ class FileBase(ItemBase):
         if load:
             self._load()
 
+    @property
+    def was_shown(self):
+        return self.fullpath in FileBase._shown_files
+
+    def mark_as_shown(self):
+        FileBase._shown_files[self.fullpath] = self        
+
+    @property 
+    def do_mirror(self):
+        return True
+
+    @staticmethod
+    def mirrorable_files():
+        return {path: item for path, item in FileBase._all_files.items() if item.do_mirror}
 
     def _load(self):
         """Helper method, calls _load_impl() if not already done"""
@@ -392,6 +412,7 @@ class FileBase(ItemBase):
 
     def _render_title_link(self, showpath=False, url=None, **kw):
         """Renders the name of the file, with a download link (if downloading should be supported)"""
+        self.mark_as_shown()
         name = self.path if showpath else self.name
         url = url or self.downloadable_url
         if url:
@@ -546,3 +567,6 @@ def compute_thumb_geometry(N, ncol, mincol, maxcol, width, maxwidth):
     # individual thumbnail width
     width = width or ((maxwidth or settings.plot.width or 16) / float(ncol))
     return nrow, ncol, width
+
+
+

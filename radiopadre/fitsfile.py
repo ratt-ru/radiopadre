@@ -68,6 +68,10 @@ class FITSFile(radiopadre.file.FileBase):
         self._png_dir = self._png_url = None
         radiopadre.file.FileBase.__init__(self, *args, **kw)
 
+    @property 
+    def do_mirror(self):
+        """FITS files are big, so only mirror those that have been shown"""
+        return self.was_shown
 
     @property
     def fitsobj(self):

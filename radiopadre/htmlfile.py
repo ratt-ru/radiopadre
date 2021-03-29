@@ -18,9 +18,12 @@ nodejs = find_which("node") or find_which("nodejs")
 if not nodejs:
     message("node/nodejs not found")
 # check for puppeteer module
-if nodejs and not os.path.exists(f"{sys.prefix}/node_modules/puppeteer"):
-    message(f"{sys.prefix}/node_modules/puppeteer not found")
-    nodejs = None
+if nodejs:
+    try:
+        subprocess.check_call("npm list -g puppeteer", shell=True, stdout=subprocess.DEVNULL)
+    except subprocess.CalledProcessError as exc:
+        message(f"npm list -g puppeteer returns code {exc.returncode}")
+        nodejs = None
 
 _methods = (["puppeteer"] if nodejs else []) + (["phantomjs"] if phantomjs else [])
 

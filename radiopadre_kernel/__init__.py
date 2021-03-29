@@ -18,6 +18,8 @@ NBCONVERT = None            # set to True if running in notebook-convert mode (i
 
 TERMINAL_URL = None         # URL to open a terminal
 
+NOTEBOOK_NAME = None        # path to notebook
+
 casacore_tables = None
 
 class PadreLogHandler(logging.Handler):
@@ -104,10 +106,15 @@ def init():
 
     radiopadre_base = os.path.dirname(os.path.dirname(__file__))
 
+    # when running nbconvert, it doesn't know about the magic "/files" URL, and just needs a local filename
+    global NBCONVERT
+    NBCONVERT = bool(os.environ.get("RADIOPADRE_NBCONVERT"))
+    files_prefix = "." if NBCONVERT else "/files"
+
     # # pre-init JS9 stuff and run JS9 helper
     # js9.preinit_js9(in_container, helper_port, userside_helper_port, http_rewrites)
 
-    iglesia.init_helpers(radiopadre_base)
+    iglesia.init_helpers(radiopadre_base, interactive=not NBCONVERT)
 
     # now a port is available (set up in init_helpers()), form up URLs
 
@@ -116,11 +123,6 @@ def init():
     CACHE_URL_ROOT = SHADOW_URL_PREFIX + ABSROOTDIR
     CACHE_URL_BASE = CACHE_URL_ROOT[:-len(subdir)] if subdir else CACHE_URL_ROOT
 
-    # when running nbconvert, it doesn't know about the magic "/files" URL, and just needs a local filename
-    global NBCONVERT
-    NBCONVERT = bool(os.environ.get("RADIOPADRE_NBCONVERT"))
-    files_prefix = "." if NBCONVERT else "/files"
-
     if SNOOP_MODE:
         FILE_URL_ROOT = f"{files_prefix}{subdir}/.radiopadre.content/"
         NOTEBOOK_URL_ROOT = f"/notebooks{subdir}/.radiopadre.content/"
@@ -128,9 +130,32 @@ def init():
         FILE_URL_ROOT = f"{files_prefix}{subdir}/"
         NOTEBOOK_URL_ROOT = f"/notebooks{subdir}/"
 
+    global NOTEBOOK_NAME
+    NOTEBOOK_NAME = os.environ.get("RADIOPADRE_NOTEBOOK_NAME") or None
+    message(f"notebook name is {NOTEBOOK_NAME}")
+
+    if NBCONVERT and NOTEBOOK_NAME:
+        atexit.register(_save_mirror_manifest)
+        message(f"registered exit handler")
+
     # init JS9 sources
     from . import js9
     js9.preinit_js9()
+
+
+def _save_mirror_manifest():
+    manifest = f"{NOTEBOOK_NAME}.manifest"
+    try:
+        from radiopadre.file import FileBase
+        files = FileBase.mirrorable_files()
+        with open(manifest, "wt") as ff:
+            ff.write(f"{NOTEBOOK_NAME}\n")
+            if NBCONVERT:
+                ff.write(f"{os.path.splitext(NOTEBOOK_NAME)[0]}.html\n")
+            ff.write("\n".join(files))
+    except Exception as exc:
+        with open(manifest + ".error", "wt") as ff:
+            ff.write(f"Error writing manifest:\n{traceback.format_exception()}")
 
 
 if ROOTDIR is None:

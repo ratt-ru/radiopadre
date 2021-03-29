@@ -358,40 +358,43 @@ class TransientMessage(object):
     default_backgrounds = dict(blue='rgba(255,255,240,0.8)', red='rgba(255,255,240,0.8)')
 
     def __init__(self, message, timeout=2, color='blue', background=None):
-        self.id = id = "message-{}".format(uuid.uuid4().hex)
-        if background is None:
-            background = TransientMessage.default_backgrounds.get(color, 'transparent')
-        html = """
-            <DIV id={id} style="color: {color}; display: inline; background-color: {background}; position: absolute; right: 0; top: 0;">&nbsp;{message}&nbsp;</DIV>
-            """.format(**locals())
-        self.timeout = timeout
-        if timeout:
-            timeout = timeout*1000
-            html += """<SCRIPT type="text/javascript">
-                        $('#{id}').delay({timeout}).fadeOut('slow');
-                        </SCRIPT>""".format(**locals())
-        # hide previous message
-        if TransientMessage.last_message_id:
-            html += """<SCRIPT type="text/javascript">
-                        $('#{}').hide();
-                        </SCRIPT>""".format(TransientMessage.last_message_id)
-        TransientMessage.last_message_id = self.id
-        # display
-        display(HTML(html))
+        if not radiopadre.NBCONVERT:
+            self.id = id = "message-{}".format(uuid.uuid4().hex)
+            if background is None:
+                background = TransientMessage.default_backgrounds.get(color, 'transparent')
+            html = """
+                <DIV id={id} style="color: {color}; display: inline; background-color: {background}; position: absolute; right: 0; top: 0;">&nbsp;{message}&nbsp;</DIV>
+                """.format(**locals())
+            self.timeout = timeout
+            if timeout:
+                timeout = timeout*1000
+                html += """<SCRIPT type="text/javascript">
+                            $('#{id}').delay({timeout}).fadeOut('slow');
+                            </SCRIPT>""".format(**locals())
+            # hide previous message
+            if TransientMessage.last_message_id:
+                html += """<SCRIPT type="text/javascript">
+                            $('#{}').hide();
+                            </SCRIPT>""".format(TransientMessage.last_message_id)
+            TransientMessage.last_message_id = self.id
+            # display
+            display(HTML(html))
 
     def hide(self):
-        display(Javascript("$('#{}').hide()".format(self.id)))
+        if not radiopadre.NBCONVERT:
+            display(Javascript("$('#{}').hide()".format(self.id)))
         # if TransientMessage.last_message_id == self.id:
         #     TransientMessage.last_message_id = None
 
     def __del__(self):
-        # when None, we're shutting down, so no more HTML
-        if getattr(sys, 'meta_path', None) is not None:
-            try:
-                display(Javascript("$('#{}').fadeOut('slow')".format(self.id)))
-                self.hide()
-            except AttributeError:  # can also happen on shutdown
-                pass
+        if not radiopadre.NBCONVERT:
+            # when None, we're shutting down, so no more HTML
+            if getattr(sys, 'meta_path', None) is not None:
+                try:
+                    display(Javascript("$('#{}').fadeOut('slow')".format(self.id)))
+                    self.hide()
+                except AttributeError:  # can also happen on shutdown
+                    pass
 
 
 
@@ -430,8 +433,8 @@ def render_titled_content(title_html, content_html, buttons_html=None, collapsed
     uid = uuid.uuid4().hex
 
     # uncollapse everything if converting notebook
-    if radiopadre.NBCONVERT:
-        collapsed = None
+    # if radiopadre.NBCONVERT:
+    #     collapsed = None
 
     html = f"""<div class="rp-content-block">"""
     # strip trailing whitespace (such as \n) from title

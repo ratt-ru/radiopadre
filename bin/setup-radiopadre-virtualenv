@@ -13,6 +13,9 @@ PADRE_PATH = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 JS9_VERSION = "3.2"
 CARTA_VERSION = os.environ.get("RADIOPADRE_CARTA_VERSION", "1.4")
+SYSTEM_CARTA = os.environ.get("RADIOPADRE_SYSTEM_CARTA", "True")
+if SYSTEM_CARTA.upper() in ("0", "FALSE", ""):
+    SYSTEM_CARTA = False
 
 JS9_TGZ  = "js9-{}.tar.gz"   # will be passed to format(JS9_VERSION)
 JS9_LINK = "https://github.com/ericmandel/js9/archive/v{0}.tar.gz" # will be passed to format(JS9_VERSION)
@@ -33,7 +36,13 @@ parser.add_argument("-e", "--editable", action="store_true",
                     help="install in editable mode (use with pip install -e)")
 
 parser.add_argument("--carta-release", metavar="VERSION", type=str, default=CARTA_VERSION,
-                    help=f"Installs specific JS9 release. Default is {CARTA_VERSION}.")
+                    help=f"Installs specific CARTA release. Default is {CARTA_VERSION}.")
+
+parser.add_argument("--system-carta", action="store_true", dest="system_carta", default=SYSTEM_CARTA,
+                    help=f"Use existing install of CARTA if available.")
+
+parser.add_argument("--no-system-carta", action="store_false", dest="system_carta", default=SYSTEM_CARTA,
+                    help=f"Ignore existing install of CARTA and always try to install --carta-release version.")
 
 parser.add_argument("--js9-release", metavar="VERSION", type=str, default=JS9_VERSION,
                     help=f"Installs specific JS9 release. Default is {JS9_VERSION}.")
@@ -93,6 +102,11 @@ def remove_installation(path):
             bye(f"{path} is neither a dir nor a symlink nor a file, don't know how to proceed")
 
 
+message("{options.system_carta} {SYSTEM_CARTA}")
+
+
+
+
 # See https://stackoverflow.com/questions/1871549/determine-if-python-is-running-inside-virtualenv
 if hasattr(sys, 'real_prefix') or (hasattr(sys, 'base_prefix') and sys.base_prefix != sys.prefix):
     message("Setting up radiopadre inside virtualenv {sys.prefix}")
@@ -118,7 +132,10 @@ if not os.path.exists(PADRE_WORKDIR):
     os.mkdir(PADRE_WORKDIR)
 
 # get jupyter base path
-notebook_dir = f"{PADRE_VENV}/lib/python3.6/site-packages"
+import sysconfig
+notebook_dir = sysconfig.get_paths()["purelib"]
+## the above is the proper way to do the braindead below (sheesh Oleg...)
+# notebook_dir = f"{PADRE_VENV}/lib/python3.6/site-packages"
 
 # init radiopadre kernel etc.
 message("Creating radiopadre jupyter kernel")
@@ -155,52 +172,63 @@ else:
 shutil.copy2(f"{PADRE_PATH}/icons/radiopadre-logo.ico", f"{notebook_static}/favicon.ico")
 shutil.copy2(f"{PADRE_PATH}/icons/radiopadre-logo.ico", f"{notebook_static}/base/images/favicon-notebook.ico")
 
-# add link to CARTA
-carta_url = CARTA_URL.format(options.carta_release)
-carta_tarball = os.path.basename(carta_url)
-carta_base    = os.path.splitext(carta_tarball)[0]
-carta_dir     = os.path.join(PADRE_VENV, carta_base)
-carta_link    = os.path.join(PADRE_VENV, "carta")
 
-remove_installation(carta_dir)
-remove_installation(carta_link)
-
-# download tarball
-carta_tarball_path = os.path.join(PADRE_WORKDIR, carta_tarball)
-for retry in True, False:
-    # try to download if not present
-    if os.path.exists(carta_tarball_path):
-        message(f"CARTA tarball {carta_tarball_path} is already here")
+# find carta
+carta_binary = which_opt("carta")
+if carta_binary:
+    if not options.system_carta:
+        message(f"Ignoring existing CARTA ({carta_binary}) since --no-system-carta is given")
+        carta_binary = None
     else:
-        message(f"Trying to download CARTA via {carta_url}")
-        subprocess.check_call(f"wget -c {carta_url} -O {carta_tarball_path}", shell=True)
-        if not os.path.exists(carta_tarball_path):
-            bye(f"{carta_tarball} failed to download")
-        # download successfull, will not retry
-        retry = False
-    try:
-        message(f"Unpacking {carta_tarball} in {PADRE_VENV}")
-        subprocess.check_call(f"cd {PADRE_VENV}; tar zxf {carta_tarball_path}", shell=True)
-        break
-    # on error, see if we can retry the download
-    except Exception as exc:
-        if retry and os.path.exists(carta_tarball_path):
-            message("Will retry the download")
-            os.unlink(carta_tarball_path)
-        else:
-            raise
-    finally:
-        if sys.prefix == "/.radiopadre/venv":
-            os.unlink(carta_tarball_path)
+        message(f"Found existing CARTA install ({carta_binary})")
 
-if os.path.exists(carta_dir):
-    message(f"Linking {carta_link} to {carta_dir}")
-    os.symlink(os.path.basename(carta_dir), carta_link)
-    message(f"Adjusting ownership and permissions on {carta_dir}")
-    # subprocess.check_call(f"chown -R 1000.1000 {carta_dir}", shell=True)
-    subprocess.check_call(f"chmod -R a+rX {carta_dir}", shell=True)
-else:
-    message(f"WARNING: No CARTA installation ({carta_dir}) found")
+if not carta_binary: 
+    # add link to CARTA
+    carta_url = CARTA_URL.format(options.carta_release)
+    carta_tarball = os.path.basename(carta_url)
+    carta_base    = os.path.splitext(carta_tarball)[0]
+    carta_dir     = os.path.join(PADRE_VENV, carta_base)
+    carta_link    = os.path.join(PADRE_VENV, "carta")
+
+    remove_installation(carta_dir)
+    remove_installation(carta_link)
+
+    # download tarball
+    carta_tarball_path = os.path.join(PADRE_WORKDIR, carta_tarball)
+    for retry in True, False:
+        # try to download if not present
+        if os.path.exists(carta_tarball_path):
+            message(f"CARTA tarball {carta_tarball_path} is already here")
+        else:
+            message(f"Trying to download CARTA via {carta_url}")
+            subprocess.check_call(f"wget -c {carta_url} -O {carta_tarball_path}", shell=True)
+            if not os.path.exists(carta_tarball_path):
+                bye(f"{carta_tarball} failed to download")
+            # download successfull, will not retry
+            retry = False
+        try:
+            message(f"Unpacking {carta_tarball} in {PADRE_VENV}")
+            subprocess.check_call(f"cd {PADRE_VENV}; tar zxf {carta_tarball_path}", shell=True)
+            break
+        # on error, see if we can retry the download
+        except Exception as exc:
+            if retry and os.path.exists(carta_tarball_path):
+                message("Will retry the download")
+                os.unlink(carta_tarball_path)
+            else:
+                raise
+        finally:
+            if sys.prefix == "/.radiopadre/venv":
+                os.unlink(carta_tarball_path)
+
+    if os.path.exists(carta_dir):
+        message(f"Linking {carta_link} to {carta_dir}")
+        os.symlink(os.path.basename(carta_dir), carta_link)
+        message(f"Adjusting ownership and permissions on {carta_dir}")
+        # subprocess.check_call(f"chown -R 1000.1000 {carta_dir}", shell=True)
+        subprocess.check_call(f"chmod -R a+rX {carta_dir}", shell=True)
+    else:
+        message(f"WARNING: No CARTA installation ({carta_dir}) found")
 
 # install nodeenv and node
 if not os.path.exists(f"{PADRE_VENV}/bin/npm"):
