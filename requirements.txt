@@ -6,6 +6,8 @@ jupyter
 notebook
 # pinning nbconvert at <6, see https://github.com/ipython-contrib/jupyter_contrib_nbextensions/issues/1529
 nbconvert<6
+# Avoid 5.5.2, see https://github.com/ipython/ipykernel/issues/621
+ipykernel<5.5.2
 matplotlib
 pillow
 python-casacore
