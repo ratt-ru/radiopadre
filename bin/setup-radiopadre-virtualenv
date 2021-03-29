@@ -112,7 +112,10 @@ if not os.path.exists(PADRE_WORKDIR):
     os.mkdir(PADRE_WORKDIR)
 
 # get jupyter base path
-notebook_dir = f"{PADRE_VENV}/lib/python3.6/site-packages"
+import sysconfig
+site_packages_dir = sysconfig.get_paths()["purelib"]
+## the above is the proper way to do the braindead below (sheesh Oleg...)
+# notebook_dir = f"{PADRE_VENV}/lib/python3.6/site-packages"
 
 # init radiopadre kernel etc.
 message("Creating radiopadre jupyter kernel")
@@ -131,7 +134,7 @@ shutil.copy2(f"{PADRE_PATH}/radiopadre/html/radiopadre-kernel.js", f"{kerneldir}
 shutil.copy2(f"{PADRE_PATH}/icons/radiopadre-logo-32x32.png", f"{kerneldir}/logo-32x32.png")
 shutil.copy2(f"{PADRE_PATH}/icons/radiopadre-logo-64x64.png", f"{kerneldir}/logo-64x64.png")
 
-notebook_static = f"{notebook_dir}/notebook/static"
+notebook_static = f"{site_packages_dir}/notebook/static"
 notebook_socket_io = f"{notebook_static}/socket.io.js"
 
 # add link to radiopadre web components in notebook static dir
@@ -275,13 +278,13 @@ if not options.no_js9:
         shutil.copy2(f"{PADRE_PATH}/radiopadre/html/js9colormaps.js", js9_www)
 
         # Make symlink to js9 install dir in notebook dir
-        notebook_js9_www = notebook_dir + "/notebook/static/js9-www"
+        notebook_js9_www = site_packages_dir + "/notebook/static/js9-www"
 
         remove_installation(notebook_js9_www)
         message("making link from {notebook_js9_www} to {js9_www}")
         os.symlink(js9_www, notebook_js9_www)
 
-        notebook_socket_io = notebook_dir + "/notebook/static/socket.io.js"
+        notebook_socket_io = site_packages_dir + "/notebook/static/socket.io.js"
         js9_socket_io = js9_www + "/node_modules/socket.io-client/dist/socket.io.js"
 
         remove_installation(notebook_socket_io)
