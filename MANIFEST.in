@@ -5,7 +5,7 @@ include requirements.txt
 
 # needs to be installed in site-packages
 recursive-include radiopadre/notebooks *.ipynb
-recursive-include radiopadre/html *.js *.css
+recursive-include radiopadre/html *.js *.css *.ico
 recursive-include radiopadre_kernel/js9 *.html
 
 # needs to be in tarball, copied over by setup script
