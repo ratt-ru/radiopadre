@@ -71,17 +71,27 @@ jobs:
           VERSION=$(echo "${{ github.ref }}" | sed -e 's,.*/\(.*\),\1,')
 
           # Strip "v" prefix from tag name
-          [[ "${{ github.ref }}" == "refs/tags/"* ]] && VERSION=$(echo $VERSION | sed -e 's/^v//')
+          [[ "${{ github.ref }}" == "refs/tags/"* ]] && VERSION=$(echo $VERSION | sed -e 's/^v//') 
 
           # Strip "b" prefix from branch name
-          [[ "${{ github.ref }}" == "refs/heads/b"* ]] && VERSION=$(echo $VERSION | sed -e 's/^b//')
-
+          [[ "${{ github.ref }}" == "refs/heads/b"* ]] && VERSION=$(echo $VERSION | sed -e 's/^b//') 
+          
+          
           # Use Docker `latest` tag convention
           [ "$VERSION" == "master" ] && VERSION=latest
+        
+          # Use x.y.latest as alias for x.y.z
+          LATEST=$(echo $VERSION | sed -e 's/\.[^.]*$/.latest/')
 
           echo github.ref="${{ github.ref }}"
           echo IMAGE_ID=$IMAGE_ID
           echo VERSION=$VERSION
+          echo LATEST=$LATEST
 
           docker tag $IMAGE_NAME $IMAGE_ID:$VERSION
           docker push $IMAGE_ID:$VERSION
+
+          if [ "$LATEST" != "$VERSION" ]; then
+            docker tag $IMAGE_NAME $IMAGE_ID:$LATEST
+            docker push $IMAGE_ID:$LATEST
+          fi
