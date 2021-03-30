@@ -10,7 +10,7 @@ import traceback
 # directory needs to be symlinked to. Otherwise, assume the directory is temporary, and copy from it
 PADRE_PATH = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
-JS9_VERSION = "3.3.1"
+# JS9_VERSION = "3.3.1"  ## disabling for now, helper connection issues, see https://github.com/ratt-ru/radiopadre-client/pull/36#issuecomment-809648445
 JS9_VERSION = "3.2"
 CARTA_VERSION = os.environ.get("RADIOPADRE_CARTA_VERSION", "1.4")
 
