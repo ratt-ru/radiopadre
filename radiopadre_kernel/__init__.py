@@ -146,6 +146,9 @@ _mirror_manifest = set()
 
 
 def add_mirror_file(path):
+    # things in cache still accessible via symlinks
+    if path.startswith(SHADOW_BASEDIR):
+        path = os.path.relpath(path, SHADOW_BASEDIR)
     _mirror_manifest.add(path)
 
 
@@ -156,6 +159,10 @@ def _save_mirror_manifest():
         if os.path.exists(NOTEBOOK_NAME):
             add_mirror_file(NOTEBOOK_NAME)
         files = list(_mirror_manifest) + list(FileBase.mirrorable_files())
+
+        # take relative path if we can
+        # files = [os.path.relpath(x, ABSROOTDIR) for x in files]
+
         with open(manifest, "wt") as ff:
             ff.write(f"{NOTEBOOK_NAME}\n")
             if NBCONVERT:

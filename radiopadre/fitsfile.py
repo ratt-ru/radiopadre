@@ -14,6 +14,7 @@ from radiopadre.render import rich_string, render_title, render_table, render_er
 
 from radiopadre import settings, imagefile
 from radiopadre_kernel import js9
+import radiopadre_kernel
 from .textfile import NumberedLineList
 
 def read_html_template(filename, subs):
@@ -261,8 +262,10 @@ class FITSFile(radiopadre.file.FileBase):
 
 
     def _get_png_file(self, keydict={}, **kw):
-        return self._get_cache_file("fits-render", "png", keydict, **kw)
-
+        filename, url, update = self._get_cache_file("fits-render", "png", keydict, **kw)
+        radiopadre_kernel.add_mirror_file(filename)  # FileItem won't know about the intermediate image, so add its path
+        return filename, url, update
+        
 
     def _render_plots(self,
              index=0,
@@ -593,6 +596,10 @@ class FITSFile(radiopadre.file.FileBase):
     @staticmethod
     def _collective_action_buttons_(fits_files, context, defaults=None):
         """Renders JS9 buttons for a collection of images."""
+        # no buttons when converting
+        if radiopadre.NBCONVERT:
+            return None
+
         subs = globals().copy()
         subs.update(display_id=context.div_id, **locals())
 
@@ -628,6 +635,10 @@ class FITSFile(radiopadre.file.FileBase):
         """Renders JS9 buttons for image
         """
         from iglesia import CARTA_PORT, CARTA_WS_PORT
+
+        # no buttons when converting
+        if radiopadre.NBCONVERT:
+            return None
 
         # ignore less than 2D images
         if len(self.shape) < 2:
@@ -682,7 +693,7 @@ def add_general_buttons():
     """Called to add a CARTA button to the output of the first cell"""
     from iglesia import CARTA_PORT, CARTA_WS_PORT
 
-    if CARTA_PORT and CARTA_WS_PORT:
+    if not radiopadre.NBCONVERT and CARTA_PORT and CARTA_WS_PORT:
         newtab_carta_html = f"http://localhost:{CARTA_PORT}/?socketUrl=ws://localhost:{CARTA_WS_PORT}"
         return """
                 <button title="open CARTA in a new browser tab" 
