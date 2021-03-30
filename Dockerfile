@@ -50,13 +50,13 @@ ENV VIRTUAL_ENV=/.radiopadre/venv
 RUN virtualenv -p python3 $VIRTUAL_ENV
 ENV PATH="$VIRTUAL_ENV/bin:$PATH"
 
-RUN pip3 install --no-cache-dir -U pip setuptools
+RUN pip3 install --no-cache-dir -U pip setuptools numpy
 
 ADD . /radiopadre
 
 # override due to problems with 1.4 in containers
 ARG RADIOPADRE_CARTA_VERSION=1.3.1  
-ARG CLIENT_BRANCH=b1.1.1
+ARG CLIENT_BRANCH=b1.1.2
 
 RUN git clone -b $CLIENT_BRANCH https://github.com/ratt-ru/radiopadre-client.git
 RUN pip3 install --no-cache-dir  -e /radiopadre-client

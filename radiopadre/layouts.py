@@ -62,6 +62,7 @@ def Title(title, sections=[], logo=None, logo_width=0, logo_padding=8, icon=None
         logo_style = ""
 
     if icon:
+        icon = render.render_url(icon)
         icon_width = f" width={icon_width}" if icon_width else ""
         icon_image = f"""<img src="{icon}" alt="" {icon_width}></img>"""
 
