@@ -12,3 +12,6 @@ python-casacore
 radiopadre-client
 jupyter-contrib-nbextensions
 nodeenv
+click
+OmegaConf
+ipynbname

@@ -253,7 +253,7 @@ if (appname === 'NotebookApp')
                 {   'id'      : 'radiopadre_btn_exec_all',
                     'label'   : 'Run all',
                     'icon'    : 'icon-arrow-up',
-                    'callback': Jupyter.notebook.execute_all_cells
+                    'callback': function () { Jupyter.notebook.execute_all_cells() }
                 },
                 {   'id'      : 'radiopadre_btn_scrub',
                     'label'   : 'scrub: on',

@@ -11,7 +11,10 @@ _ALL_SECTIONS = OrderedDict()
 logo_image = ''
 icon_image = ''
 
-init_html = """
+init_html = f"""
+        <script type="text/javascript">
+            {open(os.path.splitext(__file__)[0]+".js").read()}
+        </script>
 """
 
 def add_section(name):
@@ -28,7 +31,7 @@ def render_bookmarks_bar(label, name):
             <div class="rp-section-bookmarks" data-name="{name}" data-label="{label}"></div>
         </div>
         <script type="text/javascript">
-            document.radiopadre.add_section();
+            document.radiopadre_layouts.add_section();
         </script>
     """
     
@@ -122,7 +125,7 @@ def Section(name):
         add_section(name)
     label = _ALL_SECTIONS[name]
 
-    code = render_bookmarks_bar(label, name) if not radiopadre.NBCONVERT else ""
+    code = render_bookmarks_bar(label, name) # if not radiopadre.NBCONVERT else ""
 
     code += f"""
         <div style="display: table">

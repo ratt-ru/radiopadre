@@ -59,8 +59,12 @@ setup(
     keywords="ipython notebook jupyter fits dataset resultset visualisation",
     url="http://github.com/ratt-ru/radiopadre",
     scripts=scripts,
-    packages=['radiopadre', 'radiopadre_kernel', 'radiopadre_kernel/js9', 'radiopadre_utils'],
+    packages=['radiopadre', 'radiopadre_kernel', 'radiopadre_kernel/js9', 'radiopadre_utils', 'radiovangelize'],
     include_package_data=True,
+    entry_points="""
+        [console_scripts]
+        radiovangelize = radiovangelize.push:_push_cli
+    """,
     cmdclass={
               'install': InstallSetupVenvCommand,
               'develop': DevelopSetupVenvCommand,
