@@ -133,11 +133,38 @@ def list_remotes(capture_output=True, **kw):
 
 
 def push_notebook(path, capture_output=True, **kw):
+
+    # if capturing outputs, modify message handlers
+    total_output = b""
+    if capture_output:
+        def _capture(output):
+            nonlocal total_output
+            total_output += output
+        def message1(output, **kw):
+            global message
+            nonlocal total_output
+            message(output, **kw)
+            total_output += f"{output}\n".encode()
+        def warning1(output, **kw):
+            global warning
+            nonlocal total_output
+            warning(output, **kw)
+            total_output += f"WARNING: {output}\n".encode()
+        def error1(output, **kw):
+            global error
+            nonlocal total_output
+            error(output, **kw)
+            total_output += f"ERROR: {output}\n".encode()
+    else:
+        _capture = None
+        message1, warning1, error1 = message, warning, error
+
     # get source manifest
     manifest_file = f"{path}.manifest"
     if not os.path.exists(manifest_file):
-        error(f"Manifest {manifest_file} not found. Have you rendered the notebook?")
-        return None
+        error1(f"Manifest {manifest_file} not found. Have you rendered the notebook?")
+        return total_output
+
     manifest = open(manifest_file, "rt").read().split("\n")
 
     # get configuration, and add arguments 
@@ -146,10 +173,6 @@ def push_notebook(path, capture_output=True, **kw):
     nb_name = os.path.splitext(os.path.basename(path))[0]
     if not config.name:
         config.name = nb_name
-
-    message("Push configuration follows:")
-    for x in OmegaConf.to_yaml(config).splitlines(): 
-        message("    " + x)
 
     # form up destination name
     dest = config.name + "/"
@@ -161,45 +184,44 @@ def push_notebook(path, capture_output=True, **kw):
     # setup standard command substitutions 
     subst = _setup_subst(config, files=" ".join(manifest), dest=dest, name=nb_name, path=path)
 
-    message(f"Pushing out notebook bundle containing {len(manifest)} files to {subst['remote']}{dest}", color="GREEN")
+    message1(f"Pushing out notebook bundle containing {len(manifest)} files to {subst['remote']}{dest}", color="GREEN")
+
+    message1("Push configuration follows:")
+    for x in OmegaConf.to_yaml(config).splitlines(): 
+        message1("    " + x)
+
 
     # figure out sync command
     if not config.push_command:
         if subst['remote']:
             config.push_command = f"rsync -uvzR {{files}} {{remote}}:{{dest}}"
         else:
-            error("neither rsync_host nor push_command specified")
-            return None
+            error1("neither rsync_host nor push_command specified")
+            return total_output
         message(f"implicit push-command is {config.push_command}")
 
     if not config.check_command:
         if subst['remote']:
             config.check_command = f"$ ssh {{remote}} '[[ -d {{dest}} ]]'"
         else:
-            error("neither rsync_host nor check_command specified")
-            return None
+            error1("neither rsync_host nor check_command specified")
+            return total_output
         message(f"implicit check-command is {config.check_command}")
 
-    total_output = b""
-    if capture_output:
-        def _capture(output):
-            total_output += output
-    else:
-        _capture = None
 
  
     # check if destination exists
     if config.check_command:
         if not _run_command(config.check_command, subst=subst, capture_output=_capture):
             if config.overwrite:
-                warning("check-command suggests that the destination already exists, and may be overwritten.")
+                warning1("check-command suggests that the destination already exists, and may be overwritten.")
             else:
-                error("check-command suggests that the destination already exists. Use a different name, or force overwrite.")
+                error1("check-command suggests that the destination already exists. Use a different name, or force overwrite.")
                 return total_output
 
     retcode = _run_command(config.push_command, subst=subst, capture_output=_capture)
     if retcode:
-        error(f"push-command failed with error code {retcode}.")
+        error1(f"push-command failed with error code {retcode}.")
         return total_output
 
     if config.post_command:
@@ -208,9 +230,9 @@ def push_notebook(path, capture_output=True, **kw):
                                 subst=subst, capture_output=_capture)
         if retcode:
             if optional:
-                warning(f"post-command returns error code {retcode}, this is probably OK though.")
+                warning1(f"post-command returns error code {retcode}, this is probably OK though.")
             else:
-                error(f"post-command failed with error code {retcode}.")
+                error1(f"post-command failed with error code {retcode}.")
 
     return total_output
 
