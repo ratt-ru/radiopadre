@@ -63,7 +63,7 @@ setup(
     include_package_data=True,
     entry_points="""
         [console_scripts]
-        radiovangelize = radiovangelize.push:_push_cli
+        radiovangelize = radiovangelize.cli:cli
     """,
     cmdclass={
               'install': InstallSetupVenvCommand,
