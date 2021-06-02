@@ -1,4 +1,5 @@
 APLpy
+decorator<5 # needed by networkx (needed by aplpy) as of 2.5.x release. Newer versions may drop this.
 astropy
 bokeh
 ipython
