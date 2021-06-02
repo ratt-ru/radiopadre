@@ -179,10 +179,16 @@ carta_binary = which_opt("carta_backend")
 if carta_binary:
     message(f"Found existing CARTA backend ({carta_binary})")
     try:
-        carta_system_version = subprocess.check_output([carta_binary, "--version"], shell=False).decode()
+        carta_system_version = subprocess.check_output([carta_binary, "--version"], shell=False).decode().strip()
         message(f"This is CARTA version {carta_system_version}")
     except subprocess.SubprocessError as exc:
         message(f"Error running {carta_binary} --version: {exc}, ignoring this install")
+    CARTA_FRONTEND_PATH = "/usr/share/carta/frontend"
+    if os.path.isdir(CARTA_FRONTEND_PATH):
+        message(f"Using frontend data {CARTA_FRONTEND_PATH}")
+    else:
+        carta_system_version = None
+        message(f"Frontend data {CARTA_FRONTEND_PATH} not found, ignoring this install")
 else:
     carta_binary = which_opt("carta")
     if carta_binary:
