@@ -243,7 +243,9 @@ class FITSFile(radiopadre.file.FileBase):
 
     def _render_thumb_impl(self, npix=None, width=None, showpath=False, **kw):
         kw['filename_in_title'] = True
-        plots = self._render_plots(index=[0], showpath=showpath, message=False, **kw)
+        if 'index' not in kw:
+            kw['index'] = [0]
+        plots = self._render_plots(showpath=showpath, message=False, **kw)
         # NumberedLineList returned on error, otherwise the normal triplet
         if type(plots) is not NumberedLineList:
             html = ""
