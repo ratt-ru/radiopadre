@@ -30,7 +30,7 @@ def tabs(tablist, width="99%", height=None, aspect=4/3.):
     html = f"<div width={width} height={height}>"
 
     for tab, tid, tid1 in zip(tablist, tab_button_ids, tab_tab_ids):
-        html +=  f"""<button id="{tid}" class="rp-terminal-tablink" onclick="openTab_{uid}('{tid1}', this, 'DarkOliveGreen')">{tab}</button>\n"""
+        html +=  f"""<button id="{tid}" class="rp-terminal-tablink" onclick="openTab_{uid}('{tid1}', this, 'DarkSeaGreen')">{tab}</button>\n"""
 
     for tab, tid in zip(tablist, tab_tab_ids):
         html += f"""

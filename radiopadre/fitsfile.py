@@ -634,8 +634,6 @@ class FITSFile(radiopadre.file.FileBase):
     def _action_buttons_(self, context, defaults=None, **kw):
         """Renders JS9 buttons for image
         """
-        from iglesia import CARTA_PORT, CARTA_WS_PORT
-
         # no buttons when converting
         if radiopadre.NBCONVERT:
             return None
@@ -677,11 +675,10 @@ class FITSFile(radiopadre.file.FileBase):
                     onclick="window.open('{newtab_html}', '_blank')">&#8663;JS9</button>
         """.format(**subs)
 
-        if CARTA_PORT and CARTA_WS_PORT:
+        if iglesia.CARTA_VERSION:
             filepath = os.path.relpath(os.path.abspath(self.fullpath), iglesia.SERVER_BASEDIR)
 
-            subs['newtab_carta_html'] =\
-                f"http://localhost:{CARTA_PORT}/?socketUrl=ws://localhost:{CARTA_WS_PORT}&file={filepath}"
+            subs['newtab_carta_html'] = iglesia.get_carta_url(f"file={filepath}")
 
             code += """
                     <button id="" title="display using CARTA in a new browser tab" style="font-size: 0.9em;"
@@ -691,10 +688,9 @@ class FITSFile(radiopadre.file.FileBase):
 
 def add_general_buttons():
     """Called to add a CARTA button to the output of the first cell"""
-    from iglesia import CARTA_PORT, CARTA_WS_PORT
 
-    if not radiopadre.NBCONVERT and CARTA_PORT and CARTA_WS_PORT:
-        newtab_carta_html = f"http://localhost:{CARTA_PORT}/?socketUrl=ws://localhost:{CARTA_WS_PORT}"
+    if not radiopadre.NBCONVERT and iglesia.CARTA_VERSION:
+        newtab_carta_html = iglesia.get_carta_url()
         return """
                 <button title="open CARTA in a new browser tab" 
                     style="font-size: 0.9em; position: absolute; right: 0; top: 0;"

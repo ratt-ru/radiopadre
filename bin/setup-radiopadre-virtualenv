@@ -82,11 +82,11 @@ def shell(cmd):
     return subprocess.check_call(cmd.format(**globals()), shell=True)
 
 def which(cmd):
-    return subprocess.check_output("which {}".format(cmd), shell=True).strip()
+    return subprocess.check_output("which {}".format(cmd), shell=True).decode().strip()
 
 def which_opt(cmd):
     try:
-        return subprocess.check_output("which {}".format(cmd), shell=True).strip()
+        return subprocess.check_output("which {}".format(cmd), shell=True).decode().strip()
     except subprocess.CalledProcessError as exc:
         return None
 
@@ -174,25 +174,40 @@ shutil.copy2(f"{PADRE_PATH}/icons/radiopadre-logo.ico", f"{notebook_static}/base
 
 
 # find carta
-carta_binary = which_opt("carta")
+carta_system_version = None
+carta_binary = which_opt("carta_backend")
 if carta_binary:
-    if not options.system_carta:
-        message(f"Ignoring existing CARTA ({carta_binary}) since --no-system-carta is given")
-        carta_binary = None
+    message(f"Found existing CARTA backend ({carta_binary})")
+    try:
+        carta_system_version = subprocess.check_output([carta_binary, "--version"], shell=False).decode()
+        message(f"This is CARTA version {carta_system_version}")
+    except subprocess.SubprocessError as exc:
+        message(f"Error running {carta_binary} --version: {exc}, ignoring this install")
+else:
+    carta_binary = which_opt("carta")
+    if carta_binary:
+        message(f"No CARTA backend, but found {carta_binary}, assuming version 1.x")
+        carta_system_version = "1.x"
+
+if carta_system_version:
+    if SYSTEM_CARTA:
+        CARTA_VERSION = carta_system_version
     else:
-        message(f"Found existing CARTA install ({carta_binary})")
+        carta_system_version = None
+        message(f"RADIOPADRE_SYSTEM_CARTA=0 set, so ignoring this install")
 
-if not carta_binary: 
-    # add link to CARTA
-    carta_url = CARTA_URL.format(options.carta_release)
-    carta_tarball = os.path.basename(carta_url)
-    carta_base    = os.path.splitext(carta_tarball)[0]
-    carta_dir     = os.path.join(PADRE_VENV, carta_base)
-    carta_link    = os.path.join(PADRE_VENV, "carta")
+# setup CARTA paths
+carta_url = CARTA_URL.format(options.carta_release)
+carta_tarball = os.path.basename(carta_url)
+carta_base    = os.path.splitext(carta_tarball)[0]
+carta_dir     = os.path.join(PADRE_VENV, carta_base)
+carta_link    = os.path.join(PADRE_VENV, "carta")
 
-    remove_installation(carta_dir)
-    remove_installation(carta_link)
+# remove old install
+remove_installation(carta_dir)
+remove_installation(carta_link)
 
+if not carta_system_version: 
     # download tarball
     carta_tarball_path = os.path.join(PADRE_WORKDIR, carta_tarball)
     for retry in True, False:
@@ -230,13 +245,17 @@ if not carta_binary:
     else:
         message(f"WARNING: No CARTA installation ({carta_dir}) found")
 
+# write status
+with open(PADRE_VENV + "/carta_version", "wt") as ff:
+    ff.write(CARTA_VERSION)
+
 # install nodeenv and node
 if not os.path.exists(f"{PADRE_VENV}/bin/npm"):
     message(f"Initializing nodeenv")
     subprocess.check_call(f"nodeenv -p", shell=True)
 else:
     message(f"Looks like nodeenv is already installed in {PADRE_VENV}")
-node_version = subprocess.check_output(f"node -v", shell=True)
+node_version = subprocess.check_output(f"node -v", shell=True).decode()
 message(f"Node version is {node_version}")
 
 # install npm deps

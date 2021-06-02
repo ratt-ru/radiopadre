@@ -1,4 +1,4 @@
-import os, traceback, atexit, logging
+import os, traceback, atexit, logging, sys
 
 import iglesia
 from iglesia.utils import message, warning, error
@@ -141,6 +141,16 @@ def init():
     # init JS9 sources
     from . import js9
     js9.preinit_js9()
+
+    # figure out CARTA version
+    carta_version = f"{sys.prefix}/carta_version"
+    if os.path.exists(carta_version):
+        iglesia.CARTA_VERSION = open(carta_version, "rt").read()
+        message(f"Detected CARTA version {iglesia.CARTA_VERSION}")
+    else:
+        iglesia.CARTA_VERSION = "1.x"
+        message(f"Assuming CARTA version {iglesia.CARTA_VERSION}, as none was detected")
+
 
 _mirror_manifest = set()
 
