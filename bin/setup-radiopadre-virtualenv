@@ -11,7 +11,9 @@ import traceback
 # directory needs to be symlinked to. Otherwise, assume the directory is temporary, and copy from it
 PADRE_PATH = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
-JS9_VERSION = "3.2"
+JS9_VERSION = os.environ.get("RADIOPADRE_JS9_VERSION", "3.2")
+JS9_IGNORE_ERRORS = os.environ.get("RADIOPADRE_JS9_IGNORE_ERRORS")
+
 CARTA_VERSION = os.environ.get("RADIOPADRE_CARTA_VERSION", "1.4")
 SYSTEM_CARTA = os.environ.get("RADIOPADRE_SYSTEM_CARTA", "True")
 if SYSTEM_CARTA.upper() in ("0", "FALSE", ""):
@@ -284,7 +286,7 @@ if not options.no_js9:
                 js9_dir = os.path.join(PADRE_PATH, js9_dir)
                 message(f"Will try to install JS9 from existing directory {js9_dir}")
             if not os.path.isdir(js9_dir):
-                bye(f"no such directory: {js9_dir}")
+                raise RuntimeError(f"no such directory: {js9_dir}")
         elif options.js9_branch:
             js9_dir = f"{PADRE_PATH}/js9"
             if os.path.isdir(js9_dir) and os.path.isdir(f"{js9_dir}/.git"):
@@ -321,9 +323,9 @@ if not options.no_js9:
 
             js9_dir = f"{PADRE_PATH}/js9-{options.js9_release}"
             if not os.path.isdir(js9_dir):
-                bye("{js9_dir} does not exist. Did the tarball download and unpack?")
+                raise RuntimeError("{js9_dir} does not exist. Did the tarball download and unpack?")
         else:
-            bye("unknown JS9 install method. Specify one of --js9-release, --js9-branch, --js9-dir")
+            raise RuntimeError("unknown JS9 install method. Specify one of --js9-release, --js9-branch, --js9-dir")
 
         # Configure and install
         js9_www = PADRE_VENV + "/js9-www"
@@ -331,8 +333,7 @@ if not options.no_js9:
         if subprocess.call("""cd {js9_dir} && \
                 ./configure --prefix={PADRE_VENV} --with-webdir={js9_www} --with-helper=nodejs {with_cfitsio} && \
                 make && make install""".format(**globals()), shell=True):
-            js9status.write("build failed")
-            bye("Failed to configure and/or build JS9 in {js9_dir}, see log above. Fix it, or run with --no-js9.")
+            raise RuntimeError("Failed to configure and/or build JS9 in {js9_dir}, see log above. Fix it, or run with --no-js9.")
 
         # check for cfitsio
         try:
@@ -340,8 +341,7 @@ if not options.no_js9:
             if output.strip() != b"FITSLIB='cfitsio'":
                 raise subprocess.CalledProcessError("cfitsio",-1,"no cfitsio")
         except subprocess.CalledProcessError:
-            js9status.write("cfitsio missing")
-            bye("JS9 did not find the cfitsio library. Try installing it (apt install libcfitsio-dev), and/or specifying"
+            raise RuntimeError("JS9 did not find the cfitsio library. Try installing it (apt install libcfitsio-dev), and/or specifying"
                 " the path to it with --cfitsio-path, and/or running with --no-js9 if you're really stuck.")
 
         # add colormap definitions from matplotlib
@@ -375,11 +375,15 @@ if not options.no_js9:
     except Exception as exc:
         traceback.print_exc()
         js9status.write(str(exc))
-        bye(f"Error installing JS9: {exc}")
-
+        if JS9_IGNORE_ERRORS:
+            options.no_js9 = True
+        else:
+            bye(f"Error installing JS9: {exc}")
     finally:
         js9status.write(os.path.abspath(js9_www))
-else:
+
+
+if options.no_js9:
     # no JS9, still need to download socket.io.js
     remove_installation(notebook_socket_io)
     message("Downloading socket.io.js into {notebook_socket_io}")
