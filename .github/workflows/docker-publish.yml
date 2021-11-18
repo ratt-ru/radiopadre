@@ -83,6 +83,10 @@ jobs:
             VERSION=$(echo $VERSION | sed -e 's/^b//')
             RELEASE=""
             echo "Branch $VERSION: not release"
+            if [ "${VERSION%.x}" != "$VERSION" ]; then
+              VERSION="${VERSION%.x}.pre1" 
+              echo "Image name will be $VERSION"
+            fi
           else
             echo "Branch ${{ github.ref }} is neither branch nor release"
           fi
