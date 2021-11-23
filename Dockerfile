@@ -7,7 +7,7 @@ RUN echo "deb-src http://ppa.launchpad.net/kernsuite/kern-6/ubuntu bionic main" 
 RUN add-apt-repository ppa:cartavis-team/carta
 RUN apt-get update
 RUN docker-apt-install --no-install-recommends \
-    python3 gcc g++ make carta-backend \
+    python3 gcc g++ make carta-backend carta-frontend \
     python-pip python3-pip python3-virtualenv \
     virtualenv \
     python3-numpy \
@@ -55,8 +55,10 @@ RUN pip3 install --no-cache-dir -U pip setuptools
 
 ADD . /radiopadre
 
-# override due to problems with 1.4 in containers
-ARG RADIOPADRE_CARTA_VERSION=1.3.1  
+### override the override -- CARTA 2.0 installed from PPA above
+## override due to problems with 1.4 in containers
+#ARG RADIOPADRE_CARTA_VERSION=1.3.1  
+
 ARG CLIENT_BRANCH=b1.2.x
 
 RUN git clone -b $CLIENT_BRANCH https://github.com/ratt-ru/radiopadre-client.git
