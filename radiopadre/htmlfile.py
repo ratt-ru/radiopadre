@@ -49,7 +49,7 @@ def _render_html(url, dest, width, height, timeout):
         script = os.path.join(os.path.dirname(__file__), "html/puppeteer-html-thumbnail.js")
         cmd = [nodejs, script, url, dest, width, height, timeout]
         env = os.environ.copy()
-        env['NODE_PATH'] = f"{sys.prefix}/node_modules"
+        env['NODE_PATH'] = f"{sys.prefix}/node_modules:{sys.prefix}/lib/node_modules"
     else:
         raise RenderError("settings.html.method not set")
 
