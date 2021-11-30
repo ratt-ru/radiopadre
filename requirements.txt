@@ -9,6 +9,7 @@ nbconvert<6
 ipykernel<5.5.2
 matplotlib
 pillow
+pyparsing<3  # as of 11/2021, 3.0+ gets installed by default and confuses something else
 python-casacore
 radiopadre-client
 jupyter-contrib-nbextensions
