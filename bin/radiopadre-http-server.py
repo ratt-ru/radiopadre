@@ -1,5 +1,8 @@
 #!/usr/bin/env python3
 import sys, os, re, ssl
+
+print(f"HTTPServer: starting", file=sys.stderr)
+
 from http.server import HTTPServer, SimpleHTTPRequestHandler
 
 path_id = "{}/{}".format(os.getcwd(), os.environ['RADIOPADRE_SESSION_ID'])
