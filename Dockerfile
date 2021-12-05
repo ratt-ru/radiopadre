@@ -51,7 +51,7 @@ ENV VIRTUAL_ENV=/.radiopadre/venv
 RUN virtualenv -p python3 $VIRTUAL_ENV
 ENV PATH="$VIRTUAL_ENV/bin:$PATH"
 
-RUN pip3 install --no-cache-dir -U pip setuptools
+RUN pip3 install --no-cache-dir -U pip setuptools numpy
 
 ADD . /radiopadre
 
