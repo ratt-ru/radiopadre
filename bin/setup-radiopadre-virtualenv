@@ -12,8 +12,8 @@ import traceback
 PADRE_PATH = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 # JS9_VERSION = "3.3.1"  ## disabling for now, helper connection issues, see https://github.com/ratt-ru/radiopadre-client/pull/36#issuecomment-809648445
-JS9_VERSION = os.environ.get("RADIOPADRE_JS9_VERSION", "3.2")
-# JS9_VERSION = os.environ.get("RADIOPADRE_JS9_VERSION", "3.6.1")
+#JS9_VERSION = os.environ.get("RADIOPADRE_JS9_VERSION", "3.2")
+JS9_VERSION = os.environ.get("RADIOPADRE_JS9_VERSION", "3.6.1")
 JS9_IGNORE_ERRORS = os.environ.get("RADIOPADRE_JS9_IGNORE_ERRORS")
 
 CARTA_VERSION = os.environ.get("RADIOPADRE_CARTA_VERSION", "2.0")
