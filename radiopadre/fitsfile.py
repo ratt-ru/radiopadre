@@ -680,7 +680,7 @@ class FITSFile(radiopadre.file.FileBase):
         if iglesia.CARTA_VERSION:
             filepath = os.path.relpath(os.path.abspath(self.fullpath), iglesia.SERVER_BASEDIR)
 
-            subs['newtab_carta_html'] = iglesia.get_carta_url(f"file={filepath}")
+            subs['newtab_carta_html'] = iglesia.get_carta_url(args=[f"file={filepath}"])
 
             code += """
                     <button id="" title="display using CARTA in a new browser tab" style="font-size: 0.9em;"
