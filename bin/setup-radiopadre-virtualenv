@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
 import os
-import stat
 import subprocess
 import sys
 import shutil
@@ -212,10 +211,12 @@ carta_tarball = os.path.basename(carta_url)
 carta_base    = os.path.splitext(carta_tarball)[0]
 carta_dir     = os.path.join(PADRE_VENV, carta_base)
 carta_link    = os.path.join(PADRE_VENV, "carta")
+carta_link_appimage = os.path.join(PADRE_VENV, "carta-appimage")
 
 # remove old install
 remove_installation(carta_dir)
 remove_installation(carta_link)
+remove_installation(carta_link_appimage)
 
 if not carta_system_version: 
     # download tarball
@@ -246,7 +247,15 @@ if not carta_system_version:
             if sys.prefix == "/.radiopadre/venv":
                 os.unlink(carta_tarball_path)
 
-    if os.path.exists(carta_dir):
+    if CARTA_VERSION >= "2":
+        carta_appimage = os.path.splitext(os.path.basename(carta_tarball_path))[0]
+        carta_appimage = os.path.join(PADRE_VENV, carta_appimage + ".AppImage")
+        if os.path.exists(carta_appimage) and os.access(carta_appimage, os.X_OK):
+            message(f"Linking {carta_link_appimage} to {carta_appimage}")
+            os.symlink(os.path.basename(carta_appimage), carta_link_appimage)
+        else:
+            message(f"CARTA appimage ({carta_appimage}) not found")
+    elif os.path.exists(carta_dir):
         message(f"Linking {carta_link} to {carta_dir}")
         os.symlink(os.path.basename(carta_dir), carta_link)
         message(f"Adjusting ownership and permissions on {carta_dir}")
