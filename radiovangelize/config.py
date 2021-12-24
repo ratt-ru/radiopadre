@@ -25,6 +25,7 @@ class PushConfig(object):
     post_command: Optional[str] = None       # if set, executed after a successful push
     list_command: Optional[str] = None       # if set, used to list remote destinations
     overwrite: bool = False                  # force overwrite of remote destination, if check-command says it exists
+    auto_render: bool = False                # allow auto-rendering to HTML if it is missing
 
 @dataclass 
 class VangelizeConfig(object):

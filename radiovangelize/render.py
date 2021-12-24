@@ -1,7 +1,6 @@
 import os.path
 from iglesia import message, error
 
-from .push import _run_command
 
 def render_notebook(path: str, output_stream=None, **kw):
     """Renders notebook to embedded HNML.
@@ -9,6 +8,7 @@ def render_notebook(path: str, output_stream=None, **kw):
     Args:
         path (str): Filename of notebook.
     """
+    from .push import _run_command
     message(f"Rendering notebook {path}", color="GREEN")
 
     # run-radiopadre needs to be told to set up an environment fresh, so we clear out certain variables from the venv
@@ -21,7 +21,7 @@ def render_notebook(path: str, output_stream=None, **kw):
 
     if retcode:
         error(f"Rendering command exited with error code {retcode}")
+        return None
     else:
         message(f"Notebook {path} successfully rendered", color="GREEN")
-
-    return retcode
+        return path

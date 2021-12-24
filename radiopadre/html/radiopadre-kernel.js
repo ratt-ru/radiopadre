@@ -315,46 +315,6 @@ if (appname === 'NotebookApp')
         document.radiopadre.controls.update();
     }
 
-    // adds a section to the list and repopulate all bookmark bars
-    document.radiopadre.add_section = function() {
-        document.radiopadre.section_labels = [];
-        document.radiopadre.section_names = {};
-        var bookmark_bars = document.getElementsByClassName("rp-section-bookmarks");
-        // console.log("bookmarks are ", bookmark_bars)
-        var bar0;
-        for(bar0 of bookmark_bars) {
-            var label = bar0.getAttribute("data-label");
-            if( !document.radiopadre.section_labels.includes(label) ) {
-                document.radiopadre.section_labels.push(label);
-                document.radiopadre.section_names[label] = bar0.getAttribute("data-name");
-            }
-        }
-        // loop over all bookmark bars in document
-        for(bar0 of bookmark_bars) {
-            var label0 = bar0.getAttribute("data-label");
-            // clear content
-            var bar = bar0.cloneNode(false);  /* kills children */
-            bar0.parentNode.replaceChild(bar, bar0);
-            var label;
-            // reinsert content
-            for(label of document.radiopadre.section_labels) {
-                var element;
-                // content is a link or a simple text element
-                if( label == label0 ) {
-                    element = document.createElement('div');
-                    element.className = "rp-active-section";
-                } else {
-                    element = document.createElement('a');
-                    element.className = "rp-section-link";
-                    element.href = "#" + label;
-                }
-                element.innerHTML = document.radiopadre.section_names[label];
-                bar.appendChild(element);
-            }
-        }
-        return document.radiopadre.section_labels;
-    }
-
     // init controls for null user
     document.radiopadre.init_controls('');
 

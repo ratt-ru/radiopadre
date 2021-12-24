@@ -1,11 +1,10 @@
 import subprocess, os.path
-import click
 from omegaconf import OmegaConf
 
 from iglesia import debug, message, warning, error
 
 from .config import get_config, PushConfig
-
+from .render import render_notebook
 
 def get_push_config(nbdir=None):
     return get_config(nbdir).push
@@ -69,16 +68,33 @@ def list_remotes(output_stream=None, **kw):
 
 def push_notebook(path: str, output_stream=None, **kw):
 
+    # get configuration, and add arguments 
+    config = OmegaConf.merge(get_push_config(nbdir=os.path.dirname(path)), kw)
+
+    if not os.path.exists(path):
+        error("{path} not found.")
+        return None
+
+    # do we have an html file
+    html_file = f"{os.path.splitext(path)[0]}.html"
+    if not os.path.exists(html_file):
+        if config.auto_render:
+            warning(f"{html_file} not found, attempting to auto-render the notebook")
+            if not render_notebook(path):
+                error(f"Auto-rendering failed.")
+                return None
+        else:
+            error(f"{html_file} not found. Please render the notebook, or re-run with auto-rendering enabled.")
+            return None
+
+
     # get source manifest
     manifest_file = f"{path}.manifest"
     if not os.path.exists(manifest_file):
-        error(f"Manifest {manifest_file} not found. Have you rendered the notebook?")
-        return None
-
-    manifest = open(manifest_file, "rt").read().split("\n")
-
-    # get configuration, and add arguments 
-    config = OmegaConf.merge(get_push_config(nbdir=os.path.dirname(path)), kw)
+        warning(f"Manifest {manifest_file} not found. Will assume this is a non-radiopadre notebook and push HTML file only.")
+        manifest = [path, html_file]
+    else:
+        manifest = open(manifest_file, "rt").read().split("\n")
 
     nb_name = os.path.splitext(os.path.basename(path))[0]
     if not config.name:
