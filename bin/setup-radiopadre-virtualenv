@@ -26,6 +26,8 @@ JS9_LINK = "https://github.com/ericmandel/js9/archive/v{0}.tar.gz" # will be pas
 JS9_BRANCH = "master"  # or None to install release instead
 JS9_REPO = "https://github.com/ericmandel/js9.git"
 
+NODEJS_VERSION = "16.13.2"  # or None to install latest
+
 WETTY_VERSION = "2.0.2"
 PUPPETEER_VERSION = "2.1.0"
 
@@ -271,7 +273,10 @@ with open(PADRE_VENV + "/carta_version", "wt") as ff:
 # install nodeenv and node
 if not os.path.exists(f"{PADRE_VENV}/bin/npm"):
     message(f"Initializing nodeenv")
-    subprocess.check_call(f"nodeenv -p", shell=True)
+    if NODEJS_VERSION is not None:
+        subprocess.check_call(f"nodeenv -n {NODEJS_VERSION} -p", shell=True)
+    else:
+        subprocess.check_call(f"nodeenv -p", shell=True)
 else:
     message(f"Looks like nodeenv is already installed in {PADRE_VENV}")
 node_version = subprocess.check_output(f"node -v", shell=True).decode()
