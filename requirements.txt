@@ -1,17 +1,17 @@
 APLpy
-decorator<5 # needed by networkx (needed by aplpy) as of 2.5.x release. Newer versions may drop this.
+decorator #<5 # needed by networkx (needed by aplpy) as of 2.5.x release. Newer versions may drop this.
 astropy
 bokeh
 ipython
 jupyter
 notebook
 # pinning nbconvert at <6, see https://github.com/ipython-contrib/jupyter_contrib_nbextensions/issues/1529
-nbconvert<6
+nbconvert #<6
 # Avoid 5.5.2, see https://github.com/ipython/ipykernel/issues/621
-ipykernel<5.5.2
+ipykernel #<5.5.2
 matplotlib
 pillow
-pyparsing<3  # as of 11/2021, 3.0+ gets installed by default and confuses something else
+pyparsing #<3  # as of 11/2021, 3.0+ gets installed by default and confuses something else
 python-casacore
 radiopadre-client
 jupyter-contrib-nbextensions
