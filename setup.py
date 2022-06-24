@@ -12,7 +12,7 @@ build_root = os.path.dirname(__file__)
 with open("requirements.txt") as stdr:
     install_requires = stdr.readlines()
 
-scripts = ["bin/" + i for i in os.listdir("bin")]
+scripts = ["bin/radiopadre-http-server.py", "bin/setup-radiopadre-virtualenv"]
 
 
 class WheelSetupVenvCommand(bdist_wheel):
