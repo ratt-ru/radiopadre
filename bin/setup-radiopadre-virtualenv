@@ -4,6 +4,7 @@ import subprocess
 import sys
 import shutil
 import traceback
+import platform
 
 # get radiopadre install source directory
 # This is where we're installing from. If called with --editable, stuff in this
@@ -25,8 +26,6 @@ JS9_LINK = "https://github.com/ericmandel/js9/archive/v{0}.tar.gz" # will be pas
 
 JS9_BRANCH = "master"  # or None to install release instead
 JS9_REPO = "https://github.com/ericmandel/js9.git"
-
-NODEJS_VERSION = None # "16.13.2"  # or None to install latest
 
 WETTY_VERSION = "latest" # "2.0.2"
 PUPPETEER_VERSION = "latest" # "2.1.0"
@@ -269,6 +268,14 @@ with open(PADRE_VENV + "/carta_version", "wt") as ff:
 # install nodeenv and node
 if not os.path.exists(f"{PADRE_VENV}/bin/npm"):
     message(f"Initializing nodeenv")
+    libc_ver = platform.libc_ver()[1]
+    message(f"  libc version is {libc_ver}")
+    if platform.libc_ver()[1] <= '2.25':
+        NODEJS_VERSION = "16.13.2"  
+        message(f"  will use nodejs {NODEJS_VERSION} since we are on an older system")
+    else:
+        NODEJS_VERSION = None
+        message("  will use latest nodejs")
     if NODEJS_VERSION is not None:
         subprocess.check_call(f"nodeenv -n {NODEJS_VERSION} -p", shell=True)
     else:
