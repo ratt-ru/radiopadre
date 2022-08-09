@@ -11,8 +11,8 @@ on:
     tags:
       - v*
     
-#   release:
-#     types: [published]
+  release:
+    types: [published]
 
   # Run tests for any PRs.
   pull_request:
