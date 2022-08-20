@@ -286,16 +286,17 @@ node_version = subprocess.check_output(f"node -v", shell=True).decode()
 message(f"Node version is {node_version}")
 
 # install npm deps
-shell(f"npm install -g utf-8-validate bufferutil puppeteer@{PUPPETEER_VERSION} yarn")
+#shell(f"npm install -g utf-8-validate bufferutil puppeteer@{PUPPETEER_VERSION} yarn")
+shell(f"npm install -g utf-8-validate bufferutil puppeteer@{PUPPETEER_VERSION}")
 
-#sys.exit(0)
-# install wetty
-shell(f"bash -c 'source {PADRE_VENV}/bin/activate "
-       "&& cd {PADRE_VENV}"
-       "&& yarn install"
-       "&& yarn add --cache-folder yarn.cache --modules-folder node_modules wetty@{WETTY_VERSION}"
-       "&& ln -s `yarn bin --cache-folder yarn.cache --modules-folder node_modules wetty` bin/wetty"
-       "'")
+# #sys.exit(0)
+# # install wetty
+# shell(f"bash -c 'source {PADRE_VENV}/bin/activate "
+#        "&& cd {PADRE_VENV}"
+#        "&& yarn install"
+#        "&& yarn add --cache-folder yarn.cache --modules-folder node_modules wetty@{WETTY_VERSION}"
+#        "&& ln -s `yarn bin --cache-folder yarn.cache --modules-folder node_modules wetty` bin/wetty"
+#        "'")
 
 # install JS9
 if not options.no_js9:
