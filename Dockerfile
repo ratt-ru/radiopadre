@@ -59,7 +59,7 @@ ADD . /radiopadre
 ## override due to problems with 1.4 in containers
 #ARG RADIOPADRE_CARTA_VERSION=1.3.1  
 
-ARG CLIENT_BRANCH=b1.2.pre3
+ARG CLIENT_BRANCH=b1.2.pre4
 
 RUN git clone -b $CLIENT_BRANCH https://github.com/ratt-ru/radiopadre-client.git
 RUN pip3 install --no-cache-dir -e /radiopadre-client
