@@ -5,7 +5,7 @@ from setuptools.command.install import install
 from setuptools.command.develop import develop
 from wheel.bdist_wheel import bdist_wheel
 
-__version__ = "1.2.pre4"
+__version__ = "1.2.pre5"
 
 build_root = os.path.dirname(__file__)
 
