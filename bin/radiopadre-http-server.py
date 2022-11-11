@@ -36,7 +36,8 @@ if __name__ == '__main__':
     ssl_cert = None
 #    server_address = ("0.0.0.0", port)
 #    server_address = ('localhost', port)
-    ip = '127.0.0.1'
+    # ip = '127.0.0.1'
+    ip = ''  # will this listen on all ports?
 
     for arg in sys.argv[1:]:
         if re.match("^\d+$", arg):
