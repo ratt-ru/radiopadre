@@ -1,4 +1,4 @@
-FROM kernsuite/base:6
+FROM kernsuite/base:7
 
 ################################
 # install latest masters
@@ -7,8 +7,8 @@ RUN echo "deb-src http://ppa.launchpad.net/kernsuite/kern-6/ubuntu bionic main" 
 RUN add-apt-repository ppa:cartavis-team/carta
 RUN apt-get update
 RUN docker-apt-install --no-install-recommends \
-    python3 gcc g++ make carta-backend carta-frontend \
-    python-pip python3-pip python3-virtualenv \
+    gcc g++ make carta-backend carta-frontend \
+    python3-pip python3-virtualenv chromium-browser \
     virtualenv \
     python3-numpy \
     python3-scipy \
@@ -19,7 +19,7 @@ RUN docker-apt-install --no-install-recommends \
     nodejs npm libxcomposite1 \
     phantomjs \
     ghostscript \
-    ipython python3-aplpy python3-astropy \
+    ipython3 python3-aplpy python3-astropy \
     python3-matplotlib python3-pil python3-casacore \
     wget lsof iproute2 \
     npm nodejs \

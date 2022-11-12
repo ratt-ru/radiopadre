@@ -152,7 +152,15 @@ shutil.copy2(f"{PADRE_PATH}/radiopadre/html/radiopadre-kernel.js", f"{kerneldir}
 shutil.copy2(f"{PADRE_PATH}/icons/radiopadre-logo-32x32.png", f"{kerneldir}/logo-32x32.png")
 shutil.copy2(f"{PADRE_PATH}/icons/radiopadre-logo-64x64.png", f"{kerneldir}/logo-64x64.png")
 
-notebook_static = f"{site_packages_dir}/notebook/static"
+# this directory changed in newer jupyters
+for nb in "notebook", "jupyter_server":
+    notebook_static = f"{site_packages_dir}/{nb}/static"
+    if os.path.exists(notebook_static):
+        message(f"Jupyter notebook static files at {notebook_static}")
+        break
+else:
+    bye("Unable to find jupyter server static directory")
+
 notebook_socket_io = f"{notebook_static}/socket.io.js"
 
 # add link to radiopadre web components in notebook static dir
@@ -168,7 +176,10 @@ else:
 
 # overwrite icons
 shutil.copy2(f"{PADRE_PATH}/icons/radiopadre-logo.ico", f"{notebook_static}/favicon.ico")
-shutil.copy2(f"{PADRE_PATH}/icons/radiopadre-logo.ico", f"{notebook_static}/base/images/favicon-notebook.ico")
+# this path also varies
+for iconpath in f"{notebook_static}/base/images/", "f{notebook_static}/favicons":
+    if os.path.exists(f"{iconpath}/favicon-notebook.ico"):
+        shutil.copy2(f"{PADRE_PATH}/icons/radiopadre-logo.ico", f"{iconpath}/favicon-notebook.ico")
 
 
 # find carta
@@ -375,13 +386,12 @@ if not options.no_js9:
         shutil.copy2(f"{PADRE_PATH}/radiopadre/html/js9colormaps.js", js9_www)
 
         # Make symlink to js9 install dir in notebook dir
-        notebook_js9_www = site_packages_dir + "/notebook/static/js9-www"
+        notebook_js9_www = f"{notebook_static}/js9-www"
 
         remove_installation(notebook_js9_www)
         message("making link from {notebook_js9_www} to {js9_www}")
         os.symlink(js9_www, notebook_js9_www)
 
-        notebook_socket_io = site_packages_dir + "/notebook/static/socket.io.js"
         js9_socket_io = js9_www + "/node_modules/socket.io-client/dist/socket.io.js"
 
         remove_installation(notebook_socket_io)
