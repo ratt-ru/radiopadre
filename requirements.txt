@@ -4,7 +4,7 @@ astropy
 bokeh
 ipython
 jupyter
-notebook<6.5.2  # 6.5.2 causes kak, life is to short to figure out, time to move to Jupyter Lab anyway
+notebook<6.5  # 6.5.2 causes kak, life is to short to figure out, time to move to Jupyter Lab anyway
 
 ## pinning nbconvert at <6, see https://github.com/ipython-contrib/jupyter_contrib_nbextensions/issues/1529
 ## update: seems OK now
