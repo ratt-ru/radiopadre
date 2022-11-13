@@ -5,6 +5,7 @@ FROM kernsuite/base:7
 ################################
 RUN echo "deb-src http://ppa.launchpad.net/kernsuite/kern-6/ubuntu bionic main" > /etc/apt/sources.list.d/kernsuite-ubuntu-kern-6-bionic.list
 RUN add-apt-repository ppa:cartavis-team/carta
+RUN add-apt-repository ppa:saiarcot895/chromium-beta
 RUN apt-get update
 RUN docker-apt-install --no-install-recommends \
     gcc g++ make carta-backend carta-frontend \
