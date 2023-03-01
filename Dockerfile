@@ -3,7 +3,7 @@ FROM kernsuite/base:7
 ################################
 # install latest masters
 ################################
-RUN echo "deb-src http://ppa.launchpad.net/kernsuite/kern-6/ubuntu bionic main" > /etc/apt/sources.list.d/kernsuite-ubuntu-kern-6-bionic.list
+RUN echo "deb-src http://ppa.launchpad.net/kernsuite/kern-7/ubuntu bionic main" > /etc/apt/sources.list.d/kernsuite-ubuntu-kern-7-bionic.list
 RUN add-apt-repository ppa:cartavis-team/carta
 RUN add-apt-repository ppa:saiarcot895/chromium-beta
 RUN apt-get update
@@ -60,7 +60,7 @@ ADD . /radiopadre
 ## override due to problems with 1.4 in containers
 #ARG RADIOPADRE_CARTA_VERSION=1.3.1  
 
-ARG CLIENT_BRANCH=b1.2.pre5
+ARG CLIENT_BRANCH=b1.2.0
 
 RUN git clone -b $CLIENT_BRANCH https://github.com/ratt-ru/radiopadre-client.git
 RUN pip3 install --no-cache-dir -e /radiopadre-client
