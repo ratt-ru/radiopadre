@@ -50,7 +50,7 @@ setup(
     version=__version__,
     install_requires=install_requires,
     extras_require={"casacore" : ["python-casacore"] },
-    python_requires='>=3.6',
+    python_requires='>=3.7',
     author="Oleg Smirnov",
     author_email="osmirnov@gmail.com",
     description=("A data visualization framework for jupyter notebooks"),
@@ -74,7 +74,9 @@ setup(
         "Development Status :: 5 - Production/Stable",
         "Topic :: Utilities",
         "License :: OSI Approved :: MIT License",
-        "Programming Language :: Python :: 3.6",
+        "Programming Language :: Python :: 3",
+        "Programming Language :: Python :: 3.7",
+        "Programming Language :: Python :: 3.8",
     ],
 )
 
