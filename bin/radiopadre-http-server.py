@@ -25,7 +25,7 @@ class CORSRequestHandler (SimpleHTTPRequestHandler):
         for src, dest in path_rewrites:
             if path.startswith(src):
                 newpath = dest + path[len(src):]
-                info("HTTPServer: rewriting {path}->{newpath}")
+                info(f"HTTPServer: rewriting {path}->{newpath}")
                 return newpath
         return path
 
