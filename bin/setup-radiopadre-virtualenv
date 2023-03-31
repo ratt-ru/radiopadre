@@ -4,6 +4,7 @@ import subprocess
 import sys
 import shutil
 import traceback
+import platform
 
 # get radiopadre install source directory
 # This is where we're installing from. If called with --editable, stuff in this
@@ -11,14 +12,25 @@ import traceback
 PADRE_PATH = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 # JS9_VERSION = "3.3.1"  ## disabling for now, helper connection issues, see https://github.com/ratt-ru/radiopadre-client/pull/36#issuecomment-809648445
-JS9_VERSION = "3.2"
-CARTA_VERSION = os.environ.get("RADIOPADRE_CARTA_VERSION", "1.4")
+#JS9_VERSION = os.environ.get("RADIOPADRE_JS9_VERSION", "3.2")
+JS9_VERSION = os.environ.get("RADIOPADRE_JS9_VERSION", "3.6.1")
+JS9_IGNORE_ERRORS = os.environ.get("RADIOPADRE_JS9_IGNORE_ERRORS")
+
+CARTA_VERSION = os.environ.get("RADIOPADRE_CARTA_VERSION", "3.0")
+SYSTEM_CARTA = os.environ.get("RADIOPADRE_SYSTEM_CARTA", "True")
+if SYSTEM_CARTA.upper() in ("0", "FALSE", ""):
+    SYSTEM_CARTA = False
 
 JS9_TGZ  = "js9-{}.tar.gz"   # will be passed to format(JS9_VERSION)
 JS9_LINK = "https://github.com/ericmandel/js9/archive/v{0}.tar.gz" # will be passed to format(JS9_VERSION)
+
+JS9_BRANCH = "master"  # or None to install release instead
 JS9_REPO = "https://github.com/ericmandel/js9.git"
 
-CARTA_URL = "https://github.com/CARTAvis/carta-releases/releases/download/v{0}/CARTA-v{0}-remote.tgz"
+WETTY_VERSION = "latest" # "2.0.2"
+PUPPETEER_VERSION = "latest" # "2.1.0"
+
+CARTA_URL = os.environ.get("RADIOPADRE_CARTA_URL", "https://github.com/CARTAvis/carta-releases/releases/download/v{0}/CARTA-v{0}-ubuntu.tgz")
 SOCKET_IO_LINK = "https://cdnjs.cloudflare.com/ajax/libs/socket.io/2.3.0/socket.io.js"
 
 import argparse
@@ -28,13 +40,19 @@ parser.add_argument("-e", "--editable", action="store_true",
                     help="install in editable mode (use with pip install -e)")
 
 parser.add_argument("--carta-release", metavar="VERSION", type=str, default=CARTA_VERSION,
-                    help=f"Installs specific JS9 release. Default is {CARTA_VERSION}.")
+                    help=f"Installs specific CARTA release. Default is {CARTA_VERSION}.")
+
+parser.add_argument("--system-carta", action="store_true", dest="system_carta", default=SYSTEM_CARTA,
+                    help=f"Use existing install of CARTA if available.")
+
+parser.add_argument("--no-system-carta", action="store_false", dest="system_carta", default=SYSTEM_CARTA,
+                    help=f"Ignore existing install of CARTA and always try to install --carta-release version.")
 
 parser.add_argument("--js9-release", metavar="VERSION", type=str, default=JS9_VERSION,
                     help=f"Installs specific JS9 release. Default is {JS9_VERSION}.")
 
-parser.add_argument("--js9-branch", metavar="BRANCH", type=str,
-                    help=f"If set, installs JS9 from branch of {JS9_REPO}.")
+parser.add_argument("--js9-branch", metavar="BRANCH", type=str, default=JS9_BRANCH,
+                    help=f"If set, installs JS9 from given branch of {JS9_REPO}.")
 
 parser.add_argument("--js9-dir", metavar="DIR", type=str,
                     help=f"If set, installs JS9 from directory. If not absolute, taken relative to radiopadre source.")
@@ -68,11 +86,11 @@ def shell(cmd):
     return subprocess.check_call(cmd.format(**globals()), shell=True)
 
 def which(cmd):
-    return subprocess.check_output("which {}".format(cmd), shell=True).strip()
+    return subprocess.check_output("which {}".format(cmd), shell=True).decode().strip()
 
 def which_opt(cmd):
     try:
-        return subprocess.check_output("which {}".format(cmd), shell=True).strip()
+        return subprocess.check_output("which {}".format(cmd), shell=True).decode().strip()
     except subprocess.CalledProcessError as exc:
         return None
 
@@ -87,22 +105,21 @@ def remove_installation(path):
         else:
             bye(f"{path} is neither a dir nor a symlink nor a file, don't know how to proceed")
 
-
 # See https://stackoverflow.com/questions/1871549/determine-if-python-is-running-inside-virtualenv
 if hasattr(sys, 'real_prefix') or (hasattr(sys, 'base_prefix') and sys.base_prefix != sys.prefix):
-    message("Setting up radiopadre inside virtualenv {sys.prefix}")
+    message(f"Setting up radiopadre inside virtualenv {sys.prefix}")
     PADRE_VENV = sys.prefix
 else:
     bye("Not running in a virtualenv")
 
-# check for JS9 requirements
-if not options.no_js9:
-    try:
-        nodejs = subprocess.check_output("which nodejs || which node", shell=True)
-    except subprocess.CalledProcessError:
-        if os.path.exists(PADRE_VENV):
-            open(PADRE_VENV + "/js9status", "w").write("nodejs missing")
-        bye("Unable to find nodejs or node -- can't install JS9. Try apt-get install nodejs perhaps, or run with --no-js9")
+# # check for JS9 requirements
+# if not options.no_js9:
+#     try:
+#         nodejs = subprocess.check_output("which nodejs || which node", shell=True)
+#     except subprocess.CalledProcessError:
+#         if os.path.exists(PADRE_VENV):
+#             open(PADRE_VENV + "/js9status", "w").write("nodejs missing")
+#         bye("Unable to find nodejs or node -- can't install JS9. Try apt-get install nodejs perhaps, or run with --no-js9")
 
 # Look for virtualenv. Burn it down if it needs a refresh.
 complete_cookie = os.path.join(PADRE_VENV, ".radiopadre.install.complete")
@@ -135,7 +152,15 @@ shutil.copy2(f"{PADRE_PATH}/radiopadre/html/radiopadre-kernel.js", f"{kerneldir}
 shutil.copy2(f"{PADRE_PATH}/icons/radiopadre-logo-32x32.png", f"{kerneldir}/logo-32x32.png")
 shutil.copy2(f"{PADRE_PATH}/icons/radiopadre-logo-64x64.png", f"{kerneldir}/logo-64x64.png")
 
-notebook_static = f"{site_packages_dir}/notebook/static"
+# this directory changed in newer jupyters
+for nb in "notebook", "jupyter_server":
+    notebook_static = f"{site_packages_dir}/{nb}/static"
+    if os.path.exists(notebook_static):
+        message(f"Jupyter notebook static files at {notebook_static}")
+        break
+else:
+    bye("Unable to find jupyter server static directory")
+
 notebook_socket_io = f"{notebook_static}/socket.io.js"
 
 # add link to radiopadre web components in notebook static dir
@@ -151,54 +176,138 @@ else:
 
 # overwrite icons
 shutil.copy2(f"{PADRE_PATH}/icons/radiopadre-logo.ico", f"{notebook_static}/favicon.ico")
-shutil.copy2(f"{PADRE_PATH}/icons/radiopadre-logo.ico", f"{notebook_static}/base/images/favicon-notebook.ico")
+# this path also varies
+for iconpath in f"{notebook_static}/base/images/", "f{notebook_static}/favicons":
+    if os.path.exists(f"{iconpath}/favicon-notebook.ico"):
+        shutil.copy2(f"{PADRE_PATH}/icons/radiopadre-logo.ico", f"{iconpath}/favicon-notebook.ico")
 
-# add link to CARTA
+
+# find carta
+message("CARTA install settings are options.system_carta={options.system_carta}, SYSTEM_CARTA={SYSTEM_CARTA}")
+
+carta_system_version = None
+carta_binary = which_opt("carta_backend")
+if carta_binary:
+    message(f"Found existing CARTA backend ({carta_binary})")
+    try:
+        carta_system_version = subprocess.check_output([carta_binary, "--version"], shell=False).decode().strip()
+        message(f"This is CARTA version {carta_system_version}")
+    except subprocess.SubprocessError as exc:
+        message(f"Error running {carta_binary} --version: {exc}, ignoring this install")
+    CARTA_FRONTEND_PATH = "/usr/share/carta/frontend"
+    if os.path.isdir(CARTA_FRONTEND_PATH):
+        message(f"Using frontend data {CARTA_FRONTEND_PATH}")
+    else:
+        carta_system_version = None
+        message(f"Frontend data {CARTA_FRONTEND_PATH} not found, ignoring this install")
+else:
+    carta_binary = which_opt("carta")
+    if carta_binary:
+        message(f"No CARTA backend, but found {carta_binary}, assuming version 1.x")
+        carta_system_version = "1.x"
+
+if carta_system_version:
+    if SYSTEM_CARTA:
+        CARTA_VERSION = carta_system_version
+    else:
+        carta_system_version = None
+        message(f"RADIOPADRE_SYSTEM_CARTA=0 set, so ignoring this install")
+
+# setup CARTA paths
 carta_url = CARTA_URL.format(options.carta_release)
 carta_tarball = os.path.basename(carta_url)
 carta_base    = os.path.splitext(carta_tarball)[0]
 carta_dir     = os.path.join(PADRE_VENV, carta_base)
 carta_link    = os.path.join(PADRE_VENV, "carta")
+carta_link_appimage = os.path.join(PADRE_VENV, "carta-appimage")
 
+# remove old install
 remove_installation(carta_dir)
 remove_installation(carta_link)
+remove_installation(carta_link_appimage)
 
-# download tarball
-carta_tarball_path = os.path.join(PADRE_WORKDIR, carta_tarball)
-for retry in True, False:
-    # try to download if not present
-    if os.path.exists(carta_tarball_path):
-        message(f"CARTA tarball {carta_tarball_path} is already here")
-    else:
-        message(f"Trying to download CARTA via {carta_url}")
-        subprocess.check_call(f"wget -c {carta_url} -O {carta_tarball_path}", shell=True)
-        if not os.path.exists(carta_tarball_path):
-            bye(f"{carta_tarball} failed to download")
-        # download successfull, will not retry
-        retry = False
-    try:
-        message(f"Unpacking {carta_tarball} in {PADRE_VENV}")
-        subprocess.check_call(f"cd {PADRE_VENV}; tar zxf {carta_tarball_path}", shell=True)
-        break
-    # on error, see if we can retry the download
-    except Exception as exc:
-        if retry and os.path.exists(carta_tarball_path):
-            message("Will retry the download")
-            os.unlink(carta_tarball_path)
+if not carta_system_version: 
+    # download tarball
+    carta_tarball_path = os.path.join(PADRE_WORKDIR, carta_tarball)
+    for retry in True, False:
+        # try to download if not present
+        if os.path.exists(carta_tarball_path):
+            message(f"CARTA tarball {carta_tarball_path} is already here")
         else:
-            raise
-    finally:
-        if sys.prefix == "/.radiopadre/venv":
-            os.unlink(carta_tarball_path)
+            message(f"Trying to download CARTA via {carta_url}")
+            subprocess.check_call(f"wget -c {carta_url} -O {carta_tarball_path}", shell=True)
+            if not os.path.exists(carta_tarball_path):
+                bye(f"{carta_tarball} failed to download")
+            # download successfull, will not retry
+            retry = False
+        try:
+            message(f"Unpacking {carta_tarball} in {PADRE_VENV}")
+            subprocess.check_call(f"cd {PADRE_VENV}; tar zxf {carta_tarball_path}", shell=True)
+            break
+        # on error, see if we can retry the download
+        except Exception as exc:
+            if retry and os.path.exists(carta_tarball_path):
+                message("Will retry the download")
+                os.unlink(carta_tarball_path)
+            else:
+                raise
+        finally:
+            if sys.prefix == "/.radiopadre/venv":
+                os.unlink(carta_tarball_path)
 
-if os.path.exists(carta_dir):
-    message(f"Linking {carta_link} to {carta_dir}")
-    os.symlink(os.path.basename(carta_dir), carta_link)
-    message(f"Adjusting ownership and permissions on {carta_dir}")
-    # subprocess.check_call(f"chown -R 1000.1000 {carta_dir}", shell=True)
-    subprocess.check_call(f"chmod -R a+rX {carta_dir}", shell=True)
+    if CARTA_VERSION >= "2":
+        carta_appimage = os.path.splitext(os.path.basename(carta_tarball_path))[0]
+        carta_appimage = os.path.join(PADRE_VENV, carta_appimage + ".AppImage")
+        if os.path.exists(carta_appimage) and os.access(carta_appimage, os.X_OK):
+            message(f"Linking {carta_link_appimage} to {carta_appimage}")
+            os.symlink(os.path.basename(carta_appimage), carta_link_appimage)
+        else:
+            message(f"CARTA appimage ({carta_appimage}) not found")
+    elif os.path.exists(carta_dir):
+        message(f"Linking {carta_link} to {carta_dir}")
+        os.symlink(os.path.basename(carta_dir), carta_link)
+        message(f"Adjusting ownership and permissions on {carta_dir}")
+        # subprocess.check_call(f"chown -R 1000.1000 {carta_dir}", shell=True)
+        subprocess.check_call(f"chmod -R a+rX {carta_dir}", shell=True)
+    else:
+        message(f"WARNING: No CARTA installation ({carta_dir}) found")
+
+# write status
+with open(PADRE_VENV + "/carta_version", "wt") as ff:
+    ff.write(CARTA_VERSION)
+
+# install nodeenv and node
+if not os.path.exists(f"{PADRE_VENV}/bin/npm"):
+    message(f"Initializing nodeenv")
+    libc_ver = platform.libc_ver()[1]
+    message(f"  libc version is {libc_ver}")
+    if platform.libc_ver()[1] <= '2.25':
+        NODEJS_VERSION = "16.13.2"  
+        message(f"  will use nodejs {NODEJS_VERSION} since we are on an older system")
+    else:
+        NODEJS_VERSION = None
+        message("  will use latest nodejs")
+    if NODEJS_VERSION is not None:
+        subprocess.check_call(f"nodeenv -n {NODEJS_VERSION} -p", shell=True)
+    else:
+        subprocess.check_call(f"nodeenv -p", shell=True)
 else:
-    message(f"WARNING: No CARTA installation ({carta_dir}) found")
+    message(f"Looks like nodeenv is already installed in {PADRE_VENV}")
+node_version = subprocess.check_output(f"node -v", shell=True).decode()
+message(f"Node version is {node_version}")
+
+# install npm deps
+#shell(f"npm install -g utf-8-validate bufferutil puppeteer@{PUPPETEER_VERSION} yarn")
+shell(f"npm install -g utf-8-validate bufferutil puppeteer@{PUPPETEER_VERSION}")
+
+# #sys.exit(0)
+# # install wetty
+# shell(f"bash -c 'source {PADRE_VENV}/bin/activate "
+#        "&& cd {PADRE_VENV}"
+#        "&& yarn install"
+#        "&& yarn add --cache-folder yarn.cache --modules-folder node_modules wetty@{WETTY_VERSION}"
+#        "&& ln -s `yarn bin --cache-folder yarn.cache --modules-folder node_modules wetty` bin/wetty"
+#        "'")
 
 # install JS9
 if not options.no_js9:
@@ -214,7 +323,7 @@ if not options.no_js9:
                 js9_dir = os.path.join(PADRE_PATH, js9_dir)
                 message(f"Will try to install JS9 from existing directory {js9_dir}")
             if not os.path.isdir(js9_dir):
-                bye(f"no such directory: {js9_dir}")
+                raise RuntimeError(f"no such directory: {js9_dir}")
         elif options.js9_branch:
             js9_dir = f"{PADRE_PATH}/js9"
             if os.path.isdir(js9_dir) and os.path.isdir(f"{js9_dir}/.git"):
@@ -251,9 +360,9 @@ if not options.no_js9:
 
             js9_dir = f"{PADRE_PATH}/js9-{options.js9_release}"
             if not os.path.isdir(js9_dir):
-                bye("{js9_dir} does not exist. Did the tarball download and unpack?")
+                raise RuntimeError("{js9_dir} does not exist. Did the tarball download and unpack?")
         else:
-            bye("unknown JS9 install method. Specify one of --js9-release, --js9-branch, --js9-dir")
+            raise RuntimeError("unknown JS9 install method. Specify one of --js9-release, --js9-branch, --js9-dir")
 
         # Configure and install
         js9_www = PADRE_VENV + "/js9-www"
@@ -261,8 +370,7 @@ if not options.no_js9:
         if subprocess.call("""cd {js9_dir} && \
                 ./configure --prefix={PADRE_VENV} --with-webdir={js9_www} --with-helper=nodejs {with_cfitsio} && \
                 make && make install""".format(**globals()), shell=True):
-            js9status.write("build failed")
-            bye("Failed to configure and/or build JS9 in {js9_dir}, see log above. Fix it, or run with --no-js9.")
+            raise RuntimeError("Failed to configure and/or build JS9 in {js9_dir}, see log above. Fix it, or run with --no-js9.")
 
         # check for cfitsio
         try:
@@ -270,8 +378,7 @@ if not options.no_js9:
             if output.strip() != b"FITSLIB='cfitsio'":
                 raise subprocess.CalledProcessError("cfitsio",-1,"no cfitsio")
         except subprocess.CalledProcessError:
-            js9status.write("cfitsio missing")
-            bye("JS9 did not find the cfitsio library. Try installing it (apt install libcfitsio-dev), and/or specifying"
+            raise RuntimeError("JS9 did not find the cfitsio library. Try installing it (apt install libcfitsio-dev), and/or specifying"
                 " the path to it with --cfitsio-path, and/or running with --no-js9 if you're really stuck.")
 
         # add colormap definitions from matplotlib
@@ -279,13 +386,12 @@ if not options.no_js9:
         shutil.copy2(f"{PADRE_PATH}/radiopadre/html/js9colormaps.js", js9_www)
 
         # Make symlink to js9 install dir in notebook dir
-        notebook_js9_www = site_packages_dir + "/notebook/static/js9-www"
+        notebook_js9_www = f"{notebook_static}/js9-www"
 
         remove_installation(notebook_js9_www)
         message("making link from {notebook_js9_www} to {js9_www}")
         os.symlink(js9_www, notebook_js9_www)
 
-        notebook_socket_io = site_packages_dir + "/notebook/static/socket.io.js"
         js9_socket_io = js9_www + "/node_modules/socket.io-client/dist/socket.io.js"
 
         remove_installation(notebook_socket_io)
@@ -305,26 +411,20 @@ if not options.no_js9:
     except Exception as exc:
         traceback.print_exc()
         js9status.write(str(exc))
-        bye(f"Error installing JS9: {exc}")
-
+        if JS9_IGNORE_ERRORS:
+            options.no_js9 = True
+        else:
+            bye(f"Error installing JS9: {exc}")
     finally:
         js9status.write(os.path.abspath(js9_www))
-else:
+
+
+if options.no_js9:
     # no JS9, still need to download socket.io.js
     remove_installation(notebook_socket_io)
     message("Downloading socket.io.js into {notebook_socket_io}")
     shell(f"wget {SOCKET_IO_LINK} -O {notebook_socket_io}")
 
-# install puppeteer
-
-npm = which_opt('npm')
-node = which_opt('node') or which_opt('nodejs')
-if not npm:
-    message("WARNING: npm command not found. Puppeteer HTML rendering will not be available. Will try phantomjs instead.")
-elif not node:
-    message("WARNING: node/nodejs command not found. Puppeteer HTML rendering will not be available. Will try phantomjs instead.")
-else:
-    shell(f"cd {PADRE_VENV}; npm install utf-8-validate bufferutil puppeteer@2.1.0")
 
 open(complete_cookie, "w").write("installed by {__file__}".format(**globals()))
 

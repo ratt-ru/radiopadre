@@ -5,14 +5,14 @@ from setuptools.command.install import install
 from setuptools.command.develop import develop
 from wheel.bdist_wheel import bdist_wheel
 
-__version__ = "1.1.2"
+__version__ = "1.2.0"
 
 build_root = os.path.dirname(__file__)
 
 with open("requirements.txt") as stdr:
     install_requires = stdr.readlines()
 
-scripts = ["bin/" + i for i in os.listdir("bin")]
+scripts = ["bin/radiopadre-http-server.py", "bin/setup-radiopadre-virtualenv"]
 
 
 class WheelSetupVenvCommand(bdist_wheel):
@@ -50,7 +50,7 @@ setup(
     version=__version__,
     install_requires=install_requires,
     extras_require={"casacore" : ["python-casacore"] },
-    python_requires='>=3.6',
+    python_requires='>=3.7',
     author="Oleg Smirnov",
     author_email="osmirnov@gmail.com",
     description=("A data visualization framework for jupyter notebooks"),
@@ -59,8 +59,12 @@ setup(
     keywords="ipython notebook jupyter fits dataset resultset visualisation",
     url="http://github.com/ratt-ru/radiopadre",
     scripts=scripts,
-    packages=['radiopadre', 'radiopadre_kernel', 'radiopadre_kernel/js9', 'radiopadre_utils'],
+    packages=['radiopadre', 'radiopadre_kernel', 'radiopadre_kernel/js9', 'radiopadre_utils', 'radiovangelize'],
     include_package_data=True,
+    entry_points="""
+        [console_scripts]
+        radiovangelize = radiovangelize.cli:cli
+    """,
     cmdclass={
               'install': InstallSetupVenvCommand,
               'develop': DevelopSetupVenvCommand,
@@ -70,7 +74,9 @@ setup(
         "Development Status :: 5 - Production/Stable",
         "Topic :: Utilities",
         "License :: OSI Approved :: MIT License",
-        "Programming Language :: Python :: 3.6",
+        "Programming Language :: Python :: 3",
+        "Programming Language :: Python :: 3.7",
+        "Programming Language :: Python :: 3.8",
     ],
 )
 

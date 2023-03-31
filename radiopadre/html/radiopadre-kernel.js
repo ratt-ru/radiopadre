@@ -206,6 +206,16 @@ if (appname === 'NotebookApp')
         document.radiopadre.controls.update();
     }
 
+    document.radiopadre.open_terminal = function() {
+        window.open(document.radiopadre.terminal_url, '_blank');
+    }
+
+    document.radiopadre.set_terminal_url = function(url) {
+        document.radiopadre.terminal_url = url
+        document.radiopadre.controls.button_terminal.style.display = "block";
+    }
+
+
     document.radiopadre.reset_display_settings = function (user)
     {
         var width = $(".rendered_html")[0].clientWidth;
@@ -241,14 +251,14 @@ if (appname === 'NotebookApp')
             IPython.toolbar.element.append(label);
             IPython.toolbar.add_buttons_group([
                 {   'id'      : 'radiopadre_btn_exec_all',
-                    'label'   : 'Click to rerun all cells in this radiopadre notebook.',
+                    'label'   : 'Run all',
                     'icon'    : 'icon-arrow-up',
                     'callback': function () { Jupyter.notebook.execute_all_cells() }
                 },
                 {   'id'      : 'radiopadre_btn_scrub',
-                    'label'   : 'Scrubs output from all cells in the notebook',
+                    'label'   : 'scrub: on',
                     'icon'    : 'icon-stop',
-                    'callback': function () { document.radiopadre.toggle_scrubbing() }
+                    'callback': document.radiopadre.toggle_scrubbing
                 },
 //                {   'id'      : 'radiopadre_btn_protected',
 //                    'label'   : 'This notebook is protected',
@@ -258,22 +268,30 @@ if (appname === 'NotebookApp')
                 {   'id'      : 'radiopadre_btn_width',
                     'label'   : 'width',
                     'icon'    : 'icon-play-circle',
-                    'callback':  function () { document.radiopadre.toggle_width() }
+                    'callback':  document.radiopadre.toggle_width
                 },
                 {   'id'      : 'radiopadre_btn_code',
                     'label'   : 'hide code',
-                    'icon'    : 'icon-play-circle',
-                    'callback':  function () { document.radiopadre.toggle_show_code() }
+                    'icon'    :  'icon-play-circle',
+                    'callback':  document.radiopadre.toggle_show_code
+                },
+                {   'id'      : 'radiopadre_btn_terminal',
+                    'label'   : 'Terminal',
+                    'icon'    :  'icon-play-circle',
+                    'callback':  document.radiopadre.open_terminal
                 }
                 ],'radiopadre_controls');
             var save = IPython.menubar.element.find("#save_checkpoint");
             save.enable = true;
         }
         document.getElementById("radiopadre_btn_exec_all").innerHTML = "Run all";
-        document.radiopadre.controls.button_scrub = document.getElementById("radiopadre_btn_scrub")
-        document.radiopadre.controls.button_protected = document.getElementById("radiopadre_btn_protected")
-        document.radiopadre.controls.button_width = document.getElementById("radiopadre_btn_width")
-        document.radiopadre.controls.button_code = document.getElementById("radiopadre_btn_code")
+        document.radiopadre.controls.button_scrub = document.getElementById("radiopadre_btn_scrub");
+        document.radiopadre.controls.button_protected = document.getElementById("radiopadre_btn_protected");
+        document.radiopadre.controls.button_width = document.getElementById("radiopadre_btn_width");
+        document.radiopadre.controls.button_code = document.getElementById("radiopadre_btn_code");
+        document.radiopadre.controls.button_terminal = document.getElementById("radiopadre_btn_terminal");
+        document.radiopadre.controls.button_terminal.style.display = "none";
+        console.log("terminal button is", document.radiopadre.controls.button_terminal);
         document.radiopadre.controls.update();
         var nbpath = Jupyter.notebook.notebook_path;
         if( nbpath.search('/') >=0 ) {
@@ -295,46 +313,6 @@ if (appname === 'NotebookApp')
     {
         document.radiopadre.user = user;
         document.radiopadre.controls.update();
-    }
-
-    // adds a section to the list and repopulate all bookmark bars
-    document.radiopadre.add_section = function() {
-        document.radiopadre.section_labels = [];
-        document.radiopadre.section_names = {};
-        var bookmark_bars = document.getElementsByClassName("rp-section-bookmarks");
-        // console.log("bookmarks are ", bookmark_bars)
-        var bar0;
-        for(bar0 of bookmark_bars) {
-            var label = bar0.getAttribute("data-label");
-            if( !document.radiopadre.section_labels.includes(label) ) {
-                document.radiopadre.section_labels.push(label);
-                document.radiopadre.section_names[label] = bar0.getAttribute("data-name");
-            }
-        }
-        // loop over all bookmark bars in document
-        for(bar0 of bookmark_bars) {
-            var label0 = bar0.getAttribute("data-label");
-            // clear content
-            var bar = bar0.cloneNode(false);  /* kills children */
-            bar0.parentNode.replaceChild(bar, bar0);
-            var label;
-            // reinsert content
-            for(label of document.radiopadre.section_labels) {
-                var element;
-                // content is a link or a simple text element
-                if( label == label0 ) {
-                    element = document.createElement('div');
-                    element.className = "rp-active-section";
-                } else {
-                    element = document.createElement('a');
-                    element.className = "rp-section-link";
-                    element.href = "#" + label;
-                }
-                element.innerHTML = document.radiopadre.section_names[label];
-                bar.appendChild(element);
-            }
-        }
-        return document.radiopadre.section_labels;
     }
 
     // init controls for null user

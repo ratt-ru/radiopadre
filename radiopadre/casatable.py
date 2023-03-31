@@ -86,6 +86,10 @@ class CasaTable(radiopadre.file.FileBase):
                                           flagrow=self._flagrow, flag=self._flag)[tuple(posterior_slice)]
 
 
+    @property 
+    def do_mirror(self):
+        return self.was_shown
+
     def __init__(self, name, table=None, title=None, parent=None, **kwargs):
         """
 

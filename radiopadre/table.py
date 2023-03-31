@@ -45,9 +45,9 @@ class Table(RenderableElement):
 
         # work out column widths
         if cw is not None:
-            if cw is "auto":
+            if cw == "auto":
                 cw = {}
-            elif cw is "equal":
+            elif cw == "equal":
                 cw = {i: 1/float(ncol) for i in range(ncol)}
             elif type(cw) in (list, tuple):
                 cw = {i: w for i, w in enumerate(cw)}
@@ -60,7 +60,7 @@ class Table(RenderableElement):
 
         # if any column widths are set, set table width
         if tw is not None:
-            if tw is "auto":
+            if tw == "auto":
                 # set to 100% if any column width is set explicitly to a string
                 if any([type(w) is str for w in cw.values()]):
                     tw = 1

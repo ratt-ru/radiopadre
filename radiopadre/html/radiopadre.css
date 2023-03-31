@@ -208,3 +208,26 @@ td.rp-thumb-content {
   visibility: visible;
 }
 
+.rp-terminal-tablink {
+  background-color: #555;
+  color: white;
+  float: left;
+  border: none;
+  outline: none;
+  cursor: pointer;
+  padding: 2px 16px;
+/*  font-size: 12px; */
+/*  width: 25%; */
+}
+
+.rp-terminal-tablink:hover {
+  background-color: #777;
+}
+
+/* Style the tab content (and add height:100% for full page content) */
+.rp-terminal-tabcontent {
+  color: white;
+  display: none;
+/*  padding: 100px 20px; */
+  height: 100%;
+}

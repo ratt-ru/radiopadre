@@ -1,8 +1,11 @@
 #!/usr/bin/env python3
-import sys
-import os
-
+import sys, os, re, ssl
 from http.server import HTTPServer, SimpleHTTPRequestHandler
+
+def info(msg):
+    print(msg, file=sys.stderr, flush=True)
+
+info(f"HTTPServer: starting")
 
 path_id = "{}/{}".format(os.getcwd(), os.environ['RADIOPADRE_SESSION_ID'])
 # path_rewrites = []
@@ -15,30 +18,49 @@ class CORSRequestHandler (SimpleHTTPRequestHandler):
 
     def translate_path(self, path):
         path = SimpleHTTPRequestHandler.translate_path(self, path)
-        print("HTTPServer: requested {}".format(path))
+        info(f"HTTPServer: requested {path}")
         if not path.startswith(path_id):
-            print("HTTPServer: ignoring request for {}".format(path))
+            info(f"HTTPServer: ignoring request for {path}")
             return "/dev/null"
         for src, dest in path_rewrites:
             if path.startswith(src):
                 newpath = dest + path[len(src):]
-                print("HTTPServer: rewriting {}->{}".format(path, newpath))
+                info(f"HTTPServer: rewriting {path}->{newpath}")
                 return newpath
         return path
 
+
 if __name__ == '__main__':
-    for arg in sys.argv[2:]:
-        if "=" in arg:
+    info(f"HTTPServer: args {sys.argv}")
+    
+    ssl_cert = None
+#    server_address = ("0.0.0.0", port)
+#    server_address = ('localhost', port)
+    # ip = '127.0.0.1'
+    ip = ''  # will this listen on all ports?
+
+    for arg in sys.argv[1:]:
+        if re.match("^\d+$", arg):
+            port = int(arg)
+            info(f"HTTPServer: using port {port}")
+        elif re.match("\d+\.\d+.\d+\.\d+", arg):
+            ip = arg
+            info(f"HTTPServer: using address {ip}")
+        elif arg.endswith(".pem"):
+            ssl_cert = arg
+            info(f"HTTPServer: using SSL certificate {ssl_cert}")
+        elif "=" in arg:
             src, dest = arg.split("=", 1)
             src = path_id + src
             path_rewrites.insert(0, (src, dest))
-            print("HTTPServer: will rewrite {}->{}".format(src, dest))
-    port = int(sys.argv[1])
-    print("HTTPServer: starting on port {}".format(port))
+            info(f"HTTPServer: will rewrite {src}->{dest}")
+    
+    httpd = HTTPServer((ip, port), CORSRequestHandler)
 
-    server_address = ("0.0.0.0", port)
-#    server_address = ('localhost', port)
-    httpd = HTTPServer(server_address, CORSRequestHandler)
+    if ssl_cert:
+        httpd.socket = ssl.wrap_socket(httpd.socket, certfile=ssl_cert, server_side=True)
+
+    info("HTTPServer: serving")
     httpd.serve_forever()
 
 

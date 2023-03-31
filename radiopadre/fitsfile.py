@@ -14,6 +14,7 @@ from radiopadre.render import rich_string, render_title, render_table, render_er
 
 from radiopadre import settings, imagefile
 from radiopadre_kernel import js9
+import radiopadre_kernel
 from .textfile import NumberedLineList
 
 def read_html_template(filename, subs):
@@ -68,6 +69,10 @@ class FITSFile(radiopadre.file.FileBase):
         self._png_dir = self._png_url = None
         radiopadre.file.FileBase.__init__(self, *args, **kw)
 
+    @property 
+    def do_mirror(self):
+        """FITS files are big, so only mirror those that have been shown"""
+        return self.was_shown
 
     @property
     def fitsobj(self):
@@ -238,7 +243,9 @@ class FITSFile(radiopadre.file.FileBase):
 
     def _render_thumb_impl(self, npix=None, width=None, showpath=False, **kw):
         kw['filename_in_title'] = True
-        plots = self._render_plots(index=[0], showpath=showpath, message=False, **kw)
+        if 'index' not in kw:
+            kw['index'] = [0]
+        plots = self._render_plots(showpath=showpath, message=False, **kw)
         # NumberedLineList returned on error, otherwise the normal triplet
         if type(plots) is not NumberedLineList:
             html = ""
@@ -257,8 +264,10 @@ class FITSFile(radiopadre.file.FileBase):
 
 
     def _get_png_file(self, keydict={}, **kw):
-        return self._get_cache_file("fits-render", "png", keydict, **kw)
-
+        filename, url, update = self._get_cache_file("fits-render", "png", keydict, **kw)
+        radiopadre_kernel.add_mirror_file(filename)  # FileItem won't know about the intermediate image, so add its path
+        return filename, url, update
+        
 
     def _render_plots(self,
              index=0,
@@ -589,6 +598,10 @@ class FITSFile(radiopadre.file.FileBase):
     @staticmethod
     def _collective_action_buttons_(fits_files, context, defaults=None):
         """Renders JS9 buttons for a collection of images."""
+        # no buttons when converting
+        if radiopadre.NBCONVERT:
+            return None
+
         subs = globals().copy()
         subs.update(display_id=context.div_id, **locals())
 
@@ -623,7 +636,9 @@ class FITSFile(radiopadre.file.FileBase):
     def _action_buttons_(self, context, defaults=None, **kw):
         """Renders JS9 buttons for image
         """
-        from iglesia import CARTA_PORT, CARTA_WS_PORT
+        # no buttons when converting
+        if radiopadre.NBCONVERT:
+            return None
 
         # ignore less than 2D images
         if len(self.shape) < 2:
@@ -662,11 +677,10 @@ class FITSFile(radiopadre.file.FileBase):
                     onclick="window.open('{newtab_html}', '_blank')">&#8663;JS9</button>
         """.format(**subs)
 
-        if CARTA_PORT and CARTA_WS_PORT:
+        if iglesia.CARTA_VERSION:
             filepath = os.path.relpath(os.path.abspath(self.fullpath), iglesia.SERVER_BASEDIR)
 
-            subs['newtab_carta_html'] =\
-                f"http://localhost:{CARTA_PORT}/?socketUrl=ws://localhost:{CARTA_WS_PORT}&file={filepath}"
+            subs['newtab_carta_html'] = iglesia.get_carta_url(args=[f"file={filepath}"])
 
             code += """
                     <button id="" title="display using CARTA in a new browser tab" style="font-size: 0.9em;"
@@ -676,10 +690,9 @@ class FITSFile(radiopadre.file.FileBase):
 
 def add_general_buttons():
     """Called to add a CARTA button to the output of the first cell"""
-    from iglesia import CARTA_PORT, CARTA_WS_PORT
 
-    if CARTA_PORT and CARTA_WS_PORT:
-        newtab_carta_html = f"http://localhost:{CARTA_PORT}/?socketUrl=ws://localhost:{CARTA_WS_PORT}"
+    if not radiopadre.NBCONVERT and iglesia.CARTA_VERSION:
+        newtab_carta_html = iglesia.get_carta_url()
         return """
                 <button title="open CARTA in a new browser tab" 
                     style="font-size: 0.9em; position: absolute; right: 0; top: 0;"

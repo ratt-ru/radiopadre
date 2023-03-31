@@ -1,15 +1,25 @@
 APLpy
+decorator 
 astropy
 bokeh
 ipython
 jupyter
-notebook
-# pinning nbconvert at <6, see https://github.com/ipython-contrib/jupyter_contrib_nbextensions/issues/1529
-nbconvert<6
-# Avoid 5.5.2, see https://github.com/ipython/ipykernel/issues/621
-ipykernel<5.5.2
+notebook<6.5  # 6.5.2 causes kak, life is to short to figure out, time to move to Jupyter Lab anyway
+
+## pinning nbconvert at <6, see https://github.com/ipython-contrib/jupyter_contrib_nbextensions/issues/1529
+## update: seems OK now
+nbconvert #<6
+
+## Avoid 5.5.2, see https://github.com/ipython/ipykernel/issues/621
+## update: seems fixed
+ipykernel 
 matplotlib
 pillow
+pyparsing ## 10/2022: OK now #<3  # as of 11/2021, 3.0+ gets installed by default and confuses something else
 python-casacore
 radiopadre-client
 jupyter-contrib-nbextensions
+nodeenv
+click
+OmegaConf
+ipynbname

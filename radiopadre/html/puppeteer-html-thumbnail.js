@@ -21,7 +21,7 @@ delay = parseInt(args[4]);
   const page = await browser.newPage();
   page.setViewport({width: width, height:height})
   await page.goto(url);
-  await page.waitFor(delay);
+  await page.waitForTimeout(delay);
   await page.screenshot({path: output});
 
   await browser.close();
