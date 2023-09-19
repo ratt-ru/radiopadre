@@ -41,7 +41,8 @@ RUN docker-apt-install --no-install-recommends \
     libxss1 \
     libxtst6 \
     thunderbird \
-    && rm -rf /var/lib/apt/lists/*
+    && rm -rf /var/lib/apt/lists/* /var/cache/apt/archives 
+
 
 # crazy list starting with npm needed for chromium within puppeteer. Don't ask me why.
 
