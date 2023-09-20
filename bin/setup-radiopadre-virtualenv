@@ -16,7 +16,7 @@ PADRE_PATH = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 JS9_VERSION = os.environ.get("RADIOPADRE_JS9_VERSION", "3.6.1")
 JS9_IGNORE_ERRORS = os.environ.get("RADIOPADRE_JS9_IGNORE_ERRORS")
 
-CARTA_VERSION = os.environ.get("RADIOPADRE_CARTA_VERSION", "3.0")
+CARTA_VERSION = os.environ.get("RADIOPADRE_CARTA_VERSION", "3.0.0")
 SYSTEM_CARTA = os.environ.get("RADIOPADRE_SYSTEM_CARTA", "True")
 if SYSTEM_CARTA.upper() in ("0", "FALSE", ""):
     SYSTEM_CARTA = False
