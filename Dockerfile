@@ -18,7 +18,7 @@ RUN docker-apt-install --no-install-recommends \
     wcslib-dev \
     git \
     nodejs npm libxcomposite1 \
-    phantomjs \
+    phantomjs libqt5core5a \
     ghostscript \
     ipython3 python3-aplpy python3-astropy \
     python3-matplotlib python3-pil python3-casacore \
@@ -53,7 +53,7 @@ ENV VIRTUAL_ENV=/.radiopadre/venv
 RUN virtualenv -p python3 $VIRTUAL_ENV
 ENV PATH="$VIRTUAL_ENV/bin:$PATH"
 
-RUN pip3 install --no-cache-dir -U pip setuptools numpy
+RUN pip3 install --no-cache-dir -U pip setuptools numpy wheel
 
 ADD . /radiopadre
 

@@ -22,6 +22,10 @@ if nodejs:
     try:
         subprocess.check_call("npm list -g puppeteer", shell=True, stdout=subprocess.DEVNULL)
     except subprocess.CalledProcessError as exc:
+        if exc.stdout: 
+            message(exc.stdout)
+        if exc.stderr: 
+            message(exc.stdout)
         message(f"npm list -g puppeteer returns code {exc.returncode}")
         nodejs = None
 
