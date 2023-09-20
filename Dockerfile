@@ -23,7 +23,7 @@ RUN docker-apt-install --no-install-recommends \
     ipython3 python3-aplpy python3-astropy \
     python3-matplotlib python3-pil python3-casacore \
     wget lsof iproute2 \
-    npm nodejs \
+    npm nodejs nodeenv \
     libxcomposite1 \
     firefox \
     libasound2 \
