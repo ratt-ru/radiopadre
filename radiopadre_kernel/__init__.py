@@ -101,11 +101,12 @@ def init():
     if os.environ.get('RADIOPADRE_DISABLE_CASACORE'):
         casacore_tables = None
         warning("RADIOPADRE_DISABLE_CASACORE is set. Table browsing functionality will not be available.")
-    try:
-        import casacore.tables as casacore_tables
-    except Exception as exc:
-        casacore_tables = None
-        warning("casacore.tables failed to import. Table browsing functionality will not be available.")
+    else:
+        try:
+            import casacore.tables as casacore_tables
+        except Exception as exc:
+            casacore_tables = None
+            warning("casacore.tables failed to import. Table browsing functionality will not be available.")
 
     radiopadre_base = os.path.dirname(os.path.dirname(__file__))
 
