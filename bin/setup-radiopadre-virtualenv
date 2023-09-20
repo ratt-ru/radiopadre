@@ -27,8 +27,8 @@ JS9_LINK = "https://github.com/ericmandel/js9/archive/v{0}.tar.gz" # will be pas
 JS9_BRANCH = "master"  # or None to install release instead
 JS9_REPO = "https://github.com/ericmandel/js9.git"
 
-WETTY_VERSION = "latest" # "2.0.2"
-PUPPETEER_VERSION = "latest" # "2.1.0"
+WETTY_VERSION = os.environ.get("RADIOPADRE_WETTY_VERSION", "latest")
+PUPPETEER_VERSION = os.environ.get("RADIOPADRE_PUPPETEER_VERSION", "latest")
 
 CARTA_URL = os.environ.get("RADIOPADRE_CARTA_URL", 
                            "https://github.com/CARTAvis/carta/releases/download/v{0}/carta.AppImage.x86_64.tgz")
@@ -227,7 +227,7 @@ remove_installation(carta_dir)
 remove_installation(carta_link)
 remove_installation(carta_link_appimage)
 
-if not carta_system_version: 
+if not carta_system_version and CARTA_VERSION: 
     # download tarball
     carta_tarball_path = os.path.join(PADRE_WORKDIR, carta_tarball)
     for retry in True, False:
@@ -299,7 +299,8 @@ message(f"Node version is {node_version}")
 
 # install npm deps
 #shell(f"npm install -g utf-8-validate bufferutil puppeteer@{PUPPETEER_VERSION} yarn")
-shell(f"npm install -g utf-8-validate bufferutil puppeteer@{PUPPETEER_VERSION}")
+if PUPPETEER_VERSION:
+    shell(f"npm install -g utf-8-validate bufferutil puppeteer@{PUPPETEER_VERSION}")
 
 # #sys.exit(0)
 # # install wetty
