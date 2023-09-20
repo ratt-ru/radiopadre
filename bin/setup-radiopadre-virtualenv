@@ -312,7 +312,7 @@ if PUPPETEER_VERSION:
 #        "'")
 
 # install JS9
-if not options.no_js9:
+if not options.no_js9 and JS9_VERSION:
     js9status = open(PADRE_VENV + "/js9status", "w")
     js9_www = None
     try:
