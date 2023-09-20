@@ -113,14 +113,14 @@ class CasaTable(radiopadre.file.FileBase):
         if casacore_tables is None:
             raise RuntimeError("no casacore.tables installed")
         # check for writability
-        writable = casacore_tables.tableiswritable(self.fullpath) if self._table is None else self._writeable
+        writable = False # casacore_tables.tableiswritable(self.fullpath) if self._table is None else self._writeable
 
         if write and not writable:
             raise IOError("table is not writable")
 
         # if table object is not open, we won't hold one outside of the context (and auto-locking is good enough)
         if self._table is None:
-            tab = casacore_tables.table(self.fullpath, readonly=not write)
+            tab = casacore_tables.table(self.fullpath, readonly=not write, lockoptions='usernoread')
             yield tab
             tab.close()
         # if table object is open (i.e. we were created with a query or a sub-table), count locks
@@ -159,8 +159,8 @@ class CasaTable(radiopadre.file.FileBase):
             return
 
         if self._table is None:
-            self._writeable = casacore_tables.tableiswritable(self.fullpath)
-            self._table = casacore_tables.table(self.fullpath, ack=False, readonly=not self._writeable, lockoptions='user')
+            self._writeable = False # casacore_tables.tableiswritable(self.fullpath)
+            self._table = casacore_tables.table(self.fullpath, ack=False, readonly=not self._writeable, lockoptions='usernoread')
         else:
             self._table.resync()
 
