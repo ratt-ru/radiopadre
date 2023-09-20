@@ -30,7 +30,8 @@ JS9_REPO = "https://github.com/ericmandel/js9.git"
 WETTY_VERSION = "latest" # "2.0.2"
 PUPPETEER_VERSION = "latest" # "2.1.0"
 
-CARTA_URL = os.environ.get("RADIOPADRE_CARTA_URL", "https://github.com/CARTAvis/carta-releases/releases/download/v{0}/CARTA-v{0}-ubuntu.tgz")
+CARTA_URL = os.environ.get("RADIOPADRE_CARTA_URL", 
+                           "https://github.com/CARTAvis/carta/releases/download/v{0}/carta.AppImage.x86_64.tgz")
 SOCKET_IO_LINK = "https://cdnjs.cloudflare.com/ajax/libs/socket.io/2.3.0/socket.io.js"
 
 import argparse
