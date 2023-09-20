@@ -45,7 +45,7 @@ def _make_thumbnail(image, width):
             return None, None
         try:
             img = PIL.Image.open(image)
-            img.thumbnail((width,int(round(width*(img.height/float(img.width))))), PIL.Image.ANTIALIAS)
+            img.thumbnail((width,int(round(width*(img.height/float(img.width))))), PIL.Image.LANCZOS)
         except Exception as exc:
             print(f"Error generating thumbnail for {image}: {exc}")
             return None, None
