@@ -128,14 +128,14 @@ class CasaTable(radiopadre.file.FileBase):
             # lock first time. If write-lock requested and no write lock set, lock again
             if not self._num_locks or (write and not self._writeable_lock):
                 self._writeable_lock = write
-                self._table.lock(write=write)
+                # self._table.lock(write=write)
             self._num_locks += 1
             yield self._table
             # unlock
             self._num_locks -= 1
             if self._num_locks <= 0:
                 self._num_locks = 0
-                self._table.unlock()
+                # self._table.unlock()
 
     @property
     def wtable(self):
