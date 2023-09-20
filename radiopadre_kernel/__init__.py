@@ -98,6 +98,9 @@ def init():
 
     ## check casacore availability
     global casacore_tables
+    if os.environ.get('RADIOPADRE_DISABLE_CASACORE'):
+        casacore_tables = None
+        warning("RADIOPADRE_DISABLE_CASACORE is set. Table browsing functionality will not be available.")
     try:
         import casacore.tables as casacore_tables
     except Exception as exc:
