@@ -48,6 +48,7 @@ RUN docker-apt-install --no-install-recommends \
 
 RUN ldconfig
 
+
 # Setup a virtual env
 ENV VIRTUAL_ENV=/.radiopadre/venv
 RUN virtualenv -p python3 $VIRTUAL_ENV
@@ -69,6 +70,11 @@ RUN pip3 install --no-cache-dir -e /radiopadre-client
 RUN pip3 install --no-cache-dir -e /radiopadre
 
 RUN echo 'kernel.unprivileged_userns_clone=1' > /etc/sysctl.d/userns.conf
+
+# stupid phantomjs problem, see here:
+# https://stackoverflow.com/questions/63627955/cant-load-shared-library-libqt5core-so-5
+RUN strip --remove-section=.note.ABI-tag /usr/lib/x86_64-linux-gnu/libQt5Core.so.5         
+
 
 ENTRYPOINT ["/.radiopadre/venv/bin/run-radiopadre"]
 
