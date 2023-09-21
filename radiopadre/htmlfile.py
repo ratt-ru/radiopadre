@@ -20,7 +20,7 @@ if not nodejs:
 # check for puppeteer module
 if nodejs:
     try:
-        subprocess.check_call("npm list -g puppeteer", shell=True, stdout=subprocess.DEVNULL)
+        subprocess.check_call("npm list -g puppeteer", shell=True) # , stdout=subprocess.DEVNULL)
     except subprocess.CalledProcessError as exc:
         if exc.stdout: 
             message(exc.stdout)
