@@ -107,7 +107,7 @@ class HTMLFile(FileBase):
         # make fresh image if we don't have a static one, or use_pngs is disabled
         if not os.path.exists(img_representation) or not settings.html.use_pngs:
             if settings.html.method == "icon":
-                return f"<a href='{document_url}' target='_blank'><img src='{_icon_url}' width={width} alt='?'></a>"
+                return f"<a href='{document_url}' target='_blank'><img src='{_icon_url}' width={64} alt='?'></a>"
 
             img_representation, thumbnail_url, update = self._get_cache_file("html-render", "png",
                                                                     keydict=dict(width=width, height=height))
@@ -147,7 +147,7 @@ class URL(ItemBase):
         filename = re.sub(r"[/:;&?#]", "_", self.url) + ".png"
 
         if settings.hmtl.method == "icon":
-            return f"<a href='{self.url}' target='_blank'><img src='{_icon_url}' width={width} alt='?'></a>"
+            return f"<a href='{self.url}' target='_blank'><img src='{_icon_url}' width={64} alt='?'></a>"
 
         basepath, baseurl = radiopadre.get_cache_dir("./.urls", "html-render")  # fake ".urls" name which will be stripped
         thumbnail = f"{basepath}/{filename}"
