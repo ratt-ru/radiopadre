@@ -30,34 +30,37 @@ if nodejs:
         message(f"{os.getcwd()}$ npm list -g puppeteer returns code {exc.returncode}")
         nodejs = None
 
-_methods = (["puppeteer"] if nodejs else []) + (["phantomjs"] if phantomjs else [])
+_methods = (["puppeteer"] if nodejs else []) + (["phantomjs"] if phantomjs else []) + ["icon"]
 
-if _methods:
-    settings.html.method = _methods[0], DocString(f"HTML rendering method (available: {', '.join(_methods)})")
-else:
-    settings.html.method = None, DocString(f"No HTML rendering (phantomjs/nodejs not found)")
-settings.html.debug  =  False, DocString("enables debugging output from phantomjs and/or puppeteer")
+settings.html.method = _methods[0], DocString(f"HTML rendering method (available: {', '.join(_methods)})")
+settings.html.use_pngs = True, DocString(f"use static PNG renderings (*.png for *.html) if provided in directory")
+
+_icon_url = "/static/radiopadre-www/html-icon.png"
+
 
 class RenderError(RuntimeError):
     pass
 
-def _render_html(url, dest, width, height, timeout):
+def _render_html_thumbnail(url_or_path, img_repr_path, width, height, timeout):
+    """Renders an HTML document (url or path) to a PNG image at imag_repr_path.
+    url_link is the URL that the thumbnail will HREF to.
+    The static/icon methods may ignore img_repr_path and use a different image.
+    """
     if settings.html.method == "phantomjs":
         script = os.path.join(os.path.dirname(__file__), "html/phantomjs-html-thumbnail.js")
         cmd = [phantomjs]
         if settings.html.debug:
             cmd.append("--debug=true")
-        cmd += [script, url, dest, width, height, timeout]
+        cmd += [script, url_or_path, img_repr_path, width, height, timeout]
         env = os.environ.copy()
         env['QT_QPA_PLATFORM'] = 'offscreen'
     elif settings.html.method == "puppeteer":
         script = os.path.join(os.path.dirname(__file__), "html/puppeteer-html-thumbnail.js")
-        cmd = [nodejs, script, url, dest, width, height, timeout]
+        cmd = [nodejs, script, url_or_path, img_repr_path, width, height, timeout]
         env = os.environ.copy()
         env['NODE_PATH'] = f"{sys.prefix}/node_modules:{sys.prefix}/lib/node_modules"
-    else:
-        raise RenderError("settings.html.method not set")
-
+    
+    # run a renderer
     error = None
     cmd = list(map(str, cmd))
     # run the command set up
@@ -98,17 +101,25 @@ class HTMLFile(FileBase):
         width  = settings.html.get(width=width)
         height = settings.html.get(height=height)
 
-        thumbnail, thumbnail_url, update = self._get_cache_file("html-render", "png",
-                                                                keydict=dict(width=width, height=height))
+        img_representation = os.path.splitext(self.fullpath)[0] + ".png"
+        document_url = render_url(self.fullpath)
+        
+        # make fresh image if we don't have a static one, or use_pngs is disabled
+        if not os.path.exists(img_representation) or not settings.html.use_pngs:
+            if settings.html.method == "icon":
+                return f"<a href='{document_url}' target='_blank'><img src='{_icon_url}' width={width} alt='?'></a>"
 
-        if update or refresh:
-            url = "file://" + os.path.abspath(self.fullpath)
-            try:
-                _render_html(url, thumbnail, width, height, 200)
-            except Exception as exc:
-                return render_error(str(exc))
+            img_representation, thumbnail_url, update = self._get_cache_file("html-render", "png",
+                                                                    keydict=dict(width=width, height=height))
 
-        return imagefile.ImageFile._render_thumbnail(thumbnail, url=render_url(self.fullpath), npix=width) + "\n"
+            if update or refresh:
+                url = "file://" + os.path.abspath(self.fullpath)
+                try:
+                    _render_html_thumbnail(url, img_representation, width, height, 200)
+                except Exception as exc:
+                    return render_error(str(exc))
+
+        return imagefile.ImageFile._render_thumbnail(img_representation, url=document_url, npix=width) + "\n"
 
 
 class URL(ItemBase):
@@ -135,11 +146,14 @@ class URL(ItemBase):
         delay = kw.get('delay', 200)
         filename = re.sub(r"[/:;&?#]", "_", self.url) + ".png"
 
+        if settings.hmtl.method == "icon":
+            return f"<a href='{self.url}' target='_blank'><img src='{_icon_url}' width={width} alt='?'></a>"
+
         basepath, baseurl = radiopadre.get_cache_dir("./.urls", "html-render")  # fake ".urls" name which will be stripped
         thumbnail = f"{basepath}/{filename}"
 
         try:
-            _render_html(self.url, thumbnail, width, height, delay)
+            _render_html_thumbnail(self.url, thumbnail, width, height, delay)
         except Exception as exc:
             return render_error(str(exc))
 
