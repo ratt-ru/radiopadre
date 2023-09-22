@@ -1,4 +1,5 @@
 import subprocess
+import os
 import os.path
 import sys
 import re
@@ -20,13 +21,13 @@ if not nodejs:
 # check for puppeteer module
 if nodejs:
     try:
-        subprocess.check_call("npm list -g puppeteer", shell=True) # , stdout=subprocess.DEVNULL)
+        subprocess.check_call("npm list -g puppeteer", shell=True, stdout=subprocess.DEVNULL)
     except subprocess.CalledProcessError as exc:
         if exc.stdout: 
             message(exc.stdout)
         if exc.stderr: 
             message(exc.stdout)
-        message(f"npm list -g puppeteer returns code {exc.returncode}")
+        message(f"{os.getcwd()}$ npm list -g puppeteer returns code {exc.returncode}")
         nodejs = None
 
 _methods = (["puppeteer"] if nodejs else []) + (["phantomjs"] if phantomjs else [])
