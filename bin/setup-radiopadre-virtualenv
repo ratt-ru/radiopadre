@@ -172,7 +172,7 @@ if options.editable:
     message("making link from {notebook_padre_www} to {padre_www}")
     os.symlink(padre_www, notebook_padre_www)
 else:
-    message("copying {notebook_padre_www} to {padre_www}")
+    message("copying {padre_www} to {notebook_padre_www}")
     shutil.copytree(padre_www, notebook_padre_www)
 
 # overwrite icons

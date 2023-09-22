@@ -1,5 +1,7 @@
 from collections import OrderedDict
 from contextlib import contextmanager
+from iglesia.utils import message
+import os, re
 
 _BASE = OrderedDict
 
@@ -182,3 +184,19 @@ class RadiopadreSettingsManager(SettingsManager):
 
         html.width  = 1920, D("default width of HTML canvas")
         html.height = 1024, D("default height of HTML canvas")
+
+        # check extra settings
+        env_settings = os.environ.get("RADIOPADRE_SETTINGS")
+        if env_settings:
+            for setting in env_settings.split(","):
+                match = re.fullmatch("(.*)\.(.*)=(.*)", setting)
+                if match:
+                    section, name, value = match.groups()
+                    sec = getattr(self, section, None)
+                    if sec is None or not hasattr(sec, name):
+                        print(f"invalid RADIOPADRE_SETTINGS entry: {setting}")
+                    setattr(sec, name, value)
+                    message(f"set {section}.{name}={value}")
+                else:
+                    message(f"invalid RADIOPADRE_SETTINGS entry: {setting}")
+

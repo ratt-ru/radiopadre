@@ -1,4 +1,4 @@
-import os, traceback, atexit, logging, sys
+import os, traceback, atexit, logging, sys, re
 
 import iglesia
 from iglesia.utils import message, warning, error
@@ -153,7 +153,6 @@ def init():
     else:
         iglesia.CARTA_VERSION = "1.x"
         message(f"Assuming CARTA version {iglesia.CARTA_VERSION}, as none was detected")
-
 
 _mirror_manifest = set()
 
