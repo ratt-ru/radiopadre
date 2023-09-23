@@ -185,6 +185,7 @@ class RadiopadreSettingsManager(SettingsManager):
         html.width  = 1920, D("default width of HTML canvas")
         html.height = 1024, D("default height of HTML canvas")
 
+    def finalize_settings(self):
         # check extra settings
         env_settings = os.environ.get("RADIOPADRE_SETTINGS")
         if env_settings:

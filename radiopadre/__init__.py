@@ -280,3 +280,5 @@ from .htmlfile import HTMLFile, URL
 from .table import tabulate
 from .render import render_table, render_preamble, render_refresh_button, render_status_message, rich_string, render_url, render_title
 
+# update settings
+settings.finalize_settings()
