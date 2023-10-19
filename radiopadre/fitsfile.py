@@ -648,6 +648,7 @@ class FITSFile(radiopadre.file.FileBase):
 
         subs = globals().copy()
         subs.update(display_id=context.div_id, **locals())
+        code = ""
 
         if not js9.JS9_ERROR:
             FITSFile._insert_js9_postscript(context.postscript, subs, defaults=defaults)

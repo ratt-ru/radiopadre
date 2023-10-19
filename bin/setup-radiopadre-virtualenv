@@ -322,7 +322,7 @@ if PUPPETEER_VERSION:
 #        "'")
 
 # install JS9
-js9_status_file = "{PADRE_VENV}/js9status"
+js9_status_file = f"{PADRE_VENV}/js9status"
 
 if options.no_js9:
     if os.path.exists(js9_status_file):

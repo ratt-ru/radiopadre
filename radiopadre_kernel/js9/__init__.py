@@ -24,7 +24,7 @@ def preinit_js9():
     import iglesia
 
 
-    global JS9_HELPER_PORT, JS9_DIR
+    global JS9_ERROR, JS9_HELPER_PORT, JS9_DIR
     JS9_DIR = iglesia.JS9_DIR
     JS9_HELPER_PORT = iglesia.JS9HELPER_PORT
 
@@ -33,9 +33,8 @@ def preinit_js9():
         return
 
     try:
-        global JS9_ERROR
         if not os.path.exists(JS9_DIR):
-            raise JS9Error(f"{JS9_DIR} does not exist")
+            raise JS9Error(f"JS9 directory '{JS9_DIR}' does not exist")
 
         message(f"Using JS9 install in {JS9_DIR}")
 
