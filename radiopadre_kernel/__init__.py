@@ -142,6 +142,7 @@ def init():
         message(f"registered exit handler")
 
     # init JS9 sources
+    
     from . import js9
     js9.preinit_js9()
 

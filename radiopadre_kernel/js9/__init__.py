@@ -1,4 +1,4 @@
-import os, os.path, traceback
+import os, os.path, traceback, sys
 
 from iglesia.utils import message, error
 # init JS9 configuration
@@ -23,9 +23,14 @@ def preinit_js9():
     import radiopadre_kernel
     import iglesia
 
+
     global JS9_HELPER_PORT, JS9_DIR
     JS9_DIR = iglesia.JS9_DIR
     JS9_HELPER_PORT = iglesia.JS9HELPER_PORT
+
+    if not JS9_DIR:
+        JS9_ERROR = "not installed"
+        return
 
     try:
         global JS9_ERROR

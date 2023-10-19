@@ -601,6 +601,8 @@ class FITSFile(radiopadre.file.FileBase):
         # no buttons when converting
         if radiopadre.NBCONVERT:
             return None
+        if js9.JS9_ERROR:
+            return None
 
         subs = globals().copy()
         subs.update(display_id=context.div_id, **locals())
@@ -647,35 +649,36 @@ class FITSFile(radiopadre.file.FileBase):
         subs = globals().copy()
         subs.update(display_id=context.div_id, **locals())
 
-        FITSFile._insert_js9_postscript(context.postscript, subs, defaults=defaults)
+        if not js9.JS9_ERROR:
+            FITSFile._insert_js9_postscript(context.postscript, subs, defaults=defaults)
 
-        # use empty display ID for JS9 scripts launched in a new tab
-        subs1 = subs.copy()
-        subs1['init_style'] = ''
-        subs1['display_id'] = ''
-        subs1['window_title'] = "JS9: {}".format(self.fullpath)
-        # print "making external window script",subs1['defaults']
-        subs['newtab_html'] = FITSFile._make_js9_external_window_script([self], self.basename, subs1,
-                                                                        defaults=defaults or FITSFile.make_js9_defaults(),
-                                                                        single_file=True)
+            # use empty display ID for JS9 scripts launched in a new tab
+            subs1 = subs.copy()
+            subs1['init_style'] = ''
+            subs1['display_id'] = ''
+            subs1['window_title'] = "JS9: {}".format(self.fullpath)
+            # print "making external window script",subs1['defaults']
+            subs['newtab_html'] = FITSFile._make_js9_external_window_script([self], self.basename, subs1,
+                                                                            defaults=defaults or FITSFile.make_js9_defaults(),
+                                                                            single_file=True)
 
-        subs['image_id'] = id(self)
-        subs['element_id'] = element_id = "{}_{}".format(context.div_id, id(self))
-        subs['launch_command'] = self._make_js9_launch_command(context.div_id)
+            subs['image_id'] = id(self)
+            subs['element_id'] = element_id = "{}_{}".format(context.div_id, id(self))
+            subs['launch_command'] = self._make_js9_launch_command(context.div_id)
 
-        context.postscript[element_id] = """<script type='text/javascript'>
-            JS9p._pd_{element_id}_load = function () {{
-                {launch_command}
-                document.getElementById("JS9load-{element_id}").innerHTML = "&#x21A1;JS9"
-            }}
-        </script>""".format(**subs)
+            context.postscript[element_id] = """<script type='text/javascript'>
+                JS9p._pd_{element_id}_load = function () {{
+                    {launch_command}
+                    document.getElementById("JS9load-{element_id}").innerHTML = "&#x21A1;JS9"
+                }}
+            </script>""".format(**subs)
 
-        code = """
-            <button id="JS9load-{element_id}" title="display using an inline JS9 window" style="font-size: 0.9em;"
-                    onclick="JS9p._pd_{element_id}_load()">&#8595;JS9</button>
-            <button id="" title="display using JS9 in a new browser tab" style="font-size: 0.9em;"
-                    onclick="window.open('{newtab_html}', '_blank')">&#8663;JS9</button>
-        """.format(**subs)
+            code = """
+                <button id="JS9load-{element_id}" title="display using an inline JS9 window" style="font-size: 0.9em;"
+                        onclick="JS9p._pd_{element_id}_load()">&#8595;JS9</button>
+                <button id="" title="display using JS9 in a new browser tab" style="font-size: 0.9em;"
+                        onclick="window.open('{newtab_html}', '_blank')">&#8663;JS9</button>
+            """.format(**subs)
 
         if iglesia.CARTA_VERSION:
             filepath = os.path.relpath(os.path.abspath(self.fullpath), iglesia.SERVER_BASEDIR)

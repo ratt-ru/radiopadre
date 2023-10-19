@@ -13,7 +13,10 @@ PADRE_PATH = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 # JS9_VERSION = "3.3.1"  ## disabling for now, helper connection issues, see https://github.com/ratt-ru/radiopadre-client/pull/36#issuecomment-809648445
 #JS9_VERSION = os.environ.get("RADIOPADRE_JS9_VERSION", "3.2")
-JS9_VERSION = os.environ.get("RADIOPADRE_JS9_VERSION", "3.6.1")
+if os.environ.get("RADIOPADRE_INSTALL_JS9"):
+    JS9_VERSION = os.environ.get("RADIOPADRE_JS9_VERSION", "3.6.1")
+else:
+    JS9_VERSION = None
 JS9_IGNORE_ERRORS = os.environ.get("RADIOPADRE_JS9_IGNORE_ERRORS")
 
 CARTA_VERSION = os.environ.get("RADIOPADRE_CARTA_VERSION", "3.0.0")
@@ -76,6 +79,9 @@ if not options.inside_container:
 else:
     PADRE_WORKDIR = "/.radiopadre"
 
+if not JS9_VERSION:
+    options.no_js9 = True
+
 def message(x, prefix='setup-radiopadre-virtualenv: '):
     print(prefix + x.format(**globals()))
 
@@ -112,6 +118,7 @@ if hasattr(sys, 'real_prefix') or (hasattr(sys, 'base_prefix') and sys.base_pref
     PADRE_VENV = sys.prefix
 else:
     bye("Not running in a virtualenv")
+    PADRE_VENV = "."
 
 # # check for JS9 requirements
 # if not options.no_js9:
@@ -149,7 +156,10 @@ if shell(cmd):
 
 kerneldir = f"{PADRE_VENV}/share/jupyter/kernels/radiopadre"
 message("Copying kernel.js and logos to {kerneldir}")
-shutil.copy2(f"{PADRE_PATH}/radiopadre/html/radiopadre-kernel.js", f"{kerneldir}/kernel.js")
+if not options.no_js9:
+    shutil.copy2(f"{PADRE_PATH}/radiopadre/html/radiopadre-kernel.js", f"{kerneldir}/kernel.js")
+else:
+    shutil.copy2(f"{PADRE_PATH}/radiopadre/html/radiopadre-kernel-nojs9.js", f"{kerneldir}/kernel.js")
 shutil.copy2(f"{PADRE_PATH}/icons/radiopadre-logo-32x32.png", f"{kerneldir}/logo-32x32.png")
 shutil.copy2(f"{PADRE_PATH}/icons/radiopadre-logo-64x64.png", f"{kerneldir}/logo-64x64.png")
 
@@ -312,8 +322,14 @@ if PUPPETEER_VERSION:
 #        "'")
 
 # install JS9
-if not options.no_js9 and JS9_VERSION:
-    js9status = open(PADRE_VENV + "/js9status", "w")
+js9_status_file = "{PADRE_VENV}/js9status"
+
+if options.no_js9:
+    if os.path.exists(js9_status_file):
+        os.unlink(js9_status_file)
+    message("disabling JS9 installation")
+else:
+    js9status = open(js9_status_file, "w")
     js9_www = None
     try:
         # install JS9 inside venv
@@ -426,7 +442,6 @@ if options.no_js9:
     remove_installation(notebook_socket_io)
     message("Downloading socket.io.js into {notebook_socket_io}")
     shell(f"wget {SOCKET_IO_LINK} -O {notebook_socket_io}")
-
 
 open(complete_cookie, "w").write("installed by {__file__}".format(**globals()))
 
