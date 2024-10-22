@@ -44,25 +44,27 @@ def get_config(nbdir=None):
         
         def add_config(path, verbose=False):
             if not os.path.exists(path):
-                debug(f"{path} doesn't exist, skipping")
+                message(f"  - {path} doesn't exist, skipping")
                 return
             if os.stat(os.path.dirname(path)).st_uid != os.getuid():
-                debug(f"directory of {path} not owned by us, skipping")
+                message(f"  - directory of {path} not owned by us, skipping")
                 return
             if any(os.path.samefile(x, path) for x in configs):
-                debug(f"{path} is already read, skipping")
+                message(f"  - {path} is already read, skipping")
                 return
             global _config
             try:
                 _config = OmegaConf.merge(_config, OmegaConf.load(path))
             except Exception as exc:
-                warning(f"Error reading f{path}: {traceback.format_exc()}")
+                warning(f"  - error reading f{path}: {traceback.format_exc()}")
                 return
-            (message if verbose else debug)(f"read config from {path}")
+            # (message if verbose else debug)(f"read config from {path}")
+            message(f"  + reading {path}")
             configs.append(path)
 
         # look for some standard config locations
         homedir = os.path.expanduser("~")
+        message("Locating config files:")
         add_config(os.path.join(iglesia.RADIOPADRE_DIR, CONFIG_FILE))
         add_config(os.path.join(f"{homedir}/.config", CONFIG_FILE))
         add_config(os.path.join(f"{homedir}", f".{CONFIG_FILE}"))
