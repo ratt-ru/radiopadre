@@ -41,6 +41,7 @@ RUN docker-apt-install --no-install-recommends \
     libxss1 \
     libxtst6 \
     thunderbird \
+    libmpich-dev libopenmpi-dev \
     && apt-get clean && rm -rf /var/lib/apt/lists/* /var/cache/apt/archives 
 
 
