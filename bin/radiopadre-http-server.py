@@ -32,7 +32,7 @@ class CORSRequestHandler (SimpleHTTPRequestHandler):
 
 if __name__ == '__main__':
     info(f"HTTPServer: args {sys.argv}")
-    
+
     ssl_cert = None
 #    server_address = ("0.0.0.0", port)
 #    server_address = ('localhost', port)
@@ -40,10 +40,10 @@ if __name__ == '__main__':
     ip = ''  # will this listen on all ports?
 
     for arg in sys.argv[1:]:
-        if re.match("^\d+$", arg):
+        if re.match(r"^\d+$", arg):
             port = int(arg)
             info(f"HTTPServer: using port {port}")
-        elif re.match("\d+\.\d+.\d+\.\d+", arg):
+        elif re.match(r"\d+\.\d+.\d+\.\d+", arg):
             ip = arg
             info(f"HTTPServer: using address {ip}")
         elif arg.endswith(".pem"):
@@ -54,7 +54,7 @@ if __name__ == '__main__':
             src = path_id + src
             path_rewrites.insert(0, (src, dest))
             info(f"HTTPServer: will rewrite {src}->{dest}")
-    
+
     httpd = HTTPServer((ip, port), CORSRequestHandler)
 
     if ssl_cert:

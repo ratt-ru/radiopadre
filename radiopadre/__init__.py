@@ -2,7 +2,7 @@ import json
 import nbformat
 import os
 import getpass
-import pkg_resources
+import importlib.metadata as importlib_metadata
 
 import radiopadre_kernel
 
@@ -25,8 +25,8 @@ from radiopadre_kernel import SESSION_ID, VERBOSE, HOSTNAME, \
 settings = settings_manager.RadiopadreSettingsManager()
 
 try:
-    __version__ = pkg_resources.require("radiopadre")[0].version
-except pkg_resources.DistributionNotFound:
+    __version__ = importlib_metadata.version("radiopadre")
+except importlib_metadata.PackageNotFoundError:
     __version__ = "development"
 
 ## various notebook-related init
