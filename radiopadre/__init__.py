@@ -49,9 +49,9 @@ from radiopadre_kernel import _make_symlink
 def display_status():
     # setup status
     data = [ ("cwd", os.getcwd()) ]
-    for varname in """SESSION_ID ROOTDIR ABSROOTDIR DISPLAY_ROOTDIR SHADOW_HOME 
-                      SERVER_BASEDIR SHADOW_BASEDIR SHADOW_ROOTDIR 
-                      SHADOW_URL_PREFIX FILE_URL_ROOT CACHE_URL_BASE CACHE_URL_ROOT 
+    for varname in """SESSION_ID ROOTDIR ABSROOTDIR DISPLAY_ROOTDIR SHADOW_HOME
+                      SERVER_BASEDIR SHADOW_BASEDIR SHADOW_ROOTDIR
+                      SHADOW_URL_PREFIX FILE_URL_ROOT CACHE_URL_BASE CACHE_URL_ROOT
                       SESSION_DIR SESSION_URL""".split():
         data.append((varname, globals()[varname]))
 
@@ -144,7 +144,12 @@ def _init_js_side():
     except:
         print("get_ipython not found")
         return None
-    get_ipython().magic("matplotlib inline")
+
+    ip = get_ipython()
+    try:
+        ip.run_line_magic("matplotlib", "inline")
+    except AttributeError:
+        ip.magic("matplotlib inline")
 
     settings.display.reset = _display_reset, settings_manager.DocString("call this to reset sizes explicitly")
 
@@ -220,7 +225,7 @@ def copy_current_notebook(oldpath, newpath, cell=0, copy_dirs='dirs', copy_root=
     current_version = nbformat.current_nbformat
     nbdata = nbformat.convert(nbdata, current_version)
     current_format = getattr(nbformat, 'v' + str(current_version))
-    # accommodate worksheets, if available 
+    # accommodate worksheets, if available
     if hasattr(nbdata, 'worksheets'):
         raise (RuntimeError, "copy_current_notebook: not compatible with worksheets")
     metadata = nbdata['metadata']
@@ -243,7 +248,7 @@ def copy_current_notebook(oldpath, newpath, cell=0, copy_dirs='dirs', copy_root=
     cells.insert(0, current_format.new_code_cell(code, outputs=[output]))
     # insert markdown
     cells.insert(0, current_format.new_markdown_cell("""# %s\nThis
-                radiopadre notebook was automatically generated from ``%s`` 
+                radiopadre notebook was automatically generated from ``%s``
                 using the 'copy notebook' feature. Please select "Cell|Run all"
                 from the menu to render this notebook.
                 """ % (newpath, oldpath),
