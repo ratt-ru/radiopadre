@@ -20,7 +20,7 @@ nbclient
 nbconvert
 nbformat
 widgetsnbextension
-notebook<7
+notebook<6.5
 jupyterlab<4
 jupyter-server<2
 jupyter

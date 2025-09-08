@@ -1,0 +1,46 @@
+name: Test Python Package
+
+on:
+  release:
+    types: [published]
+  pull_request:
+  push:
+    branches: [ "*" ]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.9", "3.10", "3.11", "3.12", "3.13"]
+
+    steps:
+    - uses: actions/checkout@v2
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v2
+      with:
+        python-version: ${{ matrix.python-version }}
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -e .[dev] ipykernel notebook nbclient
+
+    - name: Register kernel
+      run: |
+        python -m ipykernel install --user --name=radiopadre --display-name "Radiopadre"
+
+    - name: List kernels
+      run: jupyter kernelspec list
+
+    - name: Show executed notebook output
+      run: |
+        run-radiopadre --nbconvert --default-notebook radiopadre-default.ipynb > executed.html
+        head -n 100 executed.html
+
+    - name: Upload executed notebook and HTML
+      uses: actions/upload-artifact@v3
+      with:
+        name: executed-notebooks
+        path: |
+          *.html
