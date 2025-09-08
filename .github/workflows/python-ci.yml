@@ -1,8 +1,6 @@
 name: Test Python Package
 
 on:
-  release:
-    types: [published]
   pull_request:
   push:
     branches: [ "*" ]
@@ -24,6 +22,7 @@ jobs:
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip
+        pip install git+https://github.com/ratt-ru/radiopadre.git@b1.2.3_updates
         pip install -e .[dev] ipykernel notebook nbclient
 
     - name: Register kernel
@@ -38,9 +37,8 @@ jobs:
         run-radiopadre --nbconvert --default-notebook radiopadre-default.ipynb > executed.html
         head -n 100 executed.html
 
-    - name: Upload executed notebook and HTML
-      uses: actions/upload-artifact@v3
+    - name: Upload test results
+      uses: actions/upload-artifact@v4
       with:
-        name: executed-notebooks
-        path: |
-          *.html
+        name: radiopadre-test-results
+        path: executed.html
