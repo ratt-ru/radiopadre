@@ -1,7 +1,7 @@
 APLpy
 decorator
 astropy
-bokeh
+bokeh<3.8
 ipython
 ipykernel
 matplotlib
