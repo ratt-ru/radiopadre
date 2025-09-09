@@ -21,9 +21,9 @@ jobs:
 
     - name: Install dependencies
       run: |
-        python -m pip install --upgrade Cython pip setuptools wheel maturin
+        python -m pip install --upgrade Cython pip setuptools wheel maturin numpy
         pip install git+https://github.com/ratt-ru/radiopadre-client.git@b1.2.3_updates
-        pip install --no-build-isolation .[dev] numpy
+        pip install --no-build-isolation .[dev]
 
     - name: Register kernel
       run: |
