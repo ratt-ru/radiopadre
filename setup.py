@@ -20,7 +20,7 @@ class WheelSetupVenvCommand(bdist_wheel):
 
     def run(self):
         """Run command"""
-        pass
+        super().run()
 
 class InstallSetupVenvCommand(install):
     """A custom install command to setup radiopadre virtual environment"""
