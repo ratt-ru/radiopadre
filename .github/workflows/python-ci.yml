@@ -34,9 +34,9 @@ jobs:
 
     - name: Show executed notebook output
       run: |
-        run-radiopadre ./my_notebooks --no-browser &
+        run-radiopadre . --no-browser &
         RADIOPID=$!
-        sleep 10
+        sleep 5
         kill $RADIOPID
         run-radiopadre --nbconvert radiopadre-default.ipynb > executed.html
         head -n 100 executed.html
