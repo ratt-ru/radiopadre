@@ -21,21 +21,21 @@ jobs:
 
     - name: Install, Run and Show executed notebook output
       run: |
-        python3 -m venv venv #/home/runner/.radiopadre/venv
+        python3 -m venv venv
         source venv/bin/activate
         python -m pip install -U pip
         #python -m pip install --upgrade pip wheel "setuptools<68" maturin Cython numpy pyregion hatchling ipykernel meson-python
         python -m pip install git+https://github.com/ratt-ru/radiopadre-client.git@b1.2.3_updates
         python -m pip install --no-cache -e .
-        python -m ipykernel install --user --name=radiopadre --display-name "Radiopadre"
+        python -m ipykernel install --prefix=$(pwd)/venv --name=radiopadre --display-name "Radiopadre"
         jupyter kernelspec list
         run-radiopadre . --no-browser -V & 
         RADIOPID=$!
         sleep 5
         kill $RADIOPID 2>/dev/null || echo "Radiopadre exited early"
         run-radiopadre -V --nbconvert radiopadre-default.ipynb
-        ls
-        head -n 100 radiopadre-default.html
+        head -n 1000 radiopadre-default.html
+        cat radiopadre-default.html
 
     - name: Upload test results
       uses: actions/upload-artifact@v4
