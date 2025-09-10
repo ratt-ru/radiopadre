@@ -10,7 +10,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        python-version: ["3.12", "3.13"] #["3.9", "3.10", "3.11"] #, "3.12", "3.13"]
+        python-version: ["3.10", "3.12", "3.13"] #["3.9", "3.10", "3.11"] #, "3.12", "3.13"]
 
     steps:
     - uses: actions/checkout@v2
@@ -34,8 +34,7 @@ jobs:
         sleep 5
         kill $RADIOPID 2>/dev/null || echo "Radiopadre exited early"
         run-radiopadre -V --nbconvert radiopadre-default.ipynb
-        head -n 1000 radiopadre-default.html
-        cat radiopadre-default.html
+        cp radiopadre-default.html executed.html
 
     - name: Upload test results
       uses: actions/upload-artifact@v4
