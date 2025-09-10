@@ -33,7 +33,7 @@ jobs:
         RADIOPID=$!
         sleep 5
         kill $RADIOPID 2>/dev/null || echo "Radiopadre exited early"
-        run-radiopadre --nbconvert radiopadre-default.ipynb > executed.html
+        run-radiopadre -V --nbconvert radiopadre-default.ipynb > executed.html
         head -n 100 executed.html
 
     - name: Upload test results
