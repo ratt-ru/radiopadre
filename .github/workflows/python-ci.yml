@@ -34,10 +34,9 @@ jobs:
         sleep 5
         kill $RADIOPID 2>/dev/null || echo "Radiopadre exited early"
         run-radiopadre -V --nbconvert radiopadre-default.ipynb
-        cp radiopadre-default.html executed.html
 
     - name: Upload test results
       uses: actions/upload-artifact@v4
       with:
-        name: radiopadre-test-results
-        path: executed.html
+        name: radiopadre-test-results-py${{ matrix.python-version }}
+        path: radiopadre-default.html
