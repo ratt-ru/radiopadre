@@ -32,9 +32,9 @@ jobs:
     - name: List kernels
       run: jupyter kernelspec list
 
-    - name: Show executed notebook output
+    - name: Run and Show executed notebook output
       run: |
-        run-radiopadre . --no-browser &
+        run-radiopadre . --no-browser --auto-init -V & 
         RADIOPID=$!
         sleep 5
         kill $RADIOPID
