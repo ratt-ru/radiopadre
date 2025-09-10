@@ -34,7 +34,11 @@ jobs:
 
     - name: Show executed notebook output
       run: |
-        run-radiopadre --nbconvert --default-notebook radiopadre-default.ipynb > executed.html
+        run-radiopadre ./my_notebooks --no-browser &
+        RADIOPID=$!
+        sleep 10
+        kill $RADIOPID
+        run-radiopadre --nbconvert radiopadre-default.ipynb > executed.html
         head -n 100 executed.html
 
     - name: Upload test results
