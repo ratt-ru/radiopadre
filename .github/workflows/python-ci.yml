@@ -21,14 +21,14 @@ jobs:
 
     - name: Install, Run and Show executed notebook output
       run: |
+        python3 -m venv venv #/home/runner/.radiopadre/venv
+        . venv/bin/activate
+        python -m pip install -U pip
         #python -m pip install --upgrade pip wheel "setuptools<68" maturin Cython numpy pyregion hatchling ipykernel meson-python
         python -m pip install git+https://github.com/ratt-ru/radiopadre-client.git@b1.2.3_updates
         python -m pip install --no-cache -e .
         python -m ipykernel install --user --name=radiopadre --display-name "Radiopadre"
         jupyter kernelspec list
-        python3 -m venv venv
-        . venv/bin/activate
-        pip install -U pip
         run-radiopadre . --no-browser -V & 
         RADIOPID=$!
         sleep 5
