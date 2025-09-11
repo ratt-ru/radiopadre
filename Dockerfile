@@ -1,9 +1,9 @@
-FROM kernsuite/base:7
+FROM kernsuite/base:9
 
 ################################
 # install latest masters
 ################################
-RUN echo "deb-src http://ppa.launchpad.net/kernsuite/kern-7/ubuntu focal main" > /etc/apt/sources.list.d/kernsuite-ubuntu-kern-7-focal.list
+RUN echo "deb-src http://ppa.launchpad.net/kernsuite/kern-9/ubuntu focal main" > /etc/apt/sources.list.d/kernsuite-ubuntu-kern-9-focal.list
 RUN add-apt-repository ppa:cartavis-team/carta
 RUN add-apt-repository ppa:saiarcot895/chromium-beta
 RUN apt-get update
