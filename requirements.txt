@@ -1,25 +1,48 @@
 APLpy
-decorator 
+decorator
 astropy
-bokeh
+bokeh<3.8
 ipython
-jupyter
-notebook<6.5  # 6.5.2 causes kak, life is to short to figure out, time to move to Jupyter Lab anyway
-
-## pinning nbconvert at <6, see https://github.com/ipython-contrib/jupyter_contrib_nbextensions/issues/1529
-## update: seems OK now
-nbconvert #<6
-
-## Avoid 5.5.2, see https://github.com/ipython/ipykernel/issues/621
-## update: seems fixed
-ipykernel 
+ipykernel
 matplotlib
 pillow
-pyparsing ## 10/2022: OK now #<3  # as of 11/2021, 3.0+ gets installed by default and confuses something else
+pyparsing
 python-casacore
 radiopadre-client
-jupyter-contrib-nbextensions
 nodeenv
 click
 OmegaConf
+
 ipynbname
+jupyter-nbextensions-configurator
+jupyter_contrib_nbextensions
+nbclient
+nbconvert
+nbformat
+widgetsnbextension
+notebook<6.5
+jupyterlab<4
+jupyter-server<2
+jupyter
+jupyter-console
+jupyter-highlight-selected-word
+jupyter_client
+jupyter_contrib_core
+jupyter_core
+jupyterlab_pygments
+jupyterlab_widgets
+
+#casatools==6.5.6.22
+#casatasks==6.5.6.22
+#casaplotms==2.1.2
+#casaviewer==1.8.2
+#casampi==0.5.3
+#casashell==6.5.6.22
+#casadata==2023.6.26
+#casaplotserver==1.6.1
+#almatasks==1.7.1
+#casatestutils==6.5.6.22
+#casatablebrowser==0.0.32
+#casalogger==1.0.16
+#casafeather==0.0.18
+#protobuf<=3.21
