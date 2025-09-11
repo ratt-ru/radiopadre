@@ -63,7 +63,7 @@ ADD . /radiopadre
 ## override due to problems with 1.4 in containers
 #ARG RADIOPADRE_CARTA_VERSION=1.3.1  
 
-ARG CLIENT_BRANCH=b1.2.3
+ARG CLIENT_BRANCH=b1.2.3_updates2
 
 RUN git clone -b $CLIENT_BRANCH https://github.com/ratt-ru/radiopadre-client.git
 RUN pip3 install --no-cache-dir -e /radiopadre-client
@@ -74,7 +74,7 @@ RUN echo 'kernel.unprivileged_userns_clone=1' > /etc/sysctl.d/userns.conf
 
 # stupid phantomjs problem, see here:
 # https://stackoverflow.com/questions/63627955/cant-load-shared-library-libqt5core-so-5
-RUN strip --remove-section=.note.ABI-tag /usr/lib/x86_64-linux-gnu/libQt5Core.so.5         
+#RUN strip --remove-section=.note.ABI-tag /usr/lib/x86_64-linux-gnu/libQt5Core.so.5         
 
 
 ENTRYPOINT ["/.radiopadre/venv/bin/run-radiopadre"]
