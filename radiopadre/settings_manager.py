@@ -190,7 +190,7 @@ class RadiopadreSettingsManager(SettingsManager):
         env_settings = os.environ.get("RADIOPADRE_SETTINGS")
         if env_settings:
             for setting in env_settings.split(","):
-                match = re.fullmatch("(.*)\.(.*)=(.*)", setting)
+                match = re.fullmatch(r"(.*)\.(.*)=(.*)", setting)
                 if match:
                     section, name, value = match.groups()
                     sec = getattr(self, section, None)
