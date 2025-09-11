@@ -42,7 +42,7 @@ jobs:
         sudo apt-get install -y \
           gcc g++ make \
           carta-backend carta-frontend casacore-dev casacore-data \
-          python3-pip python3-virtualenv chromium-browser
+          python3-pip python3-virtualenv chromium-browser firefox
 
     - name: Install, Run and Show executed notebook output
       run: |
@@ -54,7 +54,7 @@ jobs:
         python -m pip install --no-cache -e .
         python -m ipykernel install --prefix=$(pwd)/venv --name=radiopadre --display-name "Radiopadre"
         jupyter kernelspec list
-        run-radiopadre . --no-browser -V & 
+        run-radiopadre . --no-browser --no-carta-browser -V & 
         RADIOPID=$!
         sleep 5
         kill $RADIOPID 2>/dev/null || echo "Radiopadre exited early"
