@@ -18,7 +18,7 @@ RUN docker-apt-install --no-install-recommends \
     wcslib-dev \
     git \
     nodejs npm libxcomposite1 \
-    phantomjs libqt5core5a \
+    libqt5core5a \
     ghostscript \
     ipython3 python3-aplpy python3-astropy \
     python3-matplotlib python3-pil python3-casacore \
