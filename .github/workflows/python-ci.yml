@@ -57,7 +57,7 @@ jobs:
         jupyter kernelspec list
         run-radiopadre . --no-browser --no-carta-browser -V & 
         RADIOPID=$!
-        sleep 5
+        sleep 10
         kill $RADIOPID 2>/dev/null || echo "Radiopadre exited early"
         run-radiopadre -V --nbconvert radiopadre-default.ipynb
 
