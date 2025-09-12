@@ -23,8 +23,6 @@ RUN docker-apt-install --no-install-recommends \
     ipython3 python3-aplpy python3-astropy \
     python3-matplotlib python3-pil python3-casacore \
     wget lsof iproute2 \
-    npm nodejs nodeenv \
-    libxcomposite1 \
     firefox \
     libasound2 \
     libatk-bridge2.0-0 \
@@ -75,7 +73,7 @@ RUN echo 'kernel.unprivileged_userns_clone=1' > /etc/sysctl.d/userns.conf
 
 # stupid phantomjs problem, see here:
 # https://stackoverflow.com/questions/63627955/cant-load-shared-library-libqt5core-so-5
-#RUN strip --remove-section=.note.ABI-tag /usr/lib/x86_64-linux-gnu/libQt5Core.so.5         
+RUN strip --remove-section=.note.ABI-tag /usr/lib/x86_64-linux-gnu/libQt5Core.so.5         
 
 
 ENTRYPOINT ["/.radiopadre/venv/bin/run-radiopadre"]
