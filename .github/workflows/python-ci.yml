@@ -52,7 +52,8 @@ jobs:
         #python -m pip install --upgrade pip wheel "setuptools<68" maturin Cython numpy pyregion hatchling ipykernel meson-python
         python -m pip install git+https://github.com/ratt-ru/radiopadre-client.git@b1.2.3_updates2
         python -m pip install --no-cache -e .
-        python -m ipykernel install --prefix=$(pwd)/venv --name=radiopadre --display-name "Radiopadre"
+        ./bin/setup-radiopadre-virtualenv --editable
+        #python -m ipykernel install --prefix=$(pwd)/venv --name=radiopadre --display-name "Radiopadre"
         jupyter kernelspec list
         run-radiopadre . --no-browser --no-carta-browser -V & 
         RADIOPID=$!
