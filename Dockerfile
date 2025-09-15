@@ -66,8 +66,8 @@ ARG CLIENT_BRANCH=b1.2.3_updates2
 RUN git clone -b $CLIENT_BRANCH https://github.com/ratt-ru/radiopadre-client.git
 RUN pip3 install --no-cache-dir -e /radiopadre-client
 
-RUN pip3 install --no-cache-dir -e /radiopadre
-RUN ./radiopadre/bin/setup-radiopadre-virtualenv --editable
+#RUN pip3 install --no-cache-dir -e /radiopadre
+RUN python /radiopadre/setup.py develop
 
 RUN echo 'kernel.unprivileged_userns_clone=1' > /etc/sysctl.d/userns.conf
 
@@ -77,4 +77,3 @@ RUN strip --remove-section=.note.ABI-tag /usr/lib/x86_64-linux-gnu/libQt5Core.so
 
 
 ENTRYPOINT ["/.radiopadre/venv/bin/run-radiopadre"]
-
