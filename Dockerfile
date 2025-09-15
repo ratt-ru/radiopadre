@@ -66,7 +66,7 @@ ARG CLIENT_BRANCH=b1.2.3_updates2
 RUN git clone -b $CLIENT_BRANCH https://github.com/ratt-ru/radiopadre-client.git
 RUN pip3 install --no-cache-dir -e /radiopadre-client
 
-#RUN pip3 install --no-cache-dir -e /radiopadre
+RUN pip3 install --no-cache-dir -e /radiopadre
 WORKDIR /radiopadre
 RUN python setup.py develop
 
