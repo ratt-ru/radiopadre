@@ -73,6 +73,7 @@ RUN jupyter kernelspec list
 
 RUN echo 'kernel.unprivileged_userns_clone=1' > /etc/sysctl.d/userns.conf
 RUN python3 -c "import radiopadre; print(radiopadre.__file__)"
+RUN python3 -m ipykernel install --sys-prefix
 # stupid phantomjs problem, see here:
 # https://stackoverflow.com/questions/63627955/cant-load-shared-library-libqt5core-so-5
 RUN strip --remove-section=.note.ABI-tag /usr/lib/x86_64-linux-gnu/libQt5Core.so.5
