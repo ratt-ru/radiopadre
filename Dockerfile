@@ -17,7 +17,7 @@ RUN docker-apt-install --no-install-recommends \
     libboost-python-dev \
     wcslib-dev \
     git \
-    nodejs npm libxcomposite1 \
+    nodejs npm nodeenv libxcomposite1 \
     libqt5core5a \
     ghostscript \
     ipython3 python3-aplpy python3-astropy \
@@ -53,7 +53,7 @@ ENV VIRTUAL_ENV=/.radiopadre/venv
 RUN virtualenv -p python3 $VIRTUAL_ENV
 ENV PATH="$VIRTUAL_ENV/bin:$PATH"
 
-RUN pip3 install --no-cache-dir -U pip setuptools numpy wheel
+RUN $VIRTUAL_ENV/bin/pip install --no-cache-dir -U pip setuptools wheel numpy
 
 ADD . /radiopadre
 
@@ -75,7 +75,8 @@ RUN echo 'kernel.unprivileged_userns_clone=1' > /etc/sysctl.d/userns.conf
 
 # stupid phantomjs problem, see here:
 # https://stackoverflow.com/questions/63627955/cant-load-shared-library-libqt5core-so-5
-RUN strip --remove-section=.note.ABI-tag /usr/lib/x86_64-linux-gnu/libQt5Core.so.5         
+RUN strip --remove-section=.note.ABI-tag /usr/lib/x86_64-linux-gnu/libQt5Core.so.5
+RUN ln -s /usr/lib/x86_64-linux-gnu/libQt5Core.so.5 /usr/lib/libQt5Core.so.5
 
 
 ENTRYPOINT ["/.radiopadre/venv/bin/run-radiopadre"]
