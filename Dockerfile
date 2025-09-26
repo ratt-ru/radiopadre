@@ -8,7 +8,7 @@ RUN add-apt-repository ppa:cartavis-team/carta
 RUN add-apt-repository ppa:saiarcot895/chromium-beta
 RUN apt-get update
 RUN docker-apt-install --no-install-recommends \
-    gcc g++ make carta carta-casacore casacore-data \
+    gcc g++ make carta carta-casacore-dev casacore-data \
     python3-pip python3-virtualenv chromium-browser \
     virtualenv \
     python3-numpy \
