@@ -6,10 +6,15 @@ import shutil
 import traceback
 import platform
 
+import importlib.util
+
+spec = importlib.util.find_spec("radiopadre")
+PADRE_PATH = os.path.dirname(os.path.dirname(spec.origin))
+print(f"radiopadre package path is {PADRE_PATH}")
+
 # get radiopadre install source directory
 # This is where we're installing from. If called with --editable, stuff in this
 # directory needs to be symlinked to. Otherwise, assume the directory is temporary, and copy from it
-PADRE_PATH = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 # JS9_VERSION = "3.3.1"  ## disabling for now, helper connection issues, see https://github.com/ratt-ru/radiopadre-client/pull/36#issuecomment-809648445
 #JS9_VERSION = os.environ.get("RADIOPADRE_JS9_VERSION", "3.2")
@@ -160,8 +165,8 @@ if not options.no_js9:
     shutil.copy2(f"{PADRE_PATH}/radiopadre/html/radiopadre-kernel.js", f"{kerneldir}/kernel.js")
 else:
     shutil.copy2(f"{PADRE_PATH}/radiopadre/html/radiopadre-kernel-nojs9.js", f"{kerneldir}/kernel.js")
-shutil.copy2(f"{PADRE_PATH}/icons/radiopadre-logo-32x32.png", f"{kerneldir}/logo-32x32.png")
-shutil.copy2(f"{PADRE_PATH}/icons/radiopadre-logo-64x64.png", f"{kerneldir}/logo-64x64.png")
+shutil.copy2(f"{PADRE_PATH}/radiopadre/icons/radiopadre-logo-32x32.png", f"{kerneldir}/logo-32x32.png")
+shutil.copy2(f"{PADRE_PATH}/radiopadre/icons/radiopadre-logo-64x64.png", f"{kerneldir}/logo-64x64.png")
 
 # this directory changed in newer jupyters
 for nb in "notebook", "jupyter_server":
@@ -186,11 +191,11 @@ else:
     shutil.copytree(padre_www, notebook_padre_www)
 
 # overwrite icons
-shutil.copy2(f"{PADRE_PATH}/icons/radiopadre-logo.ico", f"{notebook_static}/favicon.ico")
+shutil.copy2(f"{PADRE_PATH}/radiopadre/icons/radiopadre-logo.ico", f"{notebook_static}/favicon.ico")
 # this path also varies
 for iconpath in f"{notebook_static}/base/images/", "f{notebook_static}/favicons":
     if os.path.exists(f"{iconpath}/favicon-notebook.ico"):
-        shutil.copy2(f"{PADRE_PATH}/icons/radiopadre-logo.ico", f"{iconpath}/favicon-notebook.ico")
+        shutil.copy2(f"{PADRE_PATH}/radiopadre/icons/radiopadre-logo.ico", f"{iconpath}/favicon-notebook.ico")
 
 
 # find carta
