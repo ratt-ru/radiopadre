@@ -165,8 +165,8 @@ if not options.no_js9:
     shutil.copy2(f"{PADRE_PATH}/radiopadre/html/radiopadre-kernel.js", f"{kerneldir}/kernel.js")
 else:
     shutil.copy2(f"{PADRE_PATH}/radiopadre/html/radiopadre-kernel-nojs9.js", f"{kerneldir}/kernel.js")
-shutil.copy2(f"{PADRE_PATH}/icons/radiopadre-logo-32x32.png", f"{kerneldir}/logo-32x32.png")
-shutil.copy2(f"{PADRE_PATH}/icons/radiopadre-logo-64x64.png", f"{kerneldir}/logo-64x64.png")
+shutil.copy2(f"{PADRE_PATH}/radiopadre/icons/radiopadre-logo-32x32.png", f"{kerneldir}/logo-32x32.png")
+shutil.copy2(f"{PADRE_PATH}/radiopadre/icons/radiopadre-logo-64x64.png", f"{kerneldir}/logo-64x64.png")
 
 # this directory changed in newer jupyters
 for nb in "notebook", "jupyter_server":
@@ -191,11 +191,11 @@ else:
     shutil.copytree(padre_www, notebook_padre_www)
 
 # overwrite icons
-shutil.copy2(f"{PADRE_PATH}/icons/radiopadre-logo.ico", f"{notebook_static}/favicon.ico")
+shutil.copy2(f"{PADRE_PATH}/radiopadre/icons/radiopadre-logo.ico", f"{notebook_static}/favicon.ico")
 # this path also varies
 for iconpath in f"{notebook_static}/base/images/", "f{notebook_static}/favicons":
     if os.path.exists(f"{iconpath}/favicon-notebook.ico"):
-        shutil.copy2(f"{PADRE_PATH}/icons/radiopadre-logo.ico", f"{iconpath}/favicon-notebook.ico")
+        shutil.copy2(f"{PADRE_PATH}/radiopadre/icons/radiopadre-logo.ico", f"{iconpath}/favicon-notebook.ico")
 
 
 # find carta
