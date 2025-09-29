@@ -6,10 +6,15 @@ import shutil
 import traceback
 import platform
 
+import importlib.util
+
+spec = importlib.util.find_spec("radiopadre")
+PADRE_PATH = os.path.dirname(os.path.dirname(spec.origin))
+print(f"radiopadre package path is {PADRE_PATH}")
+
 # get radiopadre install source directory
 # This is where we're installing from. If called with --editable, stuff in this
 # directory needs to be symlinked to. Otherwise, assume the directory is temporary, and copy from it
-PADRE_PATH = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 # JS9_VERSION = "3.3.1"  ## disabling for now, helper connection issues, see https://github.com/ratt-ru/radiopadre-client/pull/36#issuecomment-809648445
 #JS9_VERSION = os.environ.get("RADIOPADRE_JS9_VERSION", "3.2")

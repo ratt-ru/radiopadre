@@ -28,8 +28,8 @@ class InstallSetupVenvCommand(install):
     def run(self):
         """Run command"""
         install.run(self)
-        command = ['./bin/setup-radiopadre-virtualenv']
-        subprocess.check_call(command)
+        # command = ['./bin/setup-radiopadre-virtualenv']
+        # subprocess.check_call(command)
 
 class DevelopSetupVenvCommand(develop):
     """A custom develop command to setup radiopadre virtual environment"""
