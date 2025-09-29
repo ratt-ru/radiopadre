@@ -4,6 +4,7 @@ include Dockerfile
 include requirements.txt
 
 # needs to be installed in site-packages
+recursive-include radiopadre *.js
 recursive-include radiopadre/notebooks *.ipynb
 recursive-include radiopadre/html *.js *.css *.ico *.png
 recursive-include radiopadre_kernel/js9 *.html
