@@ -1,4 +1,4 @@
-FROM kernsuite/base:7
+FROM kernsuite/base:9
 
 ################################
 # install latest masters
@@ -18,7 +18,7 @@ RUN docker-apt-install --no-install-recommends \
     wcslib-dev \
     git \
     nodejs npm libxcomposite1 \
-    phantomjs libqt5core5a \
+    libqt5core5a \
     ghostscript \
     ipython3 python3-aplpy python3-astropy \
     python3-matplotlib python3-pil python3-casacore \
@@ -44,18 +44,18 @@ RUN docker-apt-install --no-install-recommends \
     libmpich-dev libopenmpi-dev \
     && apt-get clean && rm -rf /var/lib/apt/lists/* /var/cache/apt/archives 
 
+    # phantomjs
 
 # crazy list starting with npm needed for chromium within puppeteer. Don't ask me why.
 
 RUN ldconfig
-
 
 # Setup a virtual env
 ENV VIRTUAL_ENV=/.radiopadre/venv
 RUN virtualenv -p python3 $VIRTUAL_ENV
 ENV PATH="$VIRTUAL_ENV/bin:$PATH"
 
-RUN pip3 install --no-cache-dir -U pip setuptools numpy wheel
+RUN pip3 install --no-cache-dir -U pip setuptools numpy wheel uv
 
 ADD . /radiopadre
 
@@ -66,16 +66,15 @@ ADD . /radiopadre
 ARG CLIENT_BRANCH=b1.2.3
 
 RUN git clone -b $CLIENT_BRANCH https://github.com/ratt-ru/radiopadre-client.git
-RUN pip3 install --no-cache-dir -e /radiopadre-client
+RUN uv pip install --no-cache-dir -e /radiopadre-client
 
-RUN pip3 install --no-cache-dir -e /radiopadre
+RUN uv pip install --no-cache-dir -e /radiopadre
 
 RUN echo 'kernel.unprivileged_userns_clone=1' > /etc/sysctl.d/userns.conf
 
 # stupid phantomjs problem, see here:
 # https://stackoverflow.com/questions/63627955/cant-load-shared-library-libqt5core-so-5
 RUN strip --remove-section=.note.ABI-tag /usr/lib/x86_64-linux-gnu/libQt5Core.so.5         
-
 
 ENTRYPOINT ["/.radiopadre/venv/bin/run-radiopadre"]
 
