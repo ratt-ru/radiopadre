@@ -12,10 +12,9 @@ from radiopadre import imagefile
 from radiopadre.settings_manager import DocString
 from iglesia import message, debug, find_which
 
-
 chromium = find_which("chromium")
 if not chromium:
-    message("phantomjs not found")
+    message("chromium not found")
 phantomjs = find_which("phantomjs")
 if not phantomjs:
     message("phantomjs not found")
