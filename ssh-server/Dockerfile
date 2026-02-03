@@ -1,6 +1,6 @@
 # Largely borrowed from https://github.com/corbinu/ssh-server
 
-FROM quay.io/osmirnov/radiopadre:1.2.2
+FROM quay.io/osmirnov/radiopadre:1.2.4
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
     openssh-server \

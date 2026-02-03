@@ -12,6 +12,9 @@ from radiopadre import imagefile
 from radiopadre.settings_manager import DocString
 from iglesia import message, debug, find_which
 
+chromium = find_which("chromium")
+if not chromium:
+    message("phantomjs not found")
 phantomjs = find_which("phantomjs")
 if not phantomjs:
     message("phantomjs not found")
@@ -30,7 +33,10 @@ if nodejs:
         message(f"{os.getcwd()}$ npm list -g puppeteer returns code {exc.returncode}")
         nodejs = None
 
-_methods = (["puppeteer"] if nodejs else []) + (["phantomjs"] if phantomjs else []) + ["icon"]
+_methods = (["chromium"] if chromium else []) + \
+            (["puppeteer"] if nodejs else []) + \
+            (["phantomjs"] if phantomjs else []) + \
+            ["icon"]
 
 settings.html.method = _methods[0], DocString(f"HTML rendering method (available: {', '.join(_methods)})")
 settings.html.use_pngs = True, DocString(f"use static PNG renderings (*.png for *.html) if provided in directory")
@@ -59,6 +65,10 @@ def _render_html_thumbnail(url_or_path, img_repr_path, width, height, timeout):
         cmd = [nodejs, script, url_or_path, img_repr_path, width, height, timeout]
         env = os.environ.copy()
         env['NODE_PATH'] = f"{sys.prefix}/node_modules:{sys.prefix}/lib/node_modules"
+    elif settings.html.method == "chromium":
+        cmd = [chromium, "--headless", "--disable-gpu", f"--screenshot={img_repr_path}", 
+               f"--window-size={width},{height}", url_or_path]
+        env = os.environ
     
     # run a renderer
     error = None
