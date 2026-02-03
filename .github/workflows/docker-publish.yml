@@ -7,7 +7,7 @@ on:
       - master
       - b*
 
-    # # Publish `v1.2.3` tags as releases.
+    # # Publish `v1.2.x` tags as releases.
     tags:
       - v*
     

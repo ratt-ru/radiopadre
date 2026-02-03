@@ -1,4 +1,4 @@
-import os, traceback, atexit, logging, sys
+import os, traceback, atexit, logging, sys, re
 
 import iglesia
 from iglesia.utils import message, warning, error
@@ -98,11 +98,14 @@ def init():
 
     ## check casacore availability
     global casacore_tables
-    try:
-        import casacore.tables as casacore_tables
-    except Exception as exc:
+    if os.environ.get('RADIOPADRE_DISABLE_CASACORE'):
         casacore_tables = None
-        warning("casacore.tables failed to import. Table browsing functionality will not be available.")
+    else:
+        try:
+            import casacore.tables as casacore_tables
+        except Exception as exc:
+            casacore_tables = None
+            warning("casacore.tables failed to import. Table browsing functionality will not be available.")
 
     radiopadre_base = os.path.dirname(os.path.dirname(__file__))
 
@@ -139,6 +142,7 @@ def init():
         message(f"registered exit handler")
 
     # init JS9 sources
+    
     from . import js9
     js9.preinit_js9()
 
@@ -150,7 +154,6 @@ def init():
     else:
         iglesia.CARTA_VERSION = "1.x"
         message(f"Assuming CARTA version {iglesia.CARTA_VERSION}, as none was detected")
-
 
 _mirror_manifest = set()
 

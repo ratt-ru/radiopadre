@@ -1,0 +1,61 @@
+name: Test Python Package
+
+on:
+  pull_request:
+  push:
+    branches: [ "*" ]
+
+jobs:
+  test:
+    runs-on: ubuntu-22.04
+    strategy:
+      matrix:
+        python-version: ["3.9", "3.10", "3.11", "3.12", "3.13"]
+
+    steps:
+    - uses: actions/checkout@v2
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v2
+      with:
+        python-version: ${{ matrix.python-version }}
+
+    - name: Install system dependencies (KERN-9 + CARTA)
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y software-properties-common gnupg
+        # Add KERN-9 repo
+        echo "deb-src http://ppa.launchpad.net/kernsuite/kern-9/ubuntu jammy main" | sudo tee /etc/apt/sources.list.d/kernsuite-ubuntu-kern-9-jammy.list
+        sudo add-apt-repository -y ppa:kernsuite/kern-9
+        # Add CARTA repo
+        sudo add-apt-repository -y ppa:cartavis-team/carta
+    
+    - name: Install dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y \
+          gcc g++ make \
+          carta-backend carta-frontend casacore-dev casacore-data \
+          python3-pip python3-venv chromium-browser firefox
+
+    - name: Install, Run and Show executed notebook output
+      run: |
+        python3 -mvenv venv
+        source venv/bin/activate
+        python -m pip install -U pip wheel setuptools
+        pip install .
+        git clone --branch b1.2.4 https://github.com/ratt-ru/radiopadre-client.git
+        cd radiopadre-client
+        pip install . -U
+        setup-radiopadre-virtualenv
+        jupyter kernelspec list
+        run-radiopadre . --no-browser --no-carta-browser -V & 
+        RADIOPID=$!
+        sleep 10
+        kill $RADIOPID 2>/dev/null || echo "Radiopadre exited early"
+        run-radiopadre -V --nbconvert radiopadre-default.ipynb
+
+    - name: Upload test results
+      uses: actions/upload-artifact@v4
+      with:
+        name: radiopadre-test-results-py${{ matrix.python-version }}
+        path: radiopadre-default.html

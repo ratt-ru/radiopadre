@@ -5,7 +5,7 @@ from setuptools.command.install import install
 from setuptools.command.develop import develop
 from wheel.bdist_wheel import bdist_wheel
 
-__version__ = "1.2.0"
+__version__ = "1.2.4"
 
 build_root = os.path.dirname(__file__)
 
@@ -20,7 +20,7 @@ class WheelSetupVenvCommand(bdist_wheel):
 
     def run(self):
         """Run command"""
-        pass
+        super().run()
 
 class InstallSetupVenvCommand(install):
     """A custom install command to setup radiopadre virtual environment"""
@@ -28,8 +28,8 @@ class InstallSetupVenvCommand(install):
     def run(self):
         """Run command"""
         install.run(self)
-        command = ['./bin/setup-radiopadre-virtualenv']
-        subprocess.check_call(command)
+        # command = ['./bin/setup-radiopadre-virtualenv']
+        # subprocess.check_call(command)
 
 class DevelopSetupVenvCommand(develop):
     """A custom develop command to setup radiopadre virtual environment"""
@@ -50,7 +50,7 @@ setup(
     version=__version__,
     install_requires=install_requires,
     extras_require={"casacore" : ["python-casacore"] },
-    python_requires='>=3.7',
+    python_requires='>=3.9',
     author="Oleg Smirnov",
     author_email="osmirnov@gmail.com",
     description=("A data visualization framework for jupyter notebooks"),
@@ -75,8 +75,11 @@ setup(
         "Topic :: Utilities",
         "License :: OSI Approved :: MIT License",
         "Programming Language :: Python :: 3",
-        "Programming Language :: Python :: 3.7",
-        "Programming Language :: Python :: 3.8",
+        "Programming Language :: Python :: 3.9",
+        "Programming Language :: Python :: 3.10",
+        "Programming Language :: Python :: 3.11",
+        "Programming Language :: Python :: 3.12",
+        "Programming Language :: Python :: 3.13"
     ],
 )
 

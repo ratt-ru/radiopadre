@@ -1,4 +1,5 @@
 import subprocess
+import shlex
 
 from radiopadre.file import FileBase
 from radiopadre.render import render_url, render_error
@@ -11,17 +12,18 @@ class PDFFile(FileBase):
     def render_html(self,**kw):
         return self.render_thumb(**kw)
 
-    def _render_thumb_impl(self, npix=None, **kw):
+    def _render_thumb_impl(self, npix=None, refresh=False, **kw):
         thumbnail, thumbnail_url, update = self._get_cache_file("pdf-render", "png")
         npix = npix or 800
 
-        if update:
-            cmd = "gs -sDEVICE=png16m -sOutputFile={thumbnail} -dLastPage=1 -r300 -dDownScaleFactor=4 -dBATCH " \
-                  "-dNOPAUSE {self.fullpath}".format(**locals())
+        if update or refresh:
+            cmd = f"gs -sDEVICE=png16m -sOutputFile={shlex.quote(thumbnail)} -dLastPage=1 -r300 -dDownScaleFactor=4 -dBATCH " + \
+                  f"-dNOPAUSE {shlex.quote(self.fullpath)}"
             try:
-                output = subprocess.check_output(cmd, shell=True)
+                cmd = subprocess.run(cmd, check=True, shell=True, capture_output=True)
             except subprocess.CalledProcessError as exc:
-                print(f"{cmd}: {exc.output}")
-                return render_error(f"phantomjs error (code {exc.returncode})")
+                print(f"{cmd} stdout: {exc.stdout.decode()}")
+                print(f"{cmd} stderr: {exc.stderr.decode()}")
+                return render_error(f"gs error (code {exc.returncode})")
 
         return imagefile.ImageFile._render_thumbnail(thumbnail, url=render_url(self.fullpath), npix=npix) + "\n"
